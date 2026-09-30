@@ -5,7 +5,18 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 #[derive(Serialize, Clone, Copy)]
+pub struct Game {
+    pub id: &'static str,
+    pub name: &'static str,
+}
+
+/// Games Mida knows. A profile for any other game is "custom": it gets no recommendations.
+pub const GAMES: &[Game] = &[Game { id: "destiny2", name: "Destiny 2" }];
+pub const CUSTOM_GAME: &str = "custom";
+
+#[derive(Serialize, Clone, Copy)]
 pub struct CatalogueEntry {
+    pub game: &'static str,
     pub id: &'static str,
     pub name: &'static str,
     pub url: &'static str,
@@ -13,10 +24,11 @@ pub struct CatalogueEntry {
     pub starter: bool,
 }
 
-/// Sites offered in the first-run picker and in "Add a module". `starter` ones are ticked by
-/// default. Addresses are the sites' own home pages.
+/// Recommended sites per game, offered in the first-run picker and in "Add a module". `starter`
+/// ones are ticked by default. Addresses are the sites' own home pages.
 pub const CATALOGUE: &[CatalogueEntry] = &[
     CatalogueEntry {
+        game: "destiny2",
         id: "seals-report",
         name: "seals.report",
         url: "https://d2-seals-report.vercel.app/",
@@ -24,6 +36,7 @@ pub const CATALOGUE: &[CatalogueEntry] = &[
         starter: true,
     },
     CatalogueEntry {
+        game: "destiny2",
         id: "light-gg",
         name: "light.gg",
         url: "https://www.light.gg/",
@@ -31,6 +44,7 @@ pub const CATALOGUE: &[CatalogueEntry] = &[
         starter: true,
     },
     CatalogueEntry {
+        game: "destiny2",
         id: "dim",
         name: "DIM",
         url: "https://app.destinyitemmanager.com/",
@@ -38,6 +52,7 @@ pub const CATALOGUE: &[CatalogueEntry] = &[
         starter: true,
     },
     CatalogueEntry {
+        game: "destiny2",
         id: "raid-report",
         name: "raid.report",
         url: "https://raid.report/",
@@ -45,6 +60,7 @@ pub const CATALOGUE: &[CatalogueEntry] = &[
         starter: false,
     },
     CatalogueEntry {
+        game: "destiny2",
         id: "dungeon-report",
         name: "dungeon.report",
         url: "https://dungeon.report/",
@@ -52,6 +68,7 @@ pub const CATALOGUE: &[CatalogueEntry] = &[
         starter: false,
     },
     CatalogueEntry {
+        game: "destiny2",
         id: "d2-foundry",
         name: "D2 Foundry",
         url: "https://d2foundry.gg/",
@@ -59,6 +76,7 @@ pub const CATALOGUE: &[CatalogueEntry] = &[
         starter: false,
     },
     CatalogueEntry {
+        game: "destiny2",
         id: "braytech",
         name: "Braytech",
         url: "https://bray.tech/",
@@ -66,6 +84,7 @@ pub const CATALOGUE: &[CatalogueEntry] = &[
         starter: false,
     },
     CatalogueEntry {
+        game: "destiny2",
         id: "today-in-destiny",
         name: "Today in Destiny",
         url: "https://www.todayindestiny.com/",
@@ -83,7 +102,7 @@ pub struct Module {
     pub id: String,
     pub name: String,
     pub url: String,
-    /// Kept for the shell's sidebar; this version never fills it (letters stand in).
+    /// The site's own icon, saved as a small image the first time the site loads.
     #[serde(default)]
     pub icon: Option<String>,
 }
@@ -131,6 +150,30 @@ pub fn clean_name(value: &str, url: &str) -> String {
         .unwrap_or_else(|| "Module".into())
 }
 
+/// Plain one-line text (names), trimmed and cut to `max` characters.
+pub fn clean_text(value: &str, max: usize) -> String {
+    let text: String = value.chars().filter(|c| !c.is_control()).collect();
+    text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(max).collect()
+}
+
+/// A small picture kept as a data URL. Pictures are shown with <img> only (never as a page), so
+/// even SVG can't run anything; size and type are still limited.
+pub fn clean_image(value: Option<&str>, svg_ok: bool, max_len: usize) -> Option<String> {
+    let value = value?;
+    if value.len() > max_len {
+        return None;
+    }
+    let (head, data) = value.split_once(";base64,")?;
+    let kind = head.strip_prefix("data:image/")?;
+    let allowed = matches!(kind, "png" | "jpeg" | "webp" | "gif" | "x-icon" | "vnd.microsoft.icon")
+        || (svg_ok && kind == "svg+xml");
+    let valid = !data.is_empty() && data.bytes().all(|b| b.is_ascii_alphanumeric() || b"+/=".contains(&b));
+    (allowed && valid).then(|| value.to_string())
+}
+
+pub const MAX_ICON: usize = 150_000;
+pub const MAX_PICTURE: usize = 150_000;
+
 fn clean_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 48
@@ -142,7 +185,8 @@ pub fn clean_module(value: &Module) -> Option<Module> {
     if !clean_id(&value.id) {
         return None;
     }
-    Some(Module { id: value.id.clone(), name: clean_name(&value.name, &url), url, icon: None })
+    let icon = clean_image(value.icon.as_deref(), true, MAX_ICON);
+    Some(Module { id: value.id.clone(), name: clean_name(&value.name, &url), url, icon })
 }
 
 pub fn clean_modules(list: &[Module]) -> Vec<Module> {
@@ -160,8 +204,8 @@ pub fn clean_modules(list: &[Module]) -> Vec<Module> {
     out
 }
 
-pub fn from_catalogue(id: &str) -> Option<Module> {
-    CATALOGUE.iter().find(|c| c.id == id).map(|c| Module {
+pub fn from_catalogue(game: &str, id: &str) -> Option<Module> {
+    CATALOGUE.iter().find(|c| c.game == game && c.id == id).map(|c| Module {
         id: c.id.into(),
         name: c.name.into(),
         url: c.url.into(),
@@ -240,7 +284,19 @@ mod tests {
         assert_eq!(clean_name("", "https://www.x.com/"), "x.com");
         let bad = Module { id: "Bad Id".into(), name: "x".into(), url: "https://x.com".into(), icon: None };
         assert!(clean_module(&bad).is_none());
-        let dupes = vec![from_catalogue("dim").unwrap(), from_catalogue("dim").unwrap()];
+        let dupes = vec![from_catalogue("destiny2", "dim").unwrap(), from_catalogue("destiny2", "dim").unwrap()];
         assert_eq!(clean_modules(&dupes).len(), 1);
+        assert!(from_catalogue("custom", "dim").is_none());
+        assert_eq!(clean_text("  a\u{7}  b  ", 10), "a b");
+    }
+
+    #[test]
+    fn images() {
+        assert!(clean_image(Some("data:image/png;base64,iVBORw0KGgo="), false, 1000).is_some());
+        assert!(clean_image(Some("data:image/svg+xml;base64,PHN2Zz4="), false, 1000).is_none());
+        assert!(clean_image(Some("data:image/svg+xml;base64,PHN2Zz4="), true, 1000).is_some());
+        assert!(clean_image(Some("data:text/html;base64,PGI+"), true, 1000).is_none());
+        assert!(clean_image(Some("data:image/png;base64,<script>"), true, 1000).is_none());
+        assert!(clean_image(Some("https://x.com/a.png"), true, 1000).is_none());
     }
 }

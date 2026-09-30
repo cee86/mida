@@ -1,0 +1,43 @@
+/* The floating site controls. The page itself is see-through; only the rounded box shows. */
+html, body { background: transparent; overflow: hidden; }
+body { padding: 2px; height: 100vh; }
+
+.ctl {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 6px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--popup);
+  overflow: hidden;
+  transition: opacity 160ms;
+}
+
+/* "Only show site controls when hovered": invisible until the pointer (or keyboard) is on them. */
+html[data-autohide="true"] .ctl { opacity: 0; }
+html[data-autohide="true"] .ctl:hover,
+html[data-autohide="true"] .ctl:focus-within { opacity: 1; }
+
+.ctl__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+.ctl__progress[data-on="true"] { opacity: 1; }
+.ctl__progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: sweep 1.1s ease-in-out infinite;
+}

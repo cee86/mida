@@ -1,10 +1,16 @@
 //! Settings saved on this computer only (settings.json in the app's data folder). Everything
 //! read back is cleaned, so a damaged or hand-edited file can't break the app.
+//!
+//! Version 2 (Mida 0.2): modules live inside profiles (one per game), plus app preferences.
+//! Version 1 files (Mida 0.1: one list of modules) are moved into a Destiny 2 profile.
 
-use crate::modules::{clean_modules, Module};
+use crate::modules::{clean_image, clean_modules, clean_text, Module, CUSTOM_GAME, GAMES, MAX_PICTURE};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+
+pub const HOME: &str = "home";
+pub const MAX_PROFILES: usize = 12;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
 pub struct WindowPlace {
@@ -16,30 +22,185 @@ pub struct WindowPlace {
     pub maximized: bool,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Profile {
+    pub id: String,
+    pub name: String,
+    /// A small square picture (data URL), or none for the initial letter.
+    pub image: Option<String>,
+    /// A game id from GAMES, or "custom".
+    pub game: String,
+    /// The game's name as the user typed it (custom games only).
+    pub game_name: String,
+    pub modules: Vec<Module>,
+    /// The open module's id, or "home".
+    pub active_id: String,
+}
+
+/// App preferences (Settings). Every value is checked in `clean_prefs`.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Prefs {
+    pub theme: String,            // dark | black | light
+    pub colorway: String,         // a preset id or "custom"
+    pub custom_colors: Vec<String>, // 2-3 gradient stops, #rrggbb
+    pub custom_accent: String,    // #rrggbb
+    pub custom_angle: u32,        // 0-360
+    pub show_address_bar: bool,
+    pub controls_corner: String,  // top-right | top-left | bottom-right | bottom-left
+    pub controls_autohide: bool,
+    pub reduce_motion: String,    // system | on | off
+    pub ui_scale: u32,            // percent
+    pub high_contrast: bool,
+    pub site_zoom: u32,           // percent
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Self {
+            theme: "dark".into(),
+            colorway: "sunrise".into(),
+            custom_colors: vec!["#0d1624".into(), "#2a1a12".into()],
+            custom_accent: "#f19a3f".into(),
+            custom_angle: 160,
+            show_address_bar: true,
+            controls_corner: "top-right".into(),
+            controls_autohide: false,
+            reduce_motion: "system".into(),
+            ui_scale: 100,
+            high_contrast: false,
+            site_zoom: 80,
+        }
+    }
+}
+
+pub const COLORWAYS: &[&str] = &["sunrise", "arc", "void", "solar", "strand", "stasis", "crimson", "custom"];
+pub const UI_SCALES: &[u32] = &[90, 100, 110, 125, 150];
+
+fn is_hex(value: &str) -> bool {
+    value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+pub fn clean_prefs(p: Prefs) -> Prefs {
+    let d = Prefs::default();
+    let pick = |value: String, allowed: &[&str], fallback: String| {
+        if allowed.contains(&value.as_str()) { value } else { fallback }
+    };
+    let colors: Vec<String> = p.custom_colors.into_iter().filter(|c| is_hex(c)).take(3).map(|c| c.to_lowercase()).collect();
+    Prefs {
+        theme: pick(p.theme, &["dark", "black", "light"], d.theme),
+        colorway: pick(p.colorway, COLORWAYS, d.colorway),
+        custom_colors: if colors.len() >= 2 { colors } else { d.custom_colors },
+        custom_accent: if is_hex(&p.custom_accent) { p.custom_accent.to_lowercase() } else { d.custom_accent },
+        custom_angle: p.custom_angle.min(360),
+        show_address_bar: p.show_address_bar,
+        controls_corner: pick(p.controls_corner, &["top-right", "top-left", "bottom-right", "bottom-left"], d.controls_corner),
+        controls_autohide: p.controls_autohide,
+        reduce_motion: pick(p.reduce_motion, &["system", "on", "off"], d.reduce_motion),
+        ui_scale: if UI_SCALES.contains(&p.ui_scale) { p.ui_scale } else { d.ui_scale },
+        high_contrast: p.high_contrast,
+        site_zoom: if (50..=150).contains(&p.site_zoom) && p.site_zoom % 10 == 0 { p.site_zoom } else { d.site_zoom },
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
+    pub version: u32,
     pub first_run_done: bool,
-    pub modules: Vec<Module>,
-    pub active_id: Option<String>,
+    pub profiles: Vec<Profile>,
+    pub default_profile: Option<String>,
+    pub current_profile: Option<String>,
     pub sidebar_expanded: bool,
     pub window: Option<WindowPlace>,
+    pub prefs: Prefs,
+    // Version 1 fields, read once for moving into a profile and never written again.
+    #[serde(skip_serializing)]
+    pub modules: Vec<Module>,
+    #[serde(skip_serializing)]
+    pub active_id: Option<String>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { first_run_done: false, modules: vec![], active_id: None, sidebar_expanded: true, window: None }
+        Self {
+            version: 2,
+            first_run_done: false,
+            profiles: vec![],
+            default_profile: None,
+            current_profile: None,
+            sidebar_expanded: true,
+            window: None,
+            prefs: Prefs::default(),
+            modules: vec![],
+            active_id: None,
+        }
     }
 }
 
+pub fn clean_profile(p: Profile) -> Option<Profile> {
+    let id_ok = !p.id.is_empty() && p.id.len() <= 24 && p.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if !id_ok {
+        return None;
+    }
+    let game = if GAMES.iter().any(|g| g.id == p.game) { p.game } else { CUSTOM_GAME.to_string() };
+    let modules = clean_modules(&p.modules);
+    let active_id = if p.active_id == HOME || modules.iter().any(|m| m.id == p.active_id) { p.active_id } else { HOME.to_string() };
+    let name = clean_text(&p.name, 32);
+    Some(Profile {
+        id: p.id,
+        name: if name.is_empty() { "Profile".into() } else { name },
+        image: clean_image(p.image.as_deref(), false, MAX_PICTURE),
+        game_name: if game == CUSTOM_GAME { clean_text(&p.game_name, 40) } else { String::new() },
+        game,
+        modules,
+        active_id,
+    })
+}
+
 fn clean(mut s: Settings) -> Settings {
-    s.modules = clean_modules(&s.modules);
-    if !s.modules.iter().any(|m| Some(&m.id) == s.active_id.as_ref()) {
-        s.active_id = s.modules.first().map(|m| m.id.clone());
+    // Mida 0.1 kept one list of modules: move it into a Destiny 2 profile (all its sites were).
+    if s.profiles.is_empty() && (s.first_run_done || !s.modules.is_empty()) {
+        let active = s.active_id.clone().unwrap_or_else(|| HOME.to_string());
+        s.profiles.push(Profile {
+            id: "p-main".into(),
+            name: "My profile".into(),
+            image: None,
+            game: "destiny2".into(),
+            game_name: String::new(),
+            modules: std::mem::take(&mut s.modules),
+            active_id: active,
+        });
+        s.first_run_done = true;
+    }
+    s.modules.clear();
+    s.active_id = None;
+    s.version = 2;
+
+    let mut profiles: Vec<Profile> = Vec::new();
+    for p in s.profiles.drain(..) {
+        if let Some(p) = clean_profile(p) {
+            if !profiles.iter().any(|q| q.id == p.id) && profiles.len() < MAX_PROFILES {
+                profiles.push(p);
+            }
+        }
+    }
+    s.profiles = profiles;
+    let exists = |id: &Option<String>| id.as_ref().is_some_and(|id| s.profiles.iter().any(|p| &p.id == id));
+    if !exists(&s.default_profile) {
+        s.default_profile = s.profiles.first().map(|p| p.id.clone());
+    }
+    if !exists(&s.current_profile) {
+        s.current_profile = s.default_profile.clone();
+    }
+    if s.profiles.is_empty() {
+        s.first_run_done = false;
     }
     s.window = s.window.filter(|w| {
         [w.x, w.y, w.width, w.height].iter().all(|n| n.is_finite()) && w.width >= 400.0 && w.height >= 300.0
     });
+    s.prefs = clean_prefs(s.prefs);
     s
 }
 
@@ -55,7 +216,7 @@ impl Store {
             .ok()
             .and_then(|text| serde_json::from_str::<Settings>(&text).ok())
             .map(clean)
-            .unwrap_or_default();
+            .unwrap_or_else(|| clean(Settings::default()));
         Self { file, data }
     }
 
@@ -63,11 +224,27 @@ impl Store {
         &self.data
     }
 
-    /// Change the settings, clean them, and save straight away (the file is tiny).
+    /// The profile being shown.
+    pub fn profile(&self) -> Option<&Profile> {
+        let id = self.data.current_profile.as_ref()?;
+        self.data.profiles.iter().find(|p| &p.id == id)
+    }
+
+    /// Change the settings, clean them, and save straight away (the file is small).
     pub fn update(&mut self, change: impl FnOnce(&mut Settings)) {
         change(&mut self.data);
         self.data = clean(self.data.clone());
         self.save();
+    }
+
+    /// Change the current profile (if there is one).
+    pub fn update_profile(&mut self, change: impl FnOnce(&mut Profile)) {
+        self.update(|s| {
+            let id = s.current_profile.clone();
+            if let Some(p) = s.profiles.iter_mut().find(|p| Some(&p.id) == id.as_ref()) {
+                change(p);
+            }
+        });
     }
 
     fn save(&self) {
@@ -82,5 +259,37 @@ impl Store {
         if let Err(err) = result {
             eprintln!("Couldn't save settings: {err}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn moves_version_one_into_a_profile() {
+        let old = r#"{"firstRunDone":true,"modules":[{"id":"dim","name":"DIM","url":"https://app.destinyitemmanager.com/"}],"activeId":"dim","sidebarExpanded":false}"#;
+        let s = clean(serde_json::from_str(old).unwrap());
+        assert_eq!(s.profiles.len(), 1);
+        assert_eq!(s.profiles[0].game, "destiny2");
+        assert_eq!(s.profiles[0].modules[0].id, "dim");
+        assert_eq!(s.profiles[0].active_id, "dim");
+        assert_eq!(s.current_profile.as_deref(), Some("p-main"));
+        assert!(!s.sidebar_expanded && s.first_run_done);
+        // The old top-level fields are never written back.
+        let saved: serde_json::Value = serde_json::to_value(&s).unwrap();
+        assert!(saved.get("modules").is_none() && saved.get("activeId").is_none());
+    }
+
+    #[test]
+    fn cleans_prefs_and_profiles() {
+        let p = clean_prefs(Prefs { theme: "neon".into(), ui_scale: 333, site_zoom: 85, custom_colors: vec!["#zzz".into()], ..Prefs::default() });
+        assert_eq!((p.theme.as_str(), p.ui_scale, p.site_zoom, p.custom_colors.len()), ("dark", 100, 80, 2));
+        let bad = Profile { id: "Bad Id".into(), ..Profile::default() };
+        assert!(clean_profile(bad).is_none());
+        let custom = clean_profile(Profile { id: "p-1".into(), game: "halo".into(), game_name: " Halo ".into(), ..Profile::default() }).unwrap();
+        assert_eq!((custom.game.as_str(), custom.game_name.as_str(), custom.active_id.as_str()), ("custom", "Halo", "home"));
+        let fresh = clean(Settings::default());
+        assert!(!fresh.first_run_done && fresh.profiles.is_empty());
     }
 }

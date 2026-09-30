@@ -22,12 +22,19 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2"
 tokio = { version = "1", features = ["time"] }
+# Already part of the app through the updater; also used to fetch each site's icon once.
+reqwest = { version = "0.13", default-features = false }
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
-# Only for Mida's keyboard shortcuts inside module pages (src/win_keys.rs); the same versions
-# Tauri itself already uses, so nothing new is downloaded into the app.
+# For src/win.rs (shortcuts inside pages, load errors, page pictures); the same versions Tauri
+# itself already uses.
 webview2-com = "0.39"
-windows = { version = "0.62", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+windows = { version = "0.62", features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_System_Com",
+] }
 
 [profile.release]
 # Smallest reasonable app: optimise for size, strip symbols, one codegen unit, link-time optimisation.

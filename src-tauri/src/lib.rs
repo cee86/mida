@@ -1,13 +1,15 @@
-//! Mida: Destiny 2 companion sites in one window.
+//! Mida: game companion sites in one window.
 //!
-//! The window has two layers. The "shell" (src/shell) is our own page: sidebar, toolbar and
-//! dialogs. Each module (companion site) gets its own page laid over the shell's stage area.
-//! Pages use Windows' built-in browser engine (WebView2, the engine behind Edge), so Mida
-//! doesn't carry a browser of its own. A module loads the first time it's opened and then stays
-//! alive in the background, so switching back is instant and the site keeps its place.
+//! The window has layers. The "shell" (src/shell) is our own page: sidebar, toolbar, home page,
+//! menus and dialogs. Each module (companion site) of the current profile gets its own page laid
+//! over the shell's stage area; the optional floating site controls ("controls", used when the
+//! address bar is hidden) sit above the pages. Pages use Windows' built-in browser engine
+//! (WebView2), so Mida doesn't carry a browser of its own. A module loads the first time it's
+//! opened and then stays alive in the background, so switching back is instant. Switching
+//! profile closes the other profile's pages.
 //!
-//! Security: module pages are ordinary websites with no way to talk to the app (only the shell
-//! may call the commands below, checked by page label), they can only go to web pages,
+//! Security: module pages are ordinary websites with no way to talk to the app (only our own
+//! pages may call the commands below, checked by page label), they can only go to web pages,
 //! permission requests (camera, microphone, location, notifications...) are refused, and links
 //! to other sites open in your normal browser.
 //!
@@ -18,23 +20,23 @@
 mod modules;
 mod store;
 #[cfg(windows)]
-mod win_keys;
+mod win;
 
+use base64::Engine;
 use modules::{
-    clean_name, clean_url, from_catalogue, is_sign_in, is_web, same_site, Module, CATALOGUE, MAX_MODULES,
+    clean_image, clean_name, clean_text, clean_url, from_catalogue, is_sign_in, is_web, same_site, Module, CATALOGUE,
+    CUSTOM_GAME, GAMES, MAX_ICON, MAX_MODULES, MAX_PICTURE,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use store::{Store, WindowPlace};
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use store::{clean_prefs, Prefs, Profile, Store, WindowPlace, HOME, MAX_PROFILES};
 use tauri::webview::{NewWindowResponse, PageLoadEvent, PermissionResponse, WebviewBuilder};
 use tauri::window::{Color, WindowBuilder};
 use tauri::{
-    AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, Rect, Webview, WebviewUrl,
-    WindowEvent,
+    AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, Rect, Webview, WebviewUrl, WindowEvent,
 };
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
@@ -42,8 +44,18 @@ use url::Url;
 
 const WINDOW: &str = "main";
 const SHELL: &str = "shell";
+const CONTROLS: &str = "controls";
 const BACKGROUND: Color = Color(14, 16, 19, 255);
 const UPDATE_CHECK_EVERY: Duration = Duration::from_secs(4 * 60 * 60);
+/// The floating site controls box, in shell pixels, and its gap from the stage's corner.
+const CONTROLS_SIZE: (f64, f64) = (196.0, 48.0);
+const CONTROLS_GAP: f64 = 10.0;
+
+#[derive(Serialize, Clone, Debug)]
+pub struct PageError {
+    pub kind: String, // offline | not-found | timeout | unreachable | certificate | server | crashed | other
+    pub status: i32,  // the site's HTTP status, when it answered with an error
+}
 
 #[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
@@ -53,7 +65,7 @@ struct Status {
     url: String,
     can_go_back: bool,
     can_go_forward: bool,
-    error: Option<String>,
+    error: Option<PageError>,
 }
 
 #[derive(Serialize, Clone)]
@@ -71,14 +83,25 @@ struct StageRect {
     height: f64,
 }
 
+/// A profile as the shell sends it (new or edited).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileInput {
+    name: String,
+    image: Option<String>,
+    game: String,
+    game_name: String,
+}
+
 struct Hub {
     store: Mutex<Store>,
-    statuses: Mutex<HashMap<String, Status>>, // modules that have a page
+    statuses: Mutex<HashMap<String, Status>>, // the current profile's modules that have a page
     stage: Mutex<Option<StageRect>>,          // where module pages go, in shell pixels
-    overlay: Mutex<bool>,                     // a shell dialog is open, so pages are hidden
+    overlay: Mutex<bool>,                     // a shell menu or dialog is open, so pages are hidden
     update: Mutex<Option<UpdateInfo>>,
     pending: Mutex<Option<tauri_plugin_updater::Update>>,
-    creating: Mutex<()>, // one page created at a time
+    creating: Mutex<()>,                   // one page created at a time
+    icon_tried: Mutex<HashSet<String>>,    // module ids whose icon was looked for this session
 }
 
 fn hub(app: &AppHandle) -> tauri::State<'_, Hub> {
@@ -89,12 +112,25 @@ fn label_for(id: &str) -> String {
     format!("m-{id}")
 }
 
-fn find_module(app: &AppHandle, id: &str) -> Option<Module> {
-    hub(app).store.lock().unwrap().get().modules.iter().find(|m| m.id == id).cloned()
+fn random_id(prefix: &str) -> String {
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    format!("{prefix}-{:x}", (nanos as u64) & 0xff_ffff_ffff)
 }
 
-fn active_id(app: &AppHandle) -> Option<String> {
-    hub(app).store.lock().unwrap().get().active_id.clone()
+fn current(app: &AppHandle) -> Option<Profile> {
+    hub(app).store.lock().unwrap().profile().cloned()
+}
+
+fn find_module(app: &AppHandle, id: &str) -> Option<Module> {
+    current(app)?.modules.into_iter().find(|m| m.id == id)
+}
+
+fn active_id(app: &AppHandle) -> String {
+    current(app).map(|p| p.active_id).unwrap_or_else(|| HOME.into())
+}
+
+fn prefs(app: &AppHandle) -> Prefs {
+    hub(app).store.lock().unwrap().get().prefs.clone()
 }
 
 fn open_external(app: &AppHandle, url: &Url) {
@@ -103,20 +139,33 @@ fn open_external(app: &AppHandle, url: &Url) {
     }
 }
 
-// ---------- State sent to the shell ----------
+// ---------- State sent to our own pages ----------
 
 fn public_state(app: &AppHandle) -> Value {
     let hub = hub(app);
     let settings = hub.store.lock().unwrap().get().clone();
     let statuses = hub.statuses.lock().unwrap().clone();
     let update = hub.update.lock().unwrap().clone();
+    let profile = settings.profiles.iter().find(|p| Some(&p.id) == settings.current_profile.as_ref()).cloned();
+    let profiles: Vec<Value> = settings
+        .profiles
+        .iter()
+        .map(|p| json!({ "id": p.id, "name": p.name, "image": p.image, "game": p.game, "gameName": p.game_name }))
+        .collect();
     json!({
         "firstRunDone": settings.first_run_done,
-        "modules": settings.modules,
-        "activeId": settings.active_id,
+        "profiles": profiles,
+        "currentProfile": settings.current_profile,
+        "defaultProfile": settings.default_profile,
+        "profile": profile.as_ref().map(|p| json!({ "id": p.id, "name": p.name, "image": p.image, "game": p.game, "gameName": p.game_name })),
+        "modules": profile.as_ref().map(|p| p.modules.clone()).unwrap_or_default(),
+        "activeId": profile.as_ref().map(|p| p.active_id.clone()).unwrap_or_else(|| HOME.into()),
         "sidebarExpanded": settings.sidebar_expanded,
+        "prefs": settings.prefs,
+        "games": GAMES,
         "catalogue": CATALOGUE,
         "maxModules": MAX_MODULES,
+        "maxProfiles": MAX_PROFILES,
         "statuses": statuses,
         "platform": std::env::consts::OS,
         "version": app.package_info().version.to_string(),
@@ -124,8 +173,12 @@ fn public_state(app: &AppHandle) -> Value {
     })
 }
 
+fn ours(target: &EventTarget) -> bool {
+    matches!(target, EventTarget::Webview { label } if label == SHELL || label == CONTROLS)
+}
+
 fn emit_state(app: &AppHandle) {
-    let _ = app.emit_to(EventTarget::webview(SHELL), "state", public_state(app));
+    let _ = app.emit_filter("state", public_state(app), ours);
 }
 
 fn update_status(app: &AppHandle, id: &str, change: impl FnOnce(&mut Status)) {
@@ -136,34 +189,75 @@ fn update_status(app: &AppHandle, id: &str, change: impl FnOnce(&mut Status)) {
         change(status);
         status.clone()
     };
-    let _ = app.emit_to(EventTarget::webview(SHELL), "status", json!({ "id": id, "status": status }));
+    let _ = app.emit_filter("status", json!({ "id": id, "status": status }), ours);
 }
 
-// ---------- Module pages ----------
+/// A page finished loading (None) or failed (Some). Called from src/win.rs on Windows.
+pub(crate) fn page_result(app: &AppHandle, id: &str, error: Option<PageError>) {
+    let changed = {
+        let hub = hub(app);
+        let statuses = hub.statuses.lock().unwrap();
+        statuses.get(id).map(|s| s.error.is_some() != error.is_some()).unwrap_or(false)
+    };
+    update_status(app, id, |s| s.error = error);
+    if changed {
+        layout(app);
+    }
+}
 
-/// Show only the active module's page, sized to the stage, and only when no dialog needs the space.
+// ---------- Layout ----------
+
+fn scaled(r: StageRect, scale: f64) -> Rect {
+    Rect {
+        position: LogicalPosition::new(r.x * scale, r.y * scale).into(),
+        size: LogicalSize::new((r.width * scale).max(1.0), (r.height * scale).max(1.0)).into(),
+    }
+}
+
+/// Show only the active module's page, sized to the stage, and only when no menu, dialog or error
+/// needs the space. The floating controls follow the visible page.
 fn layout(app: &AppHandle) {
     let hub = hub(app);
     let active = active_id(app);
     let stage = *hub.stage.lock().unwrap();
     let overlay = *hub.overlay.lock().unwrap();
-    let ids: Vec<String> = hub.statuses.lock().unwrap().keys().cloned().collect();
-    for id in ids {
+    let p = prefs(app);
+    let scale = p.ui_scale as f64 / 100.0;
+    let pages: Vec<(String, bool)> =
+        hub.statuses.lock().unwrap().iter().map(|(id, s)| (id.clone(), s.error.is_none())).collect();
+    let mut page_visible = false;
+    for (id, healthy) in pages {
         let Some(page) = app.get_webview(&label_for(&id)) else { continue };
         match stage {
-            Some(r) if Some(&id) == active.as_ref() && !overlay => {
-                let _ = page.set_bounds(Rect {
-                    position: LogicalPosition::new(r.x, r.y).into(),
-                    size: LogicalSize::new(r.width.max(1.0), r.height.max(1.0)).into(),
-                });
+            Some(r) if id == active && !overlay && healthy => {
+                let _ = page.set_bounds(scaled(r, scale));
                 let _ = page.show();
+                page_visible = true;
             }
             _ => {
                 let _ = page.hide();
             }
         }
     }
+    if let Some(controls) = app.get_webview(CONTROLS) {
+        match stage {
+            Some(r) if page_visible && !p.show_address_bar => {
+                let (w, h) = CONTROLS_SIZE;
+                let right = p.controls_corner.ends_with("right");
+                let bottom = p.controls_corner.starts_with("bottom");
+                let x = if right { r.x + r.width - w - CONTROLS_GAP } else { r.x + CONTROLS_GAP };
+                let y = if bottom { r.y + r.height - h - CONTROLS_GAP } else { r.y + CONTROLS_GAP };
+                let _ = controls.set_bounds(scaled(StageRect { x, y, width: w, height: h }, scale));
+                let _ = controls.show();
+            }
+            _ => {
+                let _ = controls.hide();
+            }
+        }
+    }
 }
+
+// ---------- Module pages ----------
 
 fn module_page(app: &AppHandle, module: &Module) -> Option<WebviewBuilder<tauri::Wry>> {
     let url = Url::parse(&module.url).ok()?;
@@ -177,20 +271,23 @@ fn module_page(app: &AppHandle, module: &Module) -> Option<WebviewBuilder<tauri:
             .on_navigation(|url| is_web(url))
             .on_permission_request(|_, _| PermissionResponse::Deny)
             .on_new_window(move |url, _| new_window(&on_open, &id_open, url))
-            .on_page_load(move |_, payload| {
-                let loading = payload.event() == PageLoadEvent::Started;
+            .on_page_load(move |page, payload| {
+                let started = payload.event() == PageLoadEvent::Started;
                 let url = payload.url().to_string();
                 update_status(&on_load, &id_load, |s| {
-                    s.loading = loading;
+                    s.loading = started;
                     s.url = url;
                 });
+                if !started {
+                    find_icon(&on_load, &id_load, &page);
+                }
             })
             .on_document_title_changed(move |page, title| {
                 // Sites that change pages without reloading (DIM, seals.report) still change
                 // their title, so read the address again here too.
                 let url = page.url().map(|u| u.to_string()).ok();
                 update_status(&on_title, &id_title, |s| {
-                    s.title = title;
+                    s.title = clean_text(&title, 200);
                     if let Some(url) = url {
                         s.url = url;
                     }
@@ -208,7 +305,7 @@ fn new_window(app: &AppHandle, id: &str, url: Url) -> NewWindowResponse<tauri::W
     if is_sign_in(&url) {
         return NewWindowResponse::Allow;
     }
-    let modules = hub(app).store.lock().unwrap().get().modules.clone();
+    let modules = current(app).map(|p| p.modules).unwrap_or_default();
     let own = modules.iter().find(|m| m.id == id).is_some_and(|m| same_site(&url, &m.url));
     // Same site: open it right here. Another module's site (light.gg -> DIM): open it there.
     let target = if own {
@@ -220,7 +317,7 @@ fn new_window(app: &AppHandle, id: &str, url: Url) -> NewWindowResponse<tauri::W
         Some(target) => {
             let app = app.clone();
             tauri::async_runtime::spawn_blocking(move || {
-                if active_id(&app).as_deref() != Some(target.as_str()) {
+                if active_id(&app) != target {
                     select_module(&app, &target);
                 }
                 if let Some(page) = app.get_webview(&label_for(&target)) {
@@ -242,7 +339,7 @@ fn ensure_page(app: &AppHandle, module: &Module) -> Option<Webview> {
     }
     let window = app.get_window(WINDOW)?;
     let builder = module_page(app, module)?;
-    hub(app).statuses.lock().unwrap().insert(
+    hub_state.statuses.lock().unwrap().insert(
         module.id.clone(),
         Status {
             loading: true,
@@ -253,28 +350,140 @@ fn ensure_page(app: &AppHandle, module: &Module) -> Option<Webview> {
             error: None,
         },
     );
-    let stage = hub(app).stage.lock().unwrap().unwrap_or(StageRect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 });
-    let position = LogicalPosition::new(stage.x, stage.y);
-    let size = LogicalSize::new(stage.width.max(1.0), stage.height.max(1.0));
-    match window.add_child(builder, position, size) {
+    let stage = hub_state.stage.lock().unwrap().unwrap_or(StageRect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 });
+    let p = prefs(app);
+    let r = scaled(stage, p.ui_scale as f64 / 100.0);
+    match window.add_child(builder, r.position, r.size) {
         Ok(page) => {
+            let _ = page.hide();
+            let _ = page.set_zoom(p.site_zoom as f64 / 100.0);
             #[cfg(windows)]
-            win_keys::hook(&page, app.clone());
+            win::hook(&page, app.clone(), module.id.clone());
+            // A new page lands on top of everything, so put the floating controls back above it.
+            if app.get_webview(CONTROLS).is_some() {
+                close_controls(app);
+                ensure_controls(app);
+            }
             Some(page)
         }
         Err(err) => {
             eprintln!("Couldn't open {}: {err}", module.name);
-            hub(app).statuses.lock().unwrap().remove(&module.id);
+            hub_state.statuses.lock().unwrap().remove(&module.id);
             None
         }
+    }
+}
+
+fn close_page(app: &AppHandle, id: &str) {
+    if let Some(page) = app.get_webview(&label_for(id)) {
+        let _ = page.close();
+    }
+    hub(app).statuses.lock().unwrap().remove(id);
+}
+
+/// Find the site's icon once (when it first loads) and keep it with the module.
+fn find_icon(app: &AppHandle, id: &str, page: &Webview) {
+    let needed = find_module(app, id).is_some_and(|m| m.icon.is_none());
+    if !needed || !hub(app).icon_tried.lock().unwrap().insert(id.to_string()) {
+        return;
+    }
+    // Ask the page which icon it uses: the large "apple-touch-icon" looks best, then the
+    // biggest listed icon, then the classic /favicon.ico.
+    const FIND: &str = r#"(() => {
+        const links = [...document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]')];
+        const size = (l) => parseInt((l.sizes && l.sizes.value || '0').split('x')[0], 10) || 0;
+        const apple = links.find((l) => l.rel.startsWith('apple-touch-icon'));
+        const best = links.filter((l) => !l.rel.includes('mask')).sort((a, b) => size(b) - size(a))[0];
+        return (apple || best || { href: new URL('/favicon.ico', location.href).href }).href;
+    })()"#;
+    let (app, id) = (app.clone(), id.to_string());
+    let _ = page.eval_with_callback(FIND, move |found| {
+        let Some(url) = serde_json::from_str::<String>(&found).ok().and_then(|u| Url::parse(&u).ok()) else { return };
+        if url.scheme() != "https" {
+            return;
+        }
+        let (app, id) = (app.clone(), id.clone());
+        tauri::async_runtime::spawn(async move {
+            if let Some(icon) = download_icon(url).await {
+                hub(&app).store.lock().unwrap().update_profile(|p| {
+                    if let Some(m) = p.modules.iter_mut().find(|m| m.id == id) {
+                        m.icon = Some(icon);
+                    }
+                });
+                emit_state(&app);
+            }
+        });
+    });
+}
+
+async fn download_icon(url: Url) -> Option<String> {
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build().ok()?;
+    let response = client.get(url.clone()).send().await.ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let declared = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.split(';').next().unwrap_or("").trim().to_lowercase())
+        .unwrap_or_default();
+    let path = url.path().to_lowercase();
+    let kind = match declared.strip_prefix("image/") {
+        Some(kind) => kind.to_string(),
+        None if path.ends_with(".ico") => "x-icon".into(),
+        None if path.ends_with(".png") => "png".into(),
+        None if path.ends_with(".svg") => "svg+xml".into(),
+        None => return None,
+    };
+    let bytes = response.bytes().await.ok()?;
+    if bytes.is_empty() || bytes.len() > MAX_ICON * 3 / 4 {
+        return None;
+    }
+    let data = format!("data:image/{kind};base64,{}", base64::engine::general_purpose::STANDARD.encode(&bytes));
+    clean_image(Some(&data), true, MAX_ICON)
+}
+
+// ---------- Floating site controls (when the address bar is hidden) ----------
+
+fn ensure_controls(app: &AppHandle) {
+    if prefs(app).show_address_bar || app.get_webview(CONTROLS).is_some() {
+        return;
+    }
+    let Some(window) = app.get_window(WINDOW) else { return };
+    let builder = WebviewBuilder::new(CONTROLS, WebviewUrl::App("controls.html".into()))
+        .transparent(true)
+        .background_color(Color(0, 0, 0, 0))
+        .zoom_hotkeys_enabled(false)
+        .on_navigation(|url| url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost"))
+        .on_new_window(|_, _| NewWindowResponse::Deny)
+        .on_permission_request(|_, _| PermissionResponse::Deny);
+    if let Ok(controls) = window.add_child(builder, LogicalPosition::new(0.0, 0.0), LogicalSize::new(1.0, 1.0)) {
+        let _ = controls.hide();
+        let scale = prefs(app).ui_scale;
+        if scale != 100 {
+            let _ = controls.set_zoom(scale as f64 / 100.0);
+        }
+    }
+}
+
+fn close_controls(app: &AppHandle) {
+    if let Some(controls) = app.get_webview(CONTROLS) {
+        let _ = controls.close();
     }
 }
 
 // ---------- Actions ----------
 
 fn select_module(app: &AppHandle, id: &str) {
+    if id == HOME {
+        hub(app).store.lock().unwrap().update_profile(|p| p.active_id = HOME.into());
+        layout(app);
+        emit_state(app);
+        return;
+    }
     let Some(module) = find_module(app, id) else { return };
-    hub(app).store.lock().unwrap().update(|s| s.active_id = Some(id.to_string()));
+    hub(app).store.lock().unwrap().update_profile(|p| p.active_id = id.to_string());
     let page = ensure_page(app, &module);
     layout(app);
     emit_state(app);
@@ -285,19 +494,18 @@ fn select_module(app: &AppHandle, id: &str) {
 }
 
 fn select_offset(app: &AppHandle, step: isize) {
-    let modules = hub(app).store.lock().unwrap().get().modules.clone();
-    if modules.is_empty() {
-        return;
-    }
-    let active = active_id(app);
-    let index = modules.iter().position(|m| Some(&m.id) == active.as_ref()).unwrap_or(0) as isize;
-    let len = modules.len() as isize;
+    let Some(profile) = current(app) else { return };
+    // Home counts as the first stop.
+    let mut stops: Vec<String> = vec![HOME.into()];
+    stops.extend(profile.modules.iter().map(|m| m.id.clone()));
+    let index = stops.iter().position(|id| *id == profile.active_id).unwrap_or(0) as isize;
+    let len = stops.len() as isize;
     let next = ((index + step) % len + len) % len;
-    select_module(app, &modules[next as usize].id);
+    select_module(app, &stops[next as usize]);
 }
 
 fn navigate(app: &AppHandle, action: &str) {
-    let Some(active) = active_id(app) else { return };
+    let active = active_id(app);
     let Some(module) = find_module(app, &active) else { return };
     let Some(page) = app.get_webview(&label_for(&active)) else { return };
     match action {
@@ -307,7 +515,7 @@ fn navigate(app: &AppHandle, action: &str) {
         "forward" => {
             let _ = page.eval("history.forward()");
         }
-        "reload" | "hard-reload" | "retry" => {
+        "reload" | "retry" => {
             let _ = page.reload();
         }
         "home" => {
@@ -322,6 +530,8 @@ fn navigate(app: &AppHandle, action: &str) {
                 open_external(app, &url);
             }
         }
+        // The site answered with an error page: show it anyway.
+        "show-anyway" => page_result(app, &active, None),
         _ => {}
     }
 }
@@ -336,139 +546,154 @@ fn fail(message: &str) -> Value {
 }
 
 fn add_module(app: &AppHandle, module: Module) -> Value {
-    let id = module.id.clone();
-    {
-        let hub = hub(app);
-        let mut store = hub.store.lock().unwrap();
-        let modules = &store.get().modules;
-        if modules.len() >= MAX_MODULES {
-            return fail(&format!("You can have up to {MAX_MODULES} modules."));
-        }
-        if let Some(dupe) = modules.iter().find(|m| m.id == module.id || m.url == module.url) {
-            return fail(&format!("{} is already in your sidebar.", dupe.name));
-        }
-        store.update(|s| s.modules.push(module));
+    let Some(profile) = current(app) else { return fail("Something went wrong.") };
+    if profile.modules.len() >= MAX_MODULES {
+        return fail(&format!("You can have up to {MAX_MODULES} modules."));
     }
+    if let Some(dupe) = profile.modules.iter().find(|m| m.id == module.id || m.url == module.url) {
+        return fail(&format!("{} is already in your sidebar.", dupe.name));
+    }
+    let id = module.id.clone();
+    hub(app).store.lock().unwrap().update_profile(|p| p.modules.push(module));
     select_module(app, &id);
     json!({ "ok": true })
 }
 
 fn move_module(app: &AppHandle, id: &str, step: isize) {
-    hub(app).store.lock().unwrap().update(|s| {
-        let Some(from) = s.modules.iter().position(|m| m.id == id) else { return };
+    hub(app).store.lock().unwrap().update_profile(|p| {
+        let Some(from) = p.modules.iter().position(|m| m.id == id) else { return };
         let to = from as isize + step;
-        if to >= 0 && (to as usize) < s.modules.len() {
-            s.modules.swap(from, to as usize);
+        if to >= 0 && (to as usize) < p.modules.len() {
+            p.modules.swap(from, to as usize);
         }
     });
     emit_state(app);
 }
 
 fn remove_module(app: &AppHandle, id: &str) {
-    let (next, was_active) = {
-        let hub = hub(app);
-        let store = hub.store.lock().unwrap();
-        let modules = &store.get().modules;
-        let Some(index) = modules.iter().position(|m| m.id == id) else { return };
-        let rest: Vec<&Module> = modules.iter().filter(|m| m.id != id).collect();
-        let next = rest.get(index).or_else(|| index.checked_sub(1).and_then(|i| rest.get(i))).map(|m| m.id.clone());
-        (next, store.get().active_id.as_deref() == Some(id))
-    };
-    if let Some(page) = app.get_webview(&label_for(id)) {
-        let _ = page.close();
-    }
-    hub(app).statuses.lock().unwrap().remove(id);
-    hub(app).store.lock().unwrap().update(|s| {
-        s.modules.retain(|m| m.id != id);
-        if was_active {
-            s.active_id = next.clone();
-        }
-    });
-    match next.filter(|_| was_active) {
-        Some(next) => select_module(app, &next),
-        None => {
-            layout(app);
-            emit_state(app);
-        }
+    let Some(profile) = current(app) else { return };
+    let Some(index) = profile.modules.iter().position(|m| m.id == id) else { return };
+    let was_active = profile.active_id == id;
+    let rest: Vec<&Module> = profile.modules.iter().filter(|m| m.id != id).collect();
+    let next = rest
+        .get(index)
+        .or_else(|| index.checked_sub(1).and_then(|i| rest.get(i)))
+        .map(|m| m.id.clone())
+        .unwrap_or_else(|| HOME.into());
+    close_page(app, id);
+    hub(app).icon_tried.lock().unwrap().remove(id);
+    hub(app).store.lock().unwrap().update_profile(|p| p.modules.retain(|m| m.id != id));
+    if was_active {
+        select_module(app, &next);
+    } else {
+        layout(app);
+        emit_state(app);
     }
 }
 
-fn module_menu(app: &AppHandle, id: &str) -> tauri::Result<()> {
-    let modules = hub(app).store.lock().unwrap().get().modules.clone();
-    let Some(index) = modules.iter().position(|m| m.id == id) else { return Ok(()) };
-    let name = &modules[index].name;
-    let has_page = app.get_webview(&label_for(id)).is_some();
-    let item = |action: &str, text: String, enabled: bool| {
-        MenuItem::with_id(app, format!("{action}|{id}"), text, enabled, None::<&str>)
-    };
-    let menu = Menu::with_items(
-        app,
-        &[
-            &item("open", format!("Open {name}"), true)?,
-            &item("reload", "Reload".into(), has_page)?,
-            &item("browser", "Open in your browser".into(), true)?,
-            &PredefinedMenuItem::separator(app)?,
-            &item("up", "Move up".into(), index > 0)?,
-            &item("down", "Move down".into(), index + 1 < modules.len())?,
-            &PredefinedMenuItem::separator(app)?,
-            &item("remove", format!("Remove {name}"), true)?,
-        ],
-    )?;
-    if let Some(window) = app.get_window(WINDOW) {
-        window.popup_menu(&menu)?;
+/// Close every page (switching profile or starting over).
+fn close_all_pages(app: &AppHandle) {
+    let ids: Vec<String> = hub(app).statuses.lock().unwrap().keys().cloned().collect();
+    for id in ids {
+        close_page(app, &id);
     }
-    Ok(())
+    hub(app).icon_tried.lock().unwrap().clear();
 }
 
-fn menu_action(app: &AppHandle, action: &str, id: &str) {
-    match action {
-        "open" => select_module(app, id),
-        "reload" => {
-            if let Some(page) = app.get_webview(&label_for(id)) {
-                let _ = page.reload();
+fn switch_profile_now(app: &AppHandle, id: &str) {
+    let exists = hub(app).store.lock().unwrap().get().profiles.iter().any(|p| p.id == id);
+    if !exists {
+        return;
+    }
+    close_all_pages(app);
+    hub(app).store.lock().unwrap().update(|s| s.current_profile = Some(id.to_string()));
+    let active = active_id(app);
+    select_module(app, &active);
+}
+
+fn new_profile(input: &ProfileInput, module_ids: &[String]) -> Option<Profile> {
+    let game = if GAMES.iter().any(|g| g.id == input.game) { input.game.clone() } else { CUSTOM_GAME.to_string() };
+    let mut modules: Vec<Module> = Vec::new();
+    for id in module_ids.iter().take(MAX_MODULES) {
+        if let Some(m) = from_catalogue(&game, id) {
+            if !modules.iter().any(|x| x.id == m.id) {
+                modules.push(m);
             }
         }
-        "browser" => {
-            let current = hub(app).statuses.lock().unwrap().get(id).map(|s| s.url.clone());
-            let fallback = find_module(app, id).map(|m| m.url);
-            if let Some(url) = current.or(fallback).and_then(|u| Url::parse(&u).ok()) {
-                open_external(app, &url);
-            }
-        }
-        "up" => move_module(app, id, -1),
-        "down" => move_module(app, id, 1),
-        "remove" => remove_module(app, id),
-        _ => {}
     }
+    let name = clean_text(&input.name, 32);
+    if name.is_empty() {
+        return None;
+    }
+    // New profiles open on their Home page.
+    let active_id = HOME.to_string();
+    store::clean_profile(Profile {
+        id: random_id("p"),
+        name,
+        image: clean_image(input.image.as_deref(), false, MAX_PICTURE),
+        game,
+        game_name: input.game_name.clone(),
+        modules,
+        active_id,
+    })
 }
 
-// ---------- Keyboard shortcuts ----------
-
-/// Shared by the shell (reported by src/shell/bridge.js) and, on Windows, module pages
-/// (src-tauri/src/win_keys.rs). Returns true when the keys were a Mida shortcut.
-pub(crate) fn shortcut(app: &AppHandle, key: &str, ctrl: bool, shift: bool, alt: bool) -> bool {
-    let key = key.to_lowercase();
-    let action: Box<dyn FnOnce(&AppHandle) + Send> = match (ctrl, shift, alt, key.as_str()) {
+fn shortcut_action(key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<Box<dyn FnOnce(&AppHandle) + Send>> {
+    Some(match (ctrl, shift, alt, key) {
         (true, false, false, "b") => Box::new(toggle_sidebar_now),
-        (true, true, false, "r") => Box::new(|a| navigate(a, "hard-reload")),
-        (true, false, false, "r") | (_, _, _, "f5") => Box::new(|a| navigate(a, "reload")),
+        (true, _, false, "r") | (_, _, _, "f5") => Box::new(|a| navigate(a, "reload")),
         (false, _, true, "arrowleft") => Box::new(|a| navigate(a, "back")),
         (false, _, true, "arrowright") => Box::new(|a| navigate(a, "forward")),
         (true, back, false, "tab") => Box::new(move |a| select_offset(a, if back { -1 } else { 1 })),
+        (true, false, false, ",") => Box::new(|a| {
+            let _ = a.emit_to(EventTarget::webview(SHELL), "command", "settings");
+        }),
         (true, false, false, digit) if digit.len() == 1 && ("1"..="9").contains(&digit) => {
             let n: usize = digit.parse().unwrap_or(1);
             Box::new(move |a| {
-                let target = hub(a).store.lock().unwrap().get().modules.get(n - 1).map(|m| m.id.clone());
+                let target = current(a).and_then(|p| p.modules.get(n - 1).map(|m| m.id.clone()));
                 if let Some(target) = target {
                     select_module(a, &target);
                 }
             })
         }
-        _ => return false,
-    };
+        _ => return None,
+    })
+}
+
+/// Shared by our own pages (reported by src/shell/bridge.js) and, on Windows, module pages
+/// (src-tauri/src/win.rs). Returns true when the keys were a Mida shortcut.
+pub(crate) fn shortcut(app: &AppHandle, key: &str, ctrl: bool, shift: bool, alt: bool) -> bool {
+    let Some(action) = shortcut_action(&key.to_lowercase(), ctrl, shift, alt) else { return false };
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || action(&app));
     true
+}
+
+fn apply_prefs(app: &AppHandle, before: &Prefs) {
+    let now = prefs(app);
+    if now.site_zoom != before.site_zoom {
+        let ids: Vec<String> = hub(app).statuses.lock().unwrap().keys().cloned().collect();
+        for id in ids {
+            if let Some(page) = app.get_webview(&label_for(&id)) {
+                let _ = page.set_zoom(now.site_zoom as f64 / 100.0);
+            }
+        }
+    }
+    if now.ui_scale != before.ui_scale {
+        for label in [SHELL, CONTROLS] {
+            if let Some(view) = app.get_webview(label) {
+                let _ = view.set_zoom(now.ui_scale as f64 / 100.0);
+            }
+        }
+    }
+    if now.show_address_bar {
+        close_controls(app);
+    } else {
+        ensure_controls(app);
+    }
+    emit_state(app);
+    layout(app);
 }
 
 // ---------- Updates ----------
@@ -488,21 +713,29 @@ fn short_version(version: &str) -> String {
     version.chars().take(32).collect()
 }
 
-async fn check_for_update(app: &AppHandle) {
+/// "available", "none", "busy" or "error".
+async fn check_for_update(app: &AppHandle) -> &'static str {
     let status = hub(app).update.lock().unwrap().as_ref().map(|u| u.status);
-    if matches!(status, Some("downloading" | "ready")) || tauri::is_dev() {
-        return;
+    if matches!(status, Some("downloading" | "ready")) {
+        return "busy";
     }
-    let Ok(updater) = app.updater() else { return };
+    if tauri::is_dev() {
+        return "none";
+    }
+    let Ok(updater) = app.updater() else { return "error" };
     match updater.check().await {
         Ok(Some(update)) => {
             let version = short_version(&update.version);
             *hub(app).pending.lock().unwrap() = Some(update);
             set_update(app, Some(UpdateInfo { status: "available", version, percent: 0 }));
+            "available"
         }
-        Ok(None) => {}
-        // No internet, GitHub down...: try again at the next check; nothing to tell the user.
-        Err(err) => eprintln!("Update check failed: {err}"),
+        Ok(None) => "none",
+        // No internet, GitHub down...: try again at the next check.
+        Err(err) => {
+            eprintln!("Update check failed: {err}");
+            "error"
+        }
     }
 }
 
@@ -535,15 +768,19 @@ async fn download_update_now(app: AppHandle) {
     }
 }
 
-// ---------- Commands (only the shell may call these) ----------
+// ---------- Commands (only our own pages may call these) ----------
 
 fn from_shell(page: &Webview) -> bool {
     page.label() == SHELL
 }
 
+fn from_ours(page: &Webview) -> bool {
+    page.label() == SHELL || page.label() == CONTROLS
+}
+
 #[tauri::command]
 async fn get_state(webview: Webview, app: AppHandle) -> Option<Value> {
-    from_shell(&webview).then(|| public_state(&app))
+    from_ours(&webview).then(|| public_state(&app))
 }
 
 #[tauri::command]
@@ -564,9 +801,31 @@ async fn set_overlay(webview: Webview, app: AppHandle, open: bool) {
     *hub(&app).overlay.lock().unwrap() = open;
     layout(&app);
     if !open {
-        if let Some(page) = active_id(&app).and_then(|id| app.get_webview(&label_for(&id))) {
+        if let Some(page) = app.get_webview(&label_for(&active_id(&app))) {
             let _ = page.set_focus();
         }
+    }
+}
+
+/// A picture of the visible page (a JPEG data URL), shown in its place while a menu or dialog is
+/// open. None when no page is showing or the picture can't be taken.
+#[tauri::command]
+async fn freeze_page(webview: Webview, app: AppHandle) -> Option<String> {
+    if !from_shell(&webview) || *hub(&app).overlay.lock().unwrap() {
+        return None;
+    }
+    let active = active_id(&app);
+    let healthy = hub(&app).statuses.lock().unwrap().get(&active).is_some_and(|s| s.error.is_none());
+    let page = app.get_webview(&label_for(&active)).filter(|_| healthy)?;
+    #[cfg(windows)]
+    {
+        let bytes = tauri::async_runtime::spawn_blocking(move || win::capture(&page)).await.ok().flatten()?;
+        Some(format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = page;
+        None
     }
 }
 
@@ -579,15 +838,8 @@ async fn select(webview: Webview, app: AppHandle, id: String) {
 
 #[tauri::command]
 async fn nav(webview: Webview, app: AppHandle, action: String) {
-    if from_shell(&webview) {
+    if from_ours(&webview) {
         navigate(&app, &action);
-    }
-}
-
-#[tauri::command]
-async fn open_module_menu(webview: Webview, app: AppHandle, id: String) {
-    if from_shell(&webview) {
-        let _ = module_menu(&app, &id);
     }
 }
 
@@ -599,6 +851,76 @@ async fn toggle_sidebar(webview: Webview, app: AppHandle) {
 }
 
 #[tauri::command]
+async fn module_action(webview: Webview, app: AppHandle, id: String, action: String) {
+    if !from_shell(&webview) {
+        return;
+    }
+    match action.as_str() {
+        "reload" => {
+            if let Some(page) = app.get_webview(&label_for(&id)) {
+                let _ = page.reload();
+            }
+        }
+        "browser" => {
+            let current = hub(&app).statuses.lock().unwrap().get(&id).map(|s| s.url.clone());
+            let fallback = find_module(&app, &id).map(|m| m.url);
+            if let Some(url) = current.or(fallback).and_then(|u| Url::parse(&u).ok()) {
+                open_external(&app, &url);
+            }
+        }
+        "up" => move_module(&app, &id, -1),
+        "down" => move_module(&app, &id, 1),
+        "remove" => remove_module(&app, &id),
+        "refresh-icon" => {
+            hub(&app).icon_tried.lock().unwrap().remove(&id);
+            hub(&app).store.lock().unwrap().update_profile(|p| {
+                if let Some(m) = p.modules.iter_mut().find(|m| m.id == id) {
+                    m.icon = None;
+                }
+            });
+            emit_state(&app);
+            if let Some(page) = app.get_webview(&label_for(&id)) {
+                find_icon(&app, &id, &page);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[tauri::command]
+async fn rename_module(webview: Webview, app: AppHandle, id: String, name: String) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    let Some(module) = find_module(&app, &id) else { return fail("That module is gone.") };
+    let name = clean_name(&name, &module.url);
+    hub(&app).store.lock().unwrap().update_profile(|p| {
+        if let Some(m) = p.modules.iter_mut().find(|m| m.id == id) {
+            m.name = name;
+        }
+    });
+    emit_state(&app);
+    json!({ "ok": true })
+}
+
+/// New module order from dragging in the sidebar: must be exactly the same modules.
+#[tauri::command]
+async fn reorder(webview: Webview, app: AppHandle, ids: Vec<String>) {
+    if !from_shell(&webview) {
+        return;
+    }
+    hub(&app).store.lock().unwrap().update_profile(|p| {
+        let same = ids.len() == p.modules.len()
+            && ids.iter().collect::<HashSet<_>>().len() == ids.len()
+            && ids.iter().all(|id| p.modules.iter().any(|m| &m.id == id));
+        if same {
+            p.modules.sort_by_key(|m| ids.iter().position(|id| *id == m.id).unwrap_or(usize::MAX));
+        }
+    });
+    emit_state(&app);
+}
+
+#[tauri::command]
 async fn download_update(webview: Webview, app: AppHandle) {
     let status = hub(&app).update.lock().unwrap().as_ref().map(|u| u.status);
     if from_shell(&webview) && matches!(status, Some("available" | "error")) {
@@ -607,32 +929,140 @@ async fn download_update(webview: Webview, app: AppHandle) {
 }
 
 #[tauri::command]
-async fn key(webview: Webview, app: AppHandle, key: String, ctrl: bool, shift: bool, alt: bool) -> bool {
-    from_shell(&webview) && shortcut(&app, &key, ctrl, shift, alt)
+async fn check_update(webview: Webview, app: AppHandle) -> &'static str {
+    if !from_shell(&webview) {
+        return "error";
+    }
+    check_for_update(&app).await
 }
 
 #[tauri::command]
-async fn finish_first_run(webview: Webview, app: AppHandle, ids: Vec<String>) -> Value {
+async fn key(webview: Webview, app: AppHandle, key: String, ctrl: bool, shift: bool, alt: bool) -> bool {
+    from_ours(&webview) && shortcut(&app, &key, ctrl, shift, alt)
+}
+
+#[tauri::command]
+async fn set_prefs(webview: Webview, app: AppHandle, prefs: Prefs) {
+    if !from_shell(&webview) {
+        return;
+    }
+    let before = self::prefs(&app);
+    hub(&app).store.lock().unwrap().update(|s| s.prefs = clean_prefs(prefs));
+    apply_prefs(&app, &before);
+}
+
+/// Only our own fixed links (never an address from a page).
+#[tauri::command]
+async fn open_link(webview: Webview, app: AppHandle, which: String) {
+    let url = match which.as_str() {
+        "releases" => "https://github.com/cee86/mida/releases",
+        "project" => "https://github.com/cee86/mida",
+        _ => return,
+    };
+    if from_shell(&webview) {
+        if let Ok(url) = Url::parse(url) {
+            open_external(&app, &url);
+        }
+    }
+}
+
+#[tauri::command]
+async fn finish_first_run(webview: Webview, app: AppHandle, profile: ProfileInput, modules: Vec<String>) -> Value {
     if !from_shell(&webview) {
         return fail("Something went wrong.");
     }
-    let mut chosen: Vec<Module> = Vec::new();
-    for id in ids.iter().take(MAX_MODULES) {
-        if let Some(module) = from_catalogue(id) {
-            if !chosen.iter().any(|m| m.id == module.id) {
-                chosen.push(module);
-            }
-        }
-    }
-    let Some(first) = chosen.first().map(|m| m.id.clone()) else {
-        return fail("Pick at least one module to start with.");
-    };
+    let Some(profile) = new_profile(&profile, &modules) else { return fail("Give your profile a name.") };
+    let (id, active) = (profile.id.clone(), profile.active_id.clone());
     hub(&app).store.lock().unwrap().update(|s| {
         s.first_run_done = true;
-        s.modules = chosen;
+        s.profiles = vec![profile];
+        s.default_profile = Some(id.clone());
+        s.current_profile = Some(id.clone());
     });
-    select_module(&app, &first);
+    select_module(&app, &active);
     json!({ "ok": true })
+}
+
+#[tauri::command]
+async fn create_profile(webview: Webview, app: AppHandle, profile: ProfileInput, modules: Vec<String>) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    if hub(&app).store.lock().unwrap().get().profiles.len() >= MAX_PROFILES {
+        return fail(&format!("You can have up to {MAX_PROFILES} profiles."));
+    }
+    let Some(profile) = new_profile(&profile, &modules) else { return fail("Give your profile a name.") };
+    let id = profile.id.clone();
+    hub(&app).store.lock().unwrap().update(|s| s.profiles.push(profile));
+    switch_profile_now(&app, &id);
+    json!({ "ok": true })
+}
+
+#[tauri::command]
+async fn update_profile(webview: Webview, app: AppHandle, id: String, profile: ProfileInput) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    let name = clean_text(&profile.name, 32);
+    if name.is_empty() {
+        return fail("Give your profile a name.");
+    }
+    let game = if GAMES.iter().any(|g| g.id == profile.game) { profile.game } else { CUSTOM_GAME.to_string() };
+    hub(&app).store.lock().unwrap().update(|s| {
+        if let Some(p) = s.profiles.iter_mut().find(|p| p.id == id) {
+            p.name = name;
+            p.image = clean_image(profile.image.as_deref(), false, MAX_PICTURE);
+            p.game = game;
+            p.game_name = profile.game_name;
+        }
+    });
+    emit_state(&app);
+    json!({ "ok": true })
+}
+
+#[tauri::command]
+async fn delete_profile(webview: Webview, app: AppHandle, id: String) {
+    if !from_shell(&webview) {
+        return;
+    }
+    let (count, was_current) = {
+        let hub = hub(&app);
+        let store = hub.store.lock().unwrap();
+        (store.get().profiles.len(), store.get().current_profile.as_deref() == Some(id.as_str()))
+    };
+    if count <= 1 {
+        return;
+    }
+    if was_current {
+        close_all_pages(&app);
+    }
+    hub(&app).store.lock().unwrap().update(|s| {
+        s.profiles.retain(|p| p.id != id);
+        if s.current_profile.as_deref() == Some(id.as_str()) {
+            s.current_profile = None; // cleaned to the default profile
+        }
+    });
+    let active = active_id(&app);
+    select_module(&app, &active);
+}
+
+#[tauri::command]
+async fn switch_profile(webview: Webview, app: AppHandle, id: String) {
+    if from_shell(&webview) {
+        switch_profile_now(&app, &id);
+    }
+}
+
+#[tauri::command]
+async fn set_default_profile(webview: Webview, app: AppHandle, id: String) {
+    if from_shell(&webview) {
+        hub(&app).store.lock().unwrap().update(|s| {
+            if s.profiles.iter().any(|p| p.id == id) {
+                s.default_profile = Some(id);
+            }
+        });
+        emit_state(&app);
+    }
 }
 
 #[tauri::command]
@@ -640,7 +1070,8 @@ async fn add_from_catalogue(webview: Webview, app: AppHandle, id: String) -> Val
     if !from_shell(&webview) {
         return fail("Something went wrong.");
     }
-    match from_catalogue(&id) {
+    let game = current(&app).map(|p| p.game).unwrap_or_default();
+    match from_catalogue(&game, &id) {
         Some(module) => add_module(&app, module),
         None => fail("That module isn't in the list."),
     }
@@ -654,9 +1085,7 @@ async fn add_custom(webview: Webview, app: AppHandle, name: String, url: String)
     let Some(url) = clean_url(&url) else {
         return fail("Enter a web address starting with https://, like https://example.com");
     };
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let id = format!("custom-{:x}", (nanos as u64) & 0xff_ffff_ffff);
-    add_module(&app, Module { id, name: clean_name(&name, &url), url, icon: None })
+    add_module(&app, Module { id: random_id("custom"), name: clean_name(&name, &url), url, icon: None })
 }
 
 // ---------- Window ----------
@@ -695,12 +1124,19 @@ fn create_window(app: &AppHandle) -> tauri::Result<()> {
     let shell = WebviewBuilder::new(SHELL, WebviewUrl::App("index.html".into()))
         .background_color(BACKGROUND)
         .zoom_hotkeys_enabled(false)
+        // Lets the sidebar's own drag and drop (reordering modules) work; Mida takes no file drops.
+        .disable_drag_drop_handler()
         // The shell never goes anywhere but our own page.
         .on_navigation(|url| url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost"))
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .on_permission_request(|_, _| PermissionResponse::Deny);
     let shell = window.add_child(shell, LogicalPosition::new(0.0, 0.0), LogicalSize::new(width, height))?;
     window.show()?;
+    // Interface size, only when changed (zooming before the page is on screen can leave it blank).
+    let scale = prefs(app).ui_scale;
+    if scale != 100 {
+        let _ = shell.set_zoom(scale as f64 / 100.0);
+    }
     // The shell always fills the window. (Sized by hand: Tauri's automatic resizing keeps the
     // proportions of the first size, which can be wrong before the window is on screen.)
     let _ = shell.set_size(window.inner_size()?);
@@ -758,16 +1194,22 @@ pub fn run() {
                 update: Mutex::new(None),
                 pending: Mutex::new(None),
                 creating: Mutex::new(()),
+                icon_tried: Mutex::new(HashSet::new()),
             });
             let handle = app.handle().clone();
             create_window(&handle)?;
 
-            // Start loading the last module straight away, alongside the shell, to save time.
-            let first_run_done = hub(&handle).store.lock().unwrap().get().first_run_done;
-            if let (true, Some(active)) = (first_run_done, active_id(&handle)) {
-                let app = handle.clone();
-                tauri::async_runtime::spawn_blocking(move || select_module(&app, &active));
-            }
+            // Open the default profile where it was left, straight away, to save time.
+            let app = handle.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let default = hub(&app).store.lock().unwrap().get().default_profile.clone();
+                if let Some(default) = default {
+                    hub(&app).store.lock().unwrap().update(|s| s.current_profile = Some(default));
+                    ensure_controls(&app);
+                    let active = active_id(&app);
+                    select_module(&app, &active);
+                }
+            });
 
             let app = handle.clone();
             tauri::async_runtime::spawn(async move {
@@ -778,23 +1220,28 @@ pub fn run() {
             });
             Ok(())
         })
-        .on_menu_event(|app, event| {
-            if let Some((action, id)) = event.id().as_ref().split_once('|') {
-                let (app, action, id) = (app.clone(), action.to_string(), id.to_string());
-                tauri::async_runtime::spawn_blocking(move || menu_action(&app, &action, &id));
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             get_state,
             set_stage_rect,
             set_overlay,
+            freeze_page,
             select,
             nav,
-            open_module_menu,
             toggle_sidebar,
+            module_action,
+            rename_module,
+            reorder,
             download_update,
+            check_update,
             key,
+            set_prefs,
+            open_link,
             finish_first_run,
+            create_profile,
+            update_profile,
+            delete_profile,
+            switch_profile,
+            set_default_profile,
             add_from_catalogue,
             add_custom,
         ])
