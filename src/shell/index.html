@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- The shell only runs our own files; it loads nothing from the web. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'">
+  <title>Mida</title>
+  <link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <div class="app" id="app" data-expanded="true">
+    <aside class="sidebar">
+      <div class="sidebar__top">
+        <button class="icon-btn" id="toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <span class="brand">Mida</span>
+      </div>
+      <div class="sidebar__label">Modules</div>
+      <nav class="modules" id="modules" aria-label="Modules"></nav>
+      <div class="sidebar__bottom">
+        <button class="mod mod--add" id="add-open" type="button" title="Add a module">
+          <span class="mod__icon mod__icon--add">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </span>
+          <span class="mod__name">Add a module</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="toolbar">
+        <div class="toolbar__nav">
+          <button class="icon-btn" id="back" type="button" aria-label="Back" title="Back (Alt+Left)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <button class="icon-btn" id="forward" type="button" aria-label="Forward" title="Forward (Alt+Right)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+          <button class="icon-btn" id="reload" type="button" aria-label="Reload" title="Reload (Ctrl+R)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4"/></svg>
+          </button>
+          <button class="icon-btn" id="home" type="button" aria-label="Module home page" title="Module home page">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6M6.5 9.5V19h11V9.5"/></svg>
+          </button>
+        </div>
+        <div class="toolbar__where">
+          <span class="toolbar__title" id="title"></span>
+          <span class="toolbar__url" id="url"></span>
+        </div>
+        <button class="icon-btn" id="external" type="button" aria-label="Open in your browser" title="Open in your browser">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></svg>
+        </button>
+        <div class="toolbar__progress" id="progress" aria-hidden="true"></div>
+      </header>
+
+      <section class="stage" id="stage" aria-live="polite">
+        <div class="stage__msg" id="stage-msg" hidden></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="dialog dialog--welcome" id="welcome" aria-labelledby="welcome-title">
+    <div class="dialog__head">
+      <h1 class="dialog__title" id="welcome-title">Welcome to Mida</h1>
+      <p class="dialog__lede">Your Destiny 2 companion sites in one window. Pick the ones to start with.
+        You can add or remove modules any time from the sidebar.</p>
+    </div>
+    <div class="dialog__body" id="welcome-list"></div>
+    <p class="dialog__error" id="welcome-error" role="alert"></p>
+    <div class="dialog__actions">
+      <span class="dialog__fine">Not affiliated with Bungie or any of these sites.</span>
+      <button class="btn btn--primary" id="welcome-start" type="button">Start</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog" id="add" aria-labelledby="add-title">
+    <div class="dialog__head dialog__head--row">
+      <h1 class="dialog__title" id="add-title">Add a module</h1>
+      <button class="icon-btn" id="add-close" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="dialog__body">
+      <h2 class="band">From the list</h2>
+      <div class="catalogue" id="add-list"></div>
+      <h2 class="band">Any other site</h2>
+      <form class="custom" id="add-form" autocomplete="off">
+        <label class="field">
+          <span class="field__label">Web address</span>
+          <input class="field__input" id="add-url" name="url" type="text" inputmode="url" maxlength="2048"
+                 placeholder="https://example.com" required>
+        </label>
+        <label class="field">
+          <span class="field__label">Name <span class="field__hint">(optional)</span></span>
+          <input class="field__input" id="add-name" name="name" type="text" maxlength="40" placeholder="Shown in the sidebar">
+        </label>
+        <button class="btn btn--primary" type="submit">Add</button>
+      </form>
+      <p class="dialog__error" id="add-error" role="alert"></p>
+      <p class="dialog__fine">Right-click a module in the sidebar (or use its ⋯ button) to move or remove it.</p>
+    </div>
+  </dialog>
+
+  <script src="shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "name": "mida",
+  "productName": "Mida",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Destiny 2 companion sites in one desktop window. Not affiliated with Bungie.",
+  "author": "seals.report",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cee86/mida.git"
+  },
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "report.seals.mida",
+    "productName": "Mida",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

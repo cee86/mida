@@ -1,0 +1,29 @@
+# Builds the Windows installer on every push, or on demand from the Actions tab.
+# The installer is attached to the run as "mida-windows"
+# (Actions tab > the run > Artifacts).
+name: Build
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # npm ci installs exactly the versions in package-lock.json.
+      - run: npm ci --no-audit --no-fund
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mida-windows
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
