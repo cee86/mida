@@ -129,6 +129,7 @@ jobs:
               } },
             }, null, 2));
           ' "$VERSION" "$exe"
-          # Creates the tag at this commit and publishes in one go.
+          # Creates the tag at this commit and publishes in one go. --latest: installed copies look for
+          # updates under "latest", which GitHub would otherwise give to the highest version number.
           gh release create "v$VERSION" "$exe" "$exe.sig" latest.json \
-            --target "$GITHUB_SHA" --title "$VERSION" --notes "Mida $VERSION"
+            --target "$GITHUB_SHA" --title "$VERSION" --notes "Mida $VERSION" --latest

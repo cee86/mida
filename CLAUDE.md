@@ -31,8 +31,9 @@ status or use other sites' artwork as our own.
 ## 3. Tech stack
 
 * **Tauri 2** (Rust core in `src-tauri/`) using **Windows' built-in WebView2** (the engine behind Edge), plus plain
-  HTML/CSS/JS for the app's own screen (`src/shell/`), no frameworks. v0.1–v0.3 were Electron; the owner found the
-  ~400 MB install far too big (v0.4 switch, see Decisions). Expected: installer ~5–10 MB, installed ~15–25 MB.
+  HTML/CSS/JS for the app's own screen (`src/shell/`), no frameworks. The first builds (Electron, versions 0.1–0.3)
+  were ~400 MB installed; the owner found that far too big, so the app was rebuilt on Tauri and **restarted at v0.1.0**
+  (see Decisions). Installer 1.83 MB; installed a few MB.
 * **Rust dependencies** (`src-tauri/Cargo.toml`, `Cargo.lock` committed): tauri (feature **`unstable`**, needed for
   several pages in one window: `Window::add_child`; still marked experimental by Tauri), plugins opener (links to the
   system browser), single-instance, updater; serde/serde_json/url/tokio; on Windows only webview2-com + windows (same
@@ -41,7 +42,7 @@ status or use other sites' artwork as our own.
   app with seals.report, light.gg and DIM, clicks a module, presses Ctrl+3 inside a page and Ctrl+B, and saves
   screenshots (artifact `smoke-test`; the log prints how many colours each shot's site area has, a quick sign that a
   page drew). Installer artifact `mida-windows`. Not code-signed, so SmartScreen warns on first install.
-* **Updates** (v0.3 behaviour kept, owner's request "the app shouldn't automatically update"): the app only *checks*
+* **Updates** (Electron 0.3 behaviour kept, owner's request "the app shouldn't automatically update"): the app only *checks*
   `https://github.com/cee86/mida/releases/latest/download/latest.json` at start and every 4 hours (installed app only).
   New version → pop-up ("Update available", Update now / Later; once per version per session, never over another
   dialog) + a sidebar banner until updated. Update = download in the app with %, **signature checked** against the
@@ -51,9 +52,10 @@ status or use other sites' artwork as our own.
   reinstall of a build with a new key). Anyone who has it could sign an update, but could only deliver it through a
   release on `cee86/mida`, so both the key and the repo must be protected.
 * **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json` (Tauri
-  reads it: `"version": "../package.json"`; semver: fixes 0.4.1, features 0.5.0) and push to `main`. The workflow sees
+  reads it: `"version": "../package.json"`; semver: fixes 0.1.1, features 0.2.0) and push to `main`. The workflow sees
   no `v<version>` release, builds signed (`createUpdaterArtifacts`), writes `latest.json` (version, signature, installer
-  URL) and runs `gh release create` (creates the tag too). Test builds pass
+  URL) and runs `gh release create --latest` (creates the tag too; `--latest` because installed copies read
+  `releases/latest`, which GitHub would otherwise give to the highest version number). Test builds pass
   `--config '{"bundle":{"createUpdaterArtifacts":false}}'` so they need no key. A newer push cancels a running build.
   Never re-use a version number. The repo must stay **public** so installed apps can download releases.
 
@@ -106,7 +108,7 @@ reload, open in browser, move up/down, remove. The sidebar shows each module's f
 with Electron; WebView2's favicon event could bring them back).
 
 **Shortcuts:** Ctrl+B sidebar, Ctrl+1–9 module n, Ctrl+Tab / Ctrl+Shift+Tab next/previous, Alt+Left/Right and mouse
-side buttons back/forward, Ctrl+R / F5 reload, Ctrl+= / - / 0 zoom (the page's own; not remembered since v0.4).
+side buttons back/forward, Ctrl+R / F5 reload, Ctrl+= / - / 0 zoom (the page's own; not remembered since the move to Tauri).
 
 ## 5. Security (don't weaken any of this)
 
@@ -139,26 +141,32 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
   updating Tauri.
 * No custom "couldn't load" screen any more: WebView2 shows its own error page inside the module. The shell's error
   panel code remains but isn't triggered. Back/forward buttons are always enabled (Tauri doesn't report history).
-* Moving from Electron (v0.3) to Tauri (v0.4) can't happen through the old updater (it looks for latest.yml, which Tauri
-  releases don't have), so v0.3 users uninstall "Mida" and install v0.4 by hand once. Different install folders:
+* Moving from the Electron build (0.3.0) to the Tauri one can't happen through the old updater (it looks for latest.yml,
+  and its releases were deleted), so anyone on it uninstalls "Mida" and installs the Tauri v0.1.0 by hand once. Different
+  install folders:
   Electron `%LOCALAPPDATA%\Programs\mida`, Tauri `%LOCALAPPDATA%\Mida`.
 * Unsigned installer (SmartScreen warning on first install).
 * Memory grows with each opened module (they stay alive by design).
 
 ## 8. Decisions log
 
-* v0.1 (30 Sep 2026): Electron over Tauri (reasons in §3); modules load on first open and stay alive; one shared
+**Electron era (all 30 Sep 2026; releases and version numbers retired):**
+
+* Electron 0.1: Electron over Tauri (its several-pages-per-window support was mature; Tauri's was experimental); modules load on first open and stay alive; one shared
   browser profile; first-run picker with seals.report, light.gg and DIM ticked; custom https sites allowed; moved from
   `cee86/d2-seals-report/desktop` to its own repo at the owner's request; the owner named the app **Mida** (the repo name).
-* v0.2.0 (30 Sep 2026): auto-update from GitHub releases; the owner chose to make the repo public for it. Never
+* Electron 0.2.0: auto-update from GitHub releases; the owner chose to make the repo public for it. Never
   published (its release build failed: GitHub needs the tag to exist first, now fixed in the workflow).
-* v0.3.0 (30 Sep 2026): updates ask first (pop-up + sidebar banner until updated) instead of downloading and installing
-  by themselves (owner's request). The first published release: https://github.com/cee86/mida/releases/tag/v0.3.0
+* Electron 0.3.0: updates ask first (pop-up + sidebar banner until updated) instead of downloading and installing
+  by themselves (owner's request). Published, then deleted by the owner when the Tauri build replaced it.
 
-* v0.4.0 (30 Sep 2026): **Electron -> Tauri** at the owner's request ("the install size is massive"): Electron always
+**Tauri era:**
+
+* v0.1.0 (30 Sep 2026): **Electron -> Tauri** at the owner's request ("the install size is massive"): Electron always
   ships its own Chrome (~280 MB of the ~285 MB app); Tauri uses Windows' WebView2 instead. Same screen, same features and
   security rules; ask-first updates now signature-checked; new app icon (art/icon.svg). Built on branch `tauri` and
-  tried on GitHub's Windows machine (smoke test) before replacing main.
+  tried on GitHub's Windows machine (smoke test: pages placed right, module switching, Ctrl+3 inside a page, Ctrl+B)
+  before replacing main. The owner deleted the Electron releases and chose to start the numbering again at v0.1.0.
 
 ## 9. Roadmap
 
