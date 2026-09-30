@@ -20,6 +20,16 @@
       <div class="sidebar__label">Modules</div>
       <nav class="modules" id="modules" aria-label="Modules"></nav>
       <div class="sidebar__bottom">
+        <button class="update-banner" id="update-banner" type="button" hidden>
+          <span class="update-banner__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+          </span>
+          <span class="update-banner__text">
+            <span class="update-banner__title" id="update-title"></span>
+            <span class="update-banner__detail" id="update-detail"></span>
+          </span>
+          <span class="update-banner__bar" aria-hidden="true"><span id="update-bar"></span></span>
+        </button>
         <button class="mod mod--add" id="add-open" type="button" title="Add a module">
           <span class="mod__icon mod__icon--add">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -49,10 +59,6 @@
           <span class="toolbar__title" id="title"></span>
           <span class="toolbar__url" id="url"></span>
         </div>
-        <button class="update-btn" id="update" type="button" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
-          <span id="update-text">Restart to update</span>
-        </button>
         <button class="icon-btn" id="external" type="button" aria-label="Open in your browser" title="Open in your browser">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></svg>
         </button>
@@ -105,6 +111,19 @@
       <p class="dialog__error" id="add-error" role="alert"></p>
       <p class="dialog__fine">Right-click a module in the sidebar (or use its ⋯ button) to move or remove it.</p>
       <p class="dialog__fine" id="version"></p>
+    </div>
+  </dialog>
+
+  <dialog class="dialog dialog--small" id="update-dialog" aria-labelledby="update-dialog-title">
+    <div class="dialog__head">
+      <h1 class="dialog__title" id="update-dialog-title">Update available</h1>
+      <p class="dialog__lede" id="update-dialog-text"></p>
+      <p class="dialog__fine">Mida downloads it and restarts by itself. Your modules and sign-ins stay as they are.
+        Choose Later to update any time from the banner at the bottom of the sidebar.</p>
+    </div>
+    <div class="dialog__actions dialog__actions--end">
+      <button class="btn" id="update-later" type="button">Later</button>
+      <button class="btn btn--primary" id="update-now" type="button">Update now</button>
     </div>
   </dialog>
 

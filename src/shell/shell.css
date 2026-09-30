@@ -230,6 +230,58 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .app[data-expanded="false"] .sidebar__label { font-size: 0; margin-top: 14px; }
 .app[data-expanded="false"] .mod { justify-content: center; padding: 5px 0; }
 
+/* Update banner: stays at the bottom of the sidebar from the moment an update is found
+   until it's installed. The whole banner is the button. */
+.update-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px 9px 10px;
+  border: 1px solid rgba(241, 154, 63, 0.5);
+  border-radius: 8px;
+  background: rgba(241, 154, 63, 0.1);
+  color: var(--cream);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.update-banner[hidden] { display: none; }
+.update-banner:hover:not(:disabled) { background: rgba(241, 154, 63, 0.18); }
+.update-banner:disabled { cursor: default; }
+.update-banner__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(241, 154, 63, 0.18);
+  color: var(--sun);
+}
+.update-banner__icon svg { width: 16px; height: 16px; }
+.update-banner[data-status="downloading"] .update-banner__icon svg { animation: pulse 1s ease-in-out infinite; }
+.update-banner__text { display: flex; flex-direction: column; min-width: 0; }
+.update-banner__title { font-weight: 600; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.update-banner__detail { color: var(--mist); font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.update-banner[data-status="error"] .update-banner__detail { color: var(--danger); }
+.update-banner__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(241, 154, 63, 0.15);
+  opacity: 0;
+}
+.update-banner__bar span { display: block; height: 100%; width: 0; background: var(--sun); transition: width 200ms; }
+.update-banner[data-status="downloading"] .update-banner__bar,
+.update-banner[data-status="ready"] .update-banner__bar { opacity: 1; }
+.app[data-expanded="false"] .update-banner { justify-content: center; padding: 8px 0 10px; }
+.app[data-expanded="false"] .update-banner__text { display: none; }
+
 /* ---------- Toolbar ---------- */
 
 .toolbar {
@@ -304,27 +356,6 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 }
 .icon-btn:hover:not(:disabled) { background: var(--ash-raised); color: var(--cream); }
 .icon-btn:disabled { opacity: 0.35; cursor: default; }
-
-/* "Restart to update": only shown once a new version has downloaded. */
-.update-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  height: 30px;
-  padding: 0 12px 0 9px;
-  border: 1px solid rgba(241, 154, 63, 0.55);
-  border-radius: 999px;
-  background: rgba(241, 154, 63, 0.12);
-  color: var(--cream);
-  font-size: 0.84rem;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.update-btn:hover { background: rgba(241, 154, 63, 0.22); }
-.update-btn[hidden] { display: none; }
-.update-btn svg { width: 16px; height: 16px; color: var(--sun); }
 
 /* ---------- Stage (where module pages sit) ---------- */
 
@@ -406,6 +437,8 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .dialog[open] { display: flex; flex-direction: column; animation: dialog-in 160ms ease-out; }
 .dialog::backdrop { background: rgba(8, 9, 11, 0.6); }
 .dialog--welcome { width: min(720px, calc(100vw - 48px)); }
+.dialog--small { width: min(460px, calc(100vw - 48px)); }
+.dialog__actions.dialog__actions--end { justify-content: flex-end; }
 
 .dialog__head { padding: 22px 24px 14px; }
 .dialog__head--row { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; }

@@ -13,9 +13,9 @@ Download the installer (`Mida-Setup-<version>.exe`) from the latest release:
 https://github.com/cee86/mida/releases/latest. Windows will warn that the app is from an unknown
 publisher (the app isn't code-signed yet): choose "More info" then "Run anyway".
 
-After that Mida updates itself: it checks for new versions at start and every few hours,
-downloads them quietly, and shows "Restart to update" in the toolbar (or installs the next time
-you close it).
+After that you never need to download Mida again: it checks for new versions at start and every
+few hours, and when one is out it tells you (a pop-up, then a banner at the bottom of the sidebar).
+Choose Update and it downloads and restarts on the new version. Nothing installs until you choose.
 
 ## Releasing an update
 

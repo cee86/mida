@@ -30,7 +30,7 @@ let store = null;
 const views = new Map(); // module id -> { view, status }
 let stageRect = null; // where module pages go, in shell pixels (reported by the shell)
 let overlayOpen = false; // a shell dialog is open, so pages are hidden beneath it
-let updateReady = null; // { version } once a new version has downloaded
+let update = null; // { status: available | downloading | ready | error, version, percent } once one is found
 
 const moduleById = (id) => store.get().modules.find((m) => m.id === id) ?? null;
 
@@ -54,7 +54,7 @@ function publicState() {
     statuses,
     platform: process.platform,
     version: app.getVersion(),
-    updateReady,
+    update,
   };
 }
 
@@ -347,32 +347,56 @@ function moduleMenu(id) {
 
 // ---------- Updates ----------
 
-// New versions are published as GitHub releases of cee86/mida. The app checks at start and
-// every few hours, downloads quietly, and installs when you restart (or next time you quit).
-// Downloads come from GitHub over https and are checked against the release's checksum.
+// New versions are published as GitHub releases of cee86/mida. The app only *checks* by
+// itself (at start and every few hours); nothing downloads or installs until the user chooses
+// Update (in the pop-up or the sidebar banner). Then it downloads inside the app, checked
+// against the release's checksum, installs silently into the same folder and reopens Mida.
 // Only the installed app checks; running from the code (npm start) never does.
 const UPDATE_CHECK_EVERY = 4 * 60 * 60 * 1000;
 
+function setUpdate(next) {
+  update = next;
+  sendState();
+}
+
 function setUpUpdates() {
   if (!app.isPackaged) return;
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on("update-downloaded", (info) => {
-    updateReady = { version: String(info.version).slice(0, 32) };
-    sendState();
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.on("update-available", (info) => {
+    if (update?.status === "downloading" || update?.status === "ready") return;
+    setUpdate({ status: "available", version: String(info.version).slice(0, 32), percent: 0 });
   });
-  // No internet, GitHub down...: try again at the next check; nothing to tell the user.
-  autoUpdater.on("error", (err) => console.error("Update check failed:", err?.message));
-  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  autoUpdater.on("download-progress", (progress) => {
+    if (update) setUpdate({ ...update, status: "downloading", percent: Math.floor(progress.percent) });
+  });
+  autoUpdater.on("update-downloaded", () => {
+    setUpdate({ ...update, status: "ready", percent: 100 });
+    store.flush();
+    // The user already chose to update: give the banner a moment to say so, then restart.
+    // Silent = no installer pages; true = open Mida again afterwards.
+    setTimeout(() => autoUpdater.quitAndInstall(true, true), 1200);
+  });
+  // A failed check (no internet, GitHub down) is simply retried at the next check. A failed
+  // download is shown in the banner so the user can try again.
+  autoUpdater.on("error", (err) => {
+    console.error("Update problem:", err?.message);
+    if (update?.status === "downloading") setUpdate({ ...update, status: "error" });
+  });
+  const check = () => {
+    if (update?.status === "downloading" || update?.status === "ready") return;
+    autoUpdater.checkForUpdates().catch(() => {});
+  };
   check();
   setInterval(check, UPDATE_CHECK_EVERY);
 }
 
-function installUpdate() {
-  if (!updateReady) return;
-  store.flush();
-  // Silent: reinstall into the same folder without the installer's pages, then reopen Mida.
-  autoUpdater.quitAndInstall(true, true);
+function downloadUpdate() {
+  if (update?.status !== "available" && update?.status !== "error") return;
+  setUpdate({ ...update, status: "downloading", percent: 0 });
+  autoUpdater.downloadUpdate().catch(() => {
+    if (update?.status === "downloading") setUpdate({ ...update, status: "error" });
+  });
 }
 
 // ---------- Keyboard and mouse shortcuts ----------
@@ -440,8 +464,8 @@ function registerIpc() {
     if (fromShell(event)) toggleSidebar();
   });
 
-  ipcMain.on("update:install", (event) => {
-    if (fromShell(event)) installUpdate();
+  ipcMain.on("update:download", (event) => {
+    if (fromShell(event)) downloadUpdate();
   });
 
   ipcMain.handle("firstrun:finish", (event, ids) => {

@@ -143,14 +143,39 @@ function renderActive() {
   }
 }
 
+// Update banner and pop-up. The app only checks for updates; the user decides when.
+let announcedUpdate = null; // version the pop-up has already been shown for (this session)
+
+const UPDATE_TEXT = {
+  available: (u) => ["Update available", `Mida ${u.version} · Click to update`],
+  downloading: (u) => ["Downloading update", `${u.percent}% · Restarts when done`],
+  ready: () => ["Restarting to update", "Just a moment"],
+  error: () => ["Download failed", "Click to try again"],
+};
+
 function renderUpdate() {
-  const button = $("update");
-  button.hidden = !state.updateReady;
-  if (state.updateReady) {
-    $("update-text").textContent = `Restart to update to ${state.updateReady.version}`;
-    button.title = "The new version has downloaded. Restart Mida to start using it (or it installs next time you close Mida).";
-  }
-  $("version").textContent = `Mida ${state.version}. Updates download by themselves.`;
+  const update = state.update;
+  const banner = $("update-banner");
+  banner.hidden = !update;
+  $("version").textContent = `Mida ${state.version}`;
+  if (!update) return;
+  const [title, detail] = UPDATE_TEXT[update.status](update);
+  banner.dataset.status = update.status;
+  banner.disabled = update.status === "downloading" || update.status === "ready";
+  banner.title = `${title}. ${detail}`;
+  $("update-title").textContent = title;
+  $("update-detail").textContent = detail;
+  $("update-bar").style.width = `${update.percent ?? 0}%`;
+  if (update.status === "available" && announcedUpdate !== update.version) maybeAnnounce();
+}
+
+// Show the pop-up once per new version, but never on top of another window: the first-run
+// picker comes first, and an open "Add a module" gets to finish.
+function maybeAnnounce() {
+  if (document.querySelector("dialog[open]") || !state.firstRunDone) return;
+  announcedUpdate = state.update.version;
+  $("update-dialog-text").textContent = `Mida ${state.update.version} is available. You're using ${state.version}.`;
+  showDialog($("update-dialog"));
 }
 
 function render() {
@@ -178,7 +203,10 @@ function showDialog(dialog) {
 }
 for (const dialog of document.querySelectorAll("dialog")) {
   dialog.addEventListener("close", () => {
-    if (!document.querySelector("dialog[open]")) hub.setOverlay(false);
+    if (document.querySelector("dialog[open]")) return;
+    hub.setOverlay(false);
+    // An update found while another window was open is announced once it closes.
+    if (state?.update?.status === "available" && announcedUpdate !== state.update.version) maybeAnnounce();
   });
 }
 
@@ -278,7 +306,12 @@ $("add-form").addEventListener("submit", (event) => {
 // ---------- Toolbar buttons ----------
 
 $("toggle").addEventListener("click", () => hub.toggleSidebar());
-$("update").addEventListener("click", () => hub.installUpdate());
+$("update-banner").addEventListener("click", () => hub.downloadUpdate());
+$("update-later").addEventListener("click", () => $("update-dialog").close());
+$("update-now").addEventListener("click", () => {
+  hub.downloadUpdate();
+  $("update-dialog").close();
+});
 for (const action of ["back", "forward", "reload", "home", "external"]) {
   $(action).addEventListener("click", () => hub.nav(action));
 }

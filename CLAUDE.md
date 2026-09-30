@@ -41,11 +41,14 @@ status or use other sites' artwork as our own.
 * **Builds:** `.github/workflows/build.yml` builds a Windows NSIS installer on every push (and on demand), uploaded as
   the run's `mida-windows` artifact. The owner installs nothing locally. Not code-signed yet, so Windows
   SmartScreen warns on first install ("More info" > "Run anyway").
-* **Auto-update** (v0.2, owner's request: "push updates straight to the app"): `electron-updater` (the one runtime
-  dependency) checks GitHub releases of `cee86/mida` at start and every 4 hours (installed app only, never `npm start`),
-  downloads in the background (checked against the release's sha512), shows a sun-orange **"Restart to update to x"**
-  pill in the toolbar, and otherwise installs when Mida is next closed. Restart = silent reinstall into the same folder,
-  then Mida reopens.
+* **Updates** (v0.2 auto, v0.3 ask-first at the owner's request: "the app shouldn't automatically update"):
+  `electron-updater` (the one runtime dependency) only *checks* GitHub releases of `cee86/mida` by itself, at start and
+  every 4 hours (installed app only, never `npm start`). When a new version is found: a pop-up ("Update available",
+  Update now / Later; once per version per session, never over the first-run picker or another dialog, shown when it
+  closes) and a banner at the bottom of the sidebar that stays until the app is updated (collapsed sidebar: icon only).
+  Choosing Update downloads inside the app (banner shows %, checked against the release's sha512), then Mida restarts
+  itself on the new version (silent reinstall into the same folder). A failed download shows "Download failed · Click to
+  try again". Nothing downloads or installs without the user's click, and no one re-downloads installers from GitHub.
 * **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json`
   (semver: fixes 0.2.1, features 0.3.0) and push to `main`. The workflow sees there's no `v<version>` tag yet and runs
   `electron-builder --publish always` with the run's own `GITHUB_TOKEN` (`contents: write`), creating a published
@@ -69,7 +72,7 @@ that way (they're read from real input events). The workspace can't reach the co
 ## 4. How it works (file map)
 
 ```
-src/main.js       The app (also the updater: setUpUpdates / installUpdate). Window + "shell" page; one WebContentsView per module laid over the shell's stage area,
+src/main.js       The app (also the updater: setUpUpdates / downloadUpdate). Window + "shell" page; one WebContentsView per module laid over the shell's stage area,
                   created on first open and kept alive (hidden) afterwards; the active one is shown at the rectangle
                   the shell reports ("stage:rect"), hidden while a shell dialog is open ("overlay") or an error shows.
                   Status per module (loading, title, url, back/forward, error) is pushed to the shell. Shortcuts via
@@ -131,6 +134,8 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
   browser profile; first-run picker with seals.report, light.gg and DIM ticked; custom https sites allowed; moved from
   `cee86/d2-seals-report/desktop` to its own repo at the owner's request; the owner named the app **Mida** (the repo name).
 * v0.2.0 (30 Sep 2026): auto-update from GitHub releases; the owner chose to make the repo public for it.
+* v0.3.0 (30 Sep 2026): updates ask first (pop-up + sidebar banner until updated) instead of downloading and installing
+  by themselves (owner's request). 0.2.0 still auto-installs the move to 0.3.0; from 0.3.0 on it's the user's choice.
 
 ## 9. Roadmap
 
