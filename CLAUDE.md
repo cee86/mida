@@ -41,7 +41,9 @@ status or use other sites' artwork as our own.
 * **Builds:** `.github/workflows/build.yml` on `windows-latest`: build, then **`scripts/smoke-test.ps1`** runs the real
   app with seals.report, light.gg and DIM, clicks a module, presses Ctrl+3 inside a page and Ctrl+B, and saves
   screenshots (artifact `smoke-test`; the log prints how many colours each shot's site area has, a quick sign that a
-  page drew). Installer artifact `mida-windows`. Not code-signed, so SmartScreen warns on first install.
+  page drew). The screenshots are also force-pushed to the `ci-screenshots` branch; read them with
+  `git fetch origin +ci-screenshots:refs/remotes/origin/ci-screenshots` (note the `+`: the branch is replaced each run)
+  and `git archive origin/ci-screenshots | tar -x -C <dir>`. Installer artifact `mida-windows`. Not code-signed, so SmartScreen warns on first install.
 * **Updates** (Electron 0.3 behaviour kept, owner's request "the app shouldn't automatically update"): the app only *checks*
   `https://github.com/cee86/mida/releases/latest/download/latest.json` at start and every 4 hours (installed app only).
   New version → pop-up ("Update available", Update now / Later; once per version per session, never over another
