@@ -117,6 +117,9 @@ function renderSidebar() {
 
   $("home-item").setAttribute("aria-current", state.activeId === HOME ? "page" : "false");
   if (state.activeId !== HOME) $("home-item").removeAttribute("aria-current");
+  // Like the modules: a tooltip only when the sidebar is collapsed and the name is hidden.
+  if (state.sidebarExpanded) $("home-item").removeAttribute("title");
+  else $("home-item").setAttribute("title", "Home");
 
   $("modules").replaceChildren(
     ...state.modules.map((mod, index) => {
@@ -255,7 +258,7 @@ function renderActive() {
       el("div", { class: "stage__icon" }, svg(ICONS[info.icon])),
       el("h2", { text: info.title(mod.name) }),
       el("p", { text: info.text }),
-      e.status ? el("p", { class: "stage__detail", text: `Error ${e.status}` }) : null,
+      e.status ? el("p", { class: "stage__detail", text: `Error ${e.status}` }) : "",
       el(
         "div",
         { class: "stage__actions" },
