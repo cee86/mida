@@ -345,6 +345,22 @@ html[data-theme="light"] .app {
 .mod__icon--add { background: transparent; border-style: dashed; color: var(--mist); }
 .mod__icon--add svg, .mod__icon--home svg { width: 17px; height: 17px; }
 .mod__icon--home { background: rgba(var(--accent-rgb), 0.16); border-color: rgba(var(--accent-rgb), 0.35); color: var(--accent); }
+.mod__icon--tab { color: var(--accent); }
+.mod__icon--tab svg { width: 17px; height: 17px; }
+.tile .mod__icon--tab svg { width: 22px; height: 22px; }
+/* The page showing in the other pane, side by side. */
+.mod[data-beside="true"] { color: var(--cream); }
+.mod[data-beside="true"]::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 13px;
+  bottom: 13px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.mod-row--tab .mod__name { padding-right: 22px; }
 
 /* A small dot while the module is loading. */
 .mod__icon[data-loading="true"]::after {
@@ -526,14 +542,53 @@ html[data-theme="light"] .app {
 /* ---------- Stage (where module pages sit) ---------- */
 
 .stage {
+  --divider: 10px;
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: radial-gradient(ellipse 70% 45% at 50% 115%, rgba(var(--accent-rgb), 0.14), transparent 70%);
 }
 
-.stage__snapshot {
+/* A pane: one page. Side by side there are two, with a head each and a divider between. */
+.pane { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pane__head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0 4px 0 6px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+}
+.pane[data-active="true"] .pane__head { box-shadow: inset 0 -2px 0 var(--accent); }
+.pane__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--mist);
+  text-align: left;
+  cursor: pointer;
+}
+.pane[data-active="true"] .pane__title { color: var(--cream); }
+.pane__title .mod__icon { width: 22px; height: 22px; border-radius: 6px; font-size: 0.72rem; }
+.pane__title .mod__icon img { width: 15px; height: 15px; }
+.pane__title .mod__icon svg { width: 14px; height: 14px; }
+.pane__name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; font-size: 0.86rem; }
+.icon-btn--small { width: 26px; height: 26px; }
+.icon-btn--small svg { width: 15px; height: 15px; }
+.pane__body { position: relative; flex: 1; min-height: 0; }
+.pane__content { position: absolute; inset: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--ash-fill) transparent; }
+/* A picture of the page, shown in its place while a menu or pop-up is open. */
+.pane__snapshot {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -542,6 +597,50 @@ html[data-theme="light"] .app {
   object-position: top left;
   pointer-events: none;
 }
+
+.pane-divider { position: relative; cursor: col-resize; touch-action: none; }
+.pane-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: var(--rule);
+}
+.pane-divider:hover::after,
+.pane-divider:focus-visible::after,
+.pane-divider.is-dragging::after { background: var(--accent); }
+.pane-divider:focus-visible { outline: none; }
+
+/* Drop zones while dragging a module or tab over the page area. */
+.drop-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 35% 1fr 35%;
+  gap: 10px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+.drop-zone {
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border: 2px dashed var(--rule);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-solid) 60%, transparent);
+  backdrop-filter: blur(4px);
+  color: var(--mist);
+  font-weight: 600;
+  text-align: center;
+  transition: border-color 100ms, background 100ms, color 100ms;
+}
+.drop-zone span { pointer-events: none; }
+.drop-zone[data-over="true"] { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.16); color: var(--cream); }
 
 .stage__msg {
   position: absolute;
@@ -578,12 +677,7 @@ html[data-theme="light"] .app {
 
 /* ---------- Home ---------- */
 
-.home {
-  position: absolute;
-  inset: 0;
-  overflow-y: auto;
-  padding: 48px clamp(20px, 5vw, 64px);
-}
+.home { padding: 48px clamp(16px, 5cqi, 64px); }
 .home__hero { display: flex; align-items: center; gap: 22px; margin-bottom: 36px; }
 .home__name {
   margin: 0;
@@ -604,7 +698,7 @@ html[data-theme="light"] .app {
   font-weight: 600;
   vertical-align: middle;
 }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 12px; }
 .tile {
   display: flex;
   align-items: center;
@@ -1023,3 +1117,113 @@ html[data-motion="reduce"] *,
 html[data-motion="reduce"] *::before,
 html[data-motion="reduce"] *::after { animation: none !important; transition: none !important; }
 html[data-motion="reduce"] .toolbar__progress::before { left: 0; width: 100%; }
+
+/* ---------- Built-in tabs (tabs.js) ---------- */
+
+.tab { max-width: 1180px; padding: 32px clamp(16px, 4cqi, 48px) 48px; }
+.tab__head { margin-bottom: 18px; }
+.tab__title { margin: 2px 0 0; font-family: var(--font-display); font-weight: 400; font-size: 1.9rem; line-height: 1.2; }
+.tab__lede { margin: 6px 0 0; color: var(--mist); }
+.tab__note { margin: 12px 0 0; color: var(--mist-dim); font-size: 0.86rem; }
+.tab__loading { padding: 32px; color: var(--mist); }
+.until { font-variant-numeric: tabular-nums; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--panel);
+  min-width: 0;
+}
+.card--muted { opacity: 0.6; }
+.card__kicker { color: var(--accent); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; }
+.card__name { font-weight: 600; font-size: 1.05rem; }
+.card__detail { color: var(--mist); font-size: 0.88rem; }
+.card__meta { display: flex; align-items: center; gap: 6px; color: var(--mist); font-size: 0.84rem; }
+.card__meta svg { width: 15px; height: 15px; flex-shrink: 0; }
+.card__note { margin-top: 4px; color: var(--mist-dim); font-size: 0.8rem; }
+.card__next { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--rule); }
+.row { display: flex; gap: 10px; font-size: 0.84rem; color: var(--mist); }
+.row__time { min-width: 5.5em; color: var(--mist-dim); font-variant-numeric: tabular-nums; }
+.card--list .row { padding: 2px 0; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid rgba(var(--accent-rgb), 0.5); color: var(--accent); font-size: 0.74rem; font-weight: 600; }
+
+/* RAD assistant: the list of raids and dungeons, then the chosen one. */
+.tab--rad { max-width: none; height: 100%; padding: 0; }
+.rad { display: grid; grid-template-columns: 230px 1fr; height: 100%; min-height: 0; }
+.rad__list { overflow-y: auto; padding: 18px 10px; border-right: 1px solid var(--rule); scrollbar-width: thin; }
+.rad__group { margin: 14px 8px 6px; color: var(--mist-dim); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
+.rad__group:first-child { margin-top: 0; }
+.rad__item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mist);
+  text-align: left;
+  cursor: pointer;
+}
+.rad__item:hover { background: var(--hover); color: var(--cream); }
+.rad__item[aria-current="true"] { background: var(--selected); color: var(--cream); box-shadow: inset 3px 0 0 var(--accent); }
+.rad__pane { overflow-y: auto; min-height: 0; }
+.rad__detail { max-width: 980px; padding: 28px clamp(16px, 3cqi, 40px) 48px; }
+.encounters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.encounter { display: flex; gap: 14px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 12px; background: var(--panel); }
+.encounter__number {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  position: relative;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+/* A diamond behind the number. */
+.encounter__number::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  transform: rotate(45deg);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.7;
+}
+.encounter__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.encounter__name { font-weight: 600; font-size: 1.02rem; }
+.encounter__extras { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 2px 10px; border: 1px solid var(--rule); border-radius: 999px; background: var(--hover); font-size: 0.84rem; }
+.placeholder { padding: 2px 10px; border: 1px dashed var(--rule); border-radius: 999px; color: var(--mist-dim); font-size: 0.78rem; }
+.rad__detail .note { margin: 0 0 6px; }
+
+/* Tabs waiting for Bungie sign-in. */
+.tab--signin { display: grid; place-items: center; max-width: none; min-height: 100%; }
+.signin { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 520px; text-align: center; }
+.signin__icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  color: var(--accent);
+}
+.signin__icon svg { width: 30px; height: 30px; }
+.signin .btn { margin-top: 12px; }
+
+/* Narrow panes (side by side): the list goes above the details. */
+.pane__content { container-type: inline-size; }
+@container (max-width: 700px) {
+  .rad { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .rad__list { max-height: 170px; border-right: 0; border-bottom: 1px solid var(--rule); }
+}

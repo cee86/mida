@@ -131,6 +131,25 @@ art/icon.svg              Mida's icon source. Regenerate src-tauri/icons with `n
                           ones tauri.conf lists); src/shell/icon.png is the 128px one.
 ```
 
+**Side by side (panes):** a profile shows one page, or two side by side (`profile.panes` = [left, right], `split` =
+left share 20-80%). The shell draws the panes (`renderStage` in shell.js: pane elements kept between renders, a head
+with swap/close only when split, a divider) and reports the pane bodies' rectangles left to right (`set_panes`); the
+app places pane i's site at rectangle i (`pane_rect`), so pages never lag behind a re-render in single mode. Opening a
+page while split replaces the open pane. Ways in: drag a module or tab from the sidebar onto the page area (drop zones:
+left / open here / right; the pages are frozen to pictures during the drag so the drop reaches our screen), "Open
+side by side" in a module or tab menu. Dragging the divider freezes the pages too. On Windows, clicking into a site
+makes it the open pane (WebView2 GotFocus -> `page_focused`). `clean_profile` drops panes that no longer make sense
+(a module removed, a tab switched off). Freeze pictures are per pane (`freeze_page(id)`).
+
+**Built-in tabs** (Destiny 2 profiles; `TABS` in modules.rs, `profile.tabs` = the ones switched on, None = all;
+Settings -> Tabs, or "Hide this tab"): drawn by the shell itself from `src/shell/tabs.js` (an ES module; shell.js calls
+`window.midaTabs.mount/update`). Featured (this week's raids/dungeons, Dreaming City, Distortion with live countdowns,
+rotators) and the RAD assistant (every raid/dungeon: encounters with their loot, armor, exotic; empty "Tips"/"Map"
+places and an asset-pack note for content to come) work offline. `src/shell/d2/` holds **unchanged copies** of
+seals.report's lib/rotations.js, rotators.js and loot-tables.js: copy them again when seals.report changes them (the
+admin's rotator corrections live in seals.report's Redis and don't reach Mida yet; a small public endpoint could fix
+that). Inventory, Seasonal hub and Quests show a "needs a Bungie sign-in" panel until sign-in exists (part 3).
+
 **Profiles:** first run is a two-step wizard: name, optional picture (cropped to 128px WebP in the page), game (Destiny 2
 or "Another game" + its name), then module picks (D2) or a note (custom). New profiles open on Home. The profile menu
 (top of the sidebar) switches profiles, edits, sets the default (opened at start), creates (max 12) and deletes (with a
@@ -251,9 +270,13 @@ contents (`data-fit`).
   rail, add a dark mode and colour choices incl. the accents ("don't want to force someone to look at white"), add
   geometric detail to the sidebar. Same batch: sidebar flyout on hover (default on), fit-to-contents sidebar, and a
   Destiny 1 retro theme.
-* Owner's larger plan (Sep 30 2026, not built yet): Bungie sign-in in Mida; Destiny 2 profiles get toggleable built-in
-  tabs (Inventory / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like
-  seals.report's Featured); modules and tabs placeable side by side on a grid.
+* Owner's larger plan (Sep 30 2026): Bungie sign-in in Mida; Destiny 2 profiles get toggleable built-in tabs (Inventory
+  / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
+  Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
+  call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* Sign-in plan the owner agreed to: a separate Bungie app for Mida (Confidential), its client secret kept on the
+  seals.report server, which exchanges and refreshes tokens for Mida and stores nothing; Mida keeps the tokens on the
+  PC encrypted by Windows. Needs the owner to register the app and add two Vercel env vars (steps to come).
 
 ## 9. Roadmap
 

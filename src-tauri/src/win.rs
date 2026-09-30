@@ -3,6 +3,7 @@
 //!   Browser keys (reload, back/forward, zoom) are handled by the page itself.
 //! - Whether a page loaded, so Mida can show its own "couldn't load" panel instead of the
 //!   browser's error page, and notice when a page crashes.
+//! - Which page was clicked into, so side by side the open page follows the one in use.
 //! - A picture of the page, shown behind Mida's menus and pop-ups (pages always sit above the
 //!   app's own screen, so the app hides the page and shows this picture in its place).
 
@@ -12,8 +13,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Webview};
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
 use webview2_com::{
-    AcceleratorKeyPressedEventHandler, CapturePreviewCompletedHandler, NavigationCompletedEventHandler,
-    ProcessFailedEventHandler,
+    AcceleratorKeyPressedEventHandler, CapturePreviewCompletedHandler, FocusChangedEventHandler,
+    NavigationCompletedEventHandler, ProcessFailedEventHandler,
 };
 use windows::core::Interface;
 use windows::Win32::System::Com::{IStream, STATFLAG_NONAME, STATSTG, STREAM_SEEK_SET};
@@ -49,6 +50,15 @@ pub fn hook(page: &Webview, app: AppHandle, id: String) {
             Ok(())
         }));
         let _ = controller.add_AcceleratorKeyPressed(&keys, &mut token);
+
+        // Run after the event: the app moves pages around, which shouldn't happen inside it.
+        let (focus_app, focus_id) = (app.clone(), id.clone());
+        let focused = FocusChangedEventHandler::create(Box::new(move |_, _| {
+            let (app, id) = (focus_app.clone(), focus_id.clone());
+            tauri::async_runtime::spawn(async move { crate::page_focused(&app, &id) });
+            Ok(())
+        }));
+        let _ = controller.add_GotFocus(&focused, &mut token);
 
         let Ok(core) = controller.CoreWebView2() else { return };
 

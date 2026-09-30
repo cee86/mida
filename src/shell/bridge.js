@@ -9,9 +9,14 @@
 
   window.hub = {
     getState: () => invoke("get_state"),
-    setStageRect: (rect) => invoke("set_stage_rect", { rect }),
+    setPanes: (rects) => invoke("set_panes", { rects }),
     setOverlay: (open) => invoke("set_overlay", { open: open === true }),
-    freezePage: () => invoke("freeze_page"),
+    freezePage: (id) => invoke("freeze_page", { id }),
+    split: (id, side) => invoke("split", { id, side }),
+    closePane: (keep) => invoke("close_pane", { keep }),
+    swapPanes: () => invoke("swap_panes"),
+    setSplit: (percent) => invoke("set_split", { percent }),
+    setTabs: (ids) => invoke("set_tabs", { ids }),
     select: (id) => invoke("select", { id }),
     nav: (action) => invoke("nav", { action }),
     toggleSidebar: () => invoke("toggle_sidebar"),

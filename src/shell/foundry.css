@@ -312,7 +312,14 @@ html[data-theme="foundry"] .icon-btn:hover:not(:disabled) { background: var(--tu
 /* ---------- The stage: sites sit inside a thick frame ---------- */
 
 html[data-theme="foundry"] .stage {
+  --divider: 30px;
   margin: 8px 12px 12px 10px;
+  overflow: visible;
+  background: none;
+}
+html[data-theme="foundry"] .app[data-address="hidden"] .stage { margin-top: 12px; }
+/* Each page sits in its own thick frame. */
+html[data-theme="foundry"] .pane__body {
   border-radius: 4px;
   background:
     radial-gradient(ellipse 60% 40% at 50% 0%, rgba(var(--glow-rgb), 0.08), transparent 70%),
@@ -320,7 +327,31 @@ html[data-theme="foundry"] .stage {
   outline: 6px solid var(--tube);
   box-shadow: 0 0 0 7px var(--tube-edge), 0 14px 30px var(--drop);
 }
-html[data-theme="foundry"] .app[data-address="hidden"] .stage { margin-top: 12px; }
+html[data-theme="foundry"] .pane__head { margin-bottom: 12px; background: transparent; border-bottom: 0; padding: 0 2px; }
+html[data-theme="foundry"] .pane[data-active="true"] .pane__head { box-shadow: none; }
+html[data-theme="foundry"] .pane__title { border-radius: 10px 3px 10px 3px; }
+html[data-theme="foundry"] .pane[data-active="true"] .pane__title::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--glow);
+  box-shadow: 0 0 6px var(--glow);
+}
+html[data-theme="foundry"] .pane-divider::after {
+  width: 6px;
+  height: 64px;
+  border-radius: 3px;
+  background: var(--tube);
+  box-shadow: 0 0 0 1px var(--tube-edge);
+}
+html[data-theme="foundry"] .pane-divider:hover::after,
+html[data-theme="foundry"] .pane-divider.is-dragging::after { background: var(--glow); box-shadow: 0 0 8px rgba(var(--glow-rgb), 0.8); }
+html[data-theme="foundry"] .drop-zone { border-radius: 16px 4px 16px 4px; border-color: var(--line); }
+html[data-theme="foundry"] .drop-zone[data-over="true"] { border-color: var(--glow); background: rgba(var(--glow-rgb), 0.14); }
+html[data-theme="foundry"] .mod__icon--tab { color: var(--glow); }
+html[data-theme="foundry"] .mod[data-beside="true"]::before { left: -6px; border-radius: 3px; background: rgba(var(--glow-rgb), 0.45); }
 
 html[data-theme="foundry"] .stage__icon {
   border-radius: 14px 4px 14px 4px;
@@ -551,7 +582,7 @@ html[data-theme="foundry"] .swatch[aria-pressed="true"] .swatch__chip { box-shad
 html[data-theme="foundry"] .corner[aria-pressed="true"]::after { background: var(--glow); box-shadow: 0 0 5px var(--glow); }
 
 /* Scrollbars in keeping. */
-html[data-theme="foundry"] .home,
+html[data-theme="foundry"] .pane__content,
 html[data-theme="foundry"] .modules,
 html[data-theme="foundry"] .dialog__body,
 html[data-theme="foundry"] .settings__body { scrollbar-color: var(--line) transparent; }
@@ -634,4 +665,39 @@ html[data-theme="foundry"] .app[data-fit="true"] .sidebar {
   border: 1px solid var(--tube-edge);
   border-radius: 18px 5px 18px 5px;
   box-shadow: inset 0 0 0 3px var(--tube), 0 8px 20px var(--drop);
+}
+
+/* Built-in tabs: framed cards with a lit kicker, markings on the encounter numbers. */
+html[data-theme="foundry"] .card,
+html[data-theme="foundry"] .encounter {
+  border-color: var(--tube-edge);
+  border-radius: 16px 4px 16px 4px;
+  background: var(--tube);
+  box-shadow: inset 0 -2px 0 var(--hover), 0 3px 10px var(--drop);
+}
+html[data-theme="foundry"] .card__kicker { color: var(--mist); display: flex; align-items: center; gap: 8px; }
+html[data-theme="foundry"] .card__kicker::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--glow);
+  box-shadow: 0 0 5px var(--glow);
+}
+html[data-theme="foundry"] .encounter__number { color: var(--mark); }
+html[data-theme="foundry"] .chip { border-color: var(--tube-edge); border-radius: 10px 3px 10px 3px; background: var(--hover); }
+html[data-theme="foundry"] .placeholder { border-radius: 10px 3px 10px 3px; border-color: var(--line); }
+html[data-theme="foundry"] .badge { border-radius: 3px; border-color: var(--mark); color: var(--mark); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.66rem; }
+html[data-theme="foundry"] .rad__list { border-right: 1px solid var(--tube-edge); box-shadow: inset -3px 0 0 var(--tube); }
+html[data-theme="foundry"] .rad__item { border-radius: 10px 3px 10px 3px; }
+html[data-theme="foundry"] .rad__item[aria-current="true"] { background: var(--tube); box-shadow: inset 3px 0 0 var(--glow), 0 0 0 1px var(--tube-edge); }
+html[data-theme="foundry"] .rad__group { color: var(--mark); }
+html[data-theme="foundry"] .signin__icon { border-radius: 16px 4px 16px 4px; background: linear-gradient(160deg, var(--screen-2), var(--screen)); border-color: var(--screen-edge); color: var(--glow); }
+
+/* A narrow pane: the Home hero drops its big chevrons. */
+@container (max-width: 560px) {
+  html[data-theme="foundry"] .home__hero { padding: 26px 22px; }
+  html[data-theme="foundry"] .home__hero::before,
+  html[data-theme="foundry"] .home__hero::after { display: none; }
 }

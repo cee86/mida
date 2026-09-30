@@ -37,7 +37,20 @@ const svg = (paths) => {
   }
   return node;
 };
+// The built-in tabs' icons.
+const TAB_ICONS = {
+  "tab-inventory": ["M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"],
+  "tab-seasonal": ["M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4l-5.3 3 1.2-6-4.5-4.1 6-.7z"],
+  "tab-quests": ["M10 6h10M10 12h10M10 18h10M4 6l1.2 1.2L7.5 5M4 12l1.2 1.2L7.5 11M4 18l1.2 1.2L7.5 17"],
+  "tab-rad": ["M12 3l8 9-8 9-8-9z", "M12 8v8M8.5 12h7"],
+  "tab-featured": ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"],
+};
+
 const ICONS = {
+  home: ["M4 11l8-6 8 6M6.5 9.5V19h11V9.5"],
+  swap: ["M7 7h11l-3-3M17 17H6l3 3"],
+  close: ["M6 6l12 12M18 6L6 18"],
+  split: ["M4 5h16v14H4zM12 5v14"],
   open: ["M5 12h14M13 6l6 6-6 6"],
   reload: ["M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4"],
   browser: ["M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"],
@@ -89,11 +102,17 @@ const gameName = (profile) =>
   profile?.game === "custom" ? profile.gameName || "Custom game" : state?.games.find((g) => g.id === profile?.game)?.name ?? "";
 
 const activeModule = () => state?.modules.find((m) => m.id === state.activeId) ?? null;
-const pageShown = () => {
-  const mod = activeModule();
-  const status = mod && state.statuses[mod.id];
-  return Boolean(mod && status && !status.error);
+const isTab = (id) => typeof id === "string" && id.startsWith("tab-");
+const tabInfo = (id) => state?.tabCatalogue.find((t) => t.id === id) ?? null;
+// The pages showing: both panes side by side, or just the open one.
+const shownIds = () => (state.panes.length === 2 ? state.panes : [state.activeId]);
+const pageName = (id) => (id === HOME ? "Home" : tabInfo(id)?.name ?? state.modules.find((m) => m.id === id)?.name ?? "");
+// Whether a site's page is showing for this id (the app places it over our screen).
+const siteShown = (id) => {
+  const status = state.modules.some((m) => m.id === id) && state.statuses[id];
+  return Boolean(status && !status.error);
 };
+const anySiteShown = () => shownIds().some(siteShown);
 
 // ---------- Sidebar ----------
 
@@ -124,6 +143,48 @@ function renderSidebar() {
   if (expanded) $("home-item").removeAttribute("title");
   else $("home-item").setAttribute("title", "Home");
 
+  // Built-in tabs (Destiny 2 profiles).
+  const tabs = state.tabs.map(tabInfo).filter(Boolean);
+  $("tabs-nav").hidden = tabs.length === 0;
+  $("tabs-label").textContent = gameName(profile);
+  const otherPane = state.panes.length === 2 ? state.panes.find((id) => id !== state.activeId) : null;
+  if (otherPane === HOME) $("home-item").dataset.beside = "true";
+  else delete $("home-item").dataset.beside;
+  $("tabs-list").replaceChildren(
+    ...tabs.map((tab) =>
+      el(
+        "div",
+        { class: "mod-row mod-row--tab", "data-id": tab.id, draggable: "true" },
+        el(
+          "button",
+          {
+            class: "mod",
+            type: "button",
+            title: expanded ? null : tab.name,
+            "aria-current": tab.id === state.activeId ? "page" : null,
+            "data-beside": tab.id === otherPane ? "true" : null,
+            onclick: () => hub.select(tab.id),
+            oncontextmenu: (event) => {
+              event.preventDefault();
+              tabMenu(tab, { x: event.clientX, y: event.clientY });
+            },
+          },
+          el("span", { class: "mod__icon mod__icon--tab", "aria-hidden": "true" }, svg(TAB_ICONS[tab.id] ?? ICONS.open)),
+          el("span", { class: "mod__name", text: tab.name }),
+        ),
+        el("button", {
+          class: "mod__more",
+          type: "button",
+          text: "⋯",
+          title: `Options for ${tab.name}`,
+          "aria-label": `Options for ${tab.name}`,
+          "aria-haspopup": "menu",
+          onclick: (event) => tabMenu(tab, event.currentTarget),
+        }),
+      ),
+    ),
+  );
+
   $("modules").replaceChildren(
     ...state.modules.map((mod, index) => {
       const status = state.statuses[mod.id];
@@ -139,6 +200,7 @@ function renderSidebar() {
             // A tooltip only when collapsed (the name is hidden then).
             title: expanded ? null : `${mod.name}${shortcut}`,
             "aria-current": mod.id === state.activeId ? "page" : null,
+            "data-beside": mod.id === otherPane ? "true" : null,
             onclick: () => hub.select(mod.id),
             oncontextmenu: (event) => {
               event.preventDefault();
@@ -173,17 +235,27 @@ function rowsExcept(id) {
   return [...$("modules").querySelectorAll(".mod-row")].filter((r) => r.dataset.id !== id);
 }
 
-$("modules").addEventListener("dragstart", (event) => {
-  const row = event.target.closest(".mod-row");
-  if (!row) return;
+function startDrag(event, row) {
   dragId = row.dataset.id;
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", dragId);
   requestAnimationFrame(() => row.classList.add("is-dragging"));
+  startStageDrag();
+}
+
+$("modules").addEventListener("dragstart", (event) => {
+  const row = event.target.closest(".mod-row");
+  if (row) startDrag(event, row);
 });
+// Tabs can't be reordered, but they can be dragged onto the page area.
+$("tabs-list").addEventListener("dragstart", (event) => {
+  const row = event.target.closest(".mod-row");
+  if (row) startDrag(event, row);
+});
+$("tabs-list").addEventListener("dragend", () => endDrag());
 
 $("modules").addEventListener("dragover", (event) => {
-  if (!dragId) return;
+  if (!dragId || isTab(dragId)) return;
   event.preventDefault();
   event.dataTransfer.dropEffect = "move";
   const rows = rowsExcept(dragId);
@@ -206,11 +278,12 @@ function endDrag() {
   dragId = null;
   dropIndex = -1;
   dropLine.hidden = true;
-  $("modules").querySelectorAll(".is-dragging").forEach((r) => r.classList.remove("is-dragging"));
+  document.querySelectorAll(".sidebar .is-dragging").forEach((r) => r.classList.remove("is-dragging"));
+  endStageDrag();
 }
 
 $("modules").addEventListener("drop", (event) => {
-  if (!dragId) return;
+  if (!dragId || isTab(dragId)) return;
   event.preventDefault();
   const ids = state.modules.map((m) => m.id).filter((id) => id !== dragId);
   ids.splice(dropIndex < 0 ? ids.length : dropIndex, 0, dragId);
@@ -241,44 +314,222 @@ const ERRORS = {
 function renderActive() {
   const mod = activeModule();
   const status = mod ? state.statuses[mod.id] : null;
-  const onHome = state.activeId === HOME;
 
   for (const id of ["back", "forward", "reload", "home", "external"]) $(id).disabled = !mod;
-  $("title").textContent = onHome ? "Home" : mod ? status?.title || mod.name : "";
+  $("title").textContent = mod ? status?.title || mod.name : pageName(state.activeId);
   $("url").textContent = mod ? status?.url || mod.url : "";
   $("progress").dataset.on = String(Boolean(status?.loading));
-  document.title = mod ? `${mod.name} · Mida` : "Mida";
-
-  $("home-page").hidden = !onHome || !state.firstRunDone;
-  if (onHome && state.firstRunDone) renderHome();
-
-  const msg = $("stage-msg");
-  if (!onHome && mod && status?.error) {
-    const e = status.error;
-    const info = ERRORS[e.kind] ?? ERRORS.other;
-    msg.hidden = false;
-    msg.replaceChildren(
-      el("div", { class: "stage__icon" }, svg(ICONS[info.icon])),
-      el("h2", { text: info.title(mod.name) }),
-      el("p", { text: info.text }),
-      e.status ? el("p", { class: "stage__detail", text: `Error ${e.status}` }) : "",
-      el(
-        "div",
-        { class: "stage__actions" },
-        el("button", { class: "btn btn--primary", type: "button", text: "Try again", onclick: () => hub.nav("retry") }),
-        info.anyway ? el("button", { class: "btn", type: "button", text: "Show the page anyway", onclick: () => hub.nav("show-anyway") }) : null,
-        el("button", { class: "btn", type: "button", text: "Open in your browser", onclick: () => hub.nav("external") }),
-      ),
-    );
-  } else {
-    msg.hidden = true;
-  }
+  document.title = state.activeId !== HOME ? `${pageName(state.activeId)} · Mida` : "Mida";
+  renderStage();
 }
 
-function renderHome() {
+// The "couldn't load" panel for a module whose page failed.
+function errorPanel(mod, e) {
+  const info = ERRORS[e.kind] ?? ERRORS.other;
+  return el(
+    "div",
+    { class: "stage__msg" },
+    el("div", { class: "stage__icon" }, svg(ICONS[info.icon])),
+    el("h2", { text: info.title(mod.name) }),
+    el("p", { text: info.text }),
+    e.status ? el("p", { class: "stage__detail", text: `Error ${e.status}` }) : "",
+    el(
+      "div",
+      { class: "stage__actions" },
+      el("button", { class: "btn btn--primary", type: "button", text: "Try again", onclick: () => hub.moduleAction(mod.id, "reload") }),
+      info.anyway ? el("button", { class: "btn", type: "button", text: "Show the page anyway", onclick: () => hub.moduleAction(mod.id, "show-anyway") }) : null,
+      el("button", { class: "btn", type: "button", text: "Open in your browser", onclick: () => hub.moduleAction(mod.id, "browser") }),
+    ),
+  );
+}
+
+// ---------- Panes: one page, or two side by side ----------
+//
+// Each pane is a box in the page area. For a site, the app places the real page over the pane's
+// body (we report where the bodies are); Home, built-in tabs and the error panel are drawn in the
+// body itself. Pane elements are kept between renders so a tab keeps its scroll position and a
+// page's picture (see freeze) survives updates.
+
+const panes = []; // { root, head, body, content, snapshot, key }
+const paneObserver = new ResizeObserver(() => reportPanes());
+
+const divider = el("div", {
+  class: "pane-divider",
+  role: "separator",
+  tabindex: "0",
+  "aria-orientation": "vertical",
+  "aria-label": "Resize the two pages (left and right arrow keys)",
+});
+
+function makePane() {
+  const content = el("div", { class: "pane__content" });
+  const snapshot = el("img", { class: "pane__snapshot", alt: "", hidden: true });
+  const body = el("div", { class: "pane__body" }, content, snapshot);
+  const head = el("div", { class: "pane__head" });
+  const root = el("div", { class: "pane" }, head, body);
+  paneObserver.observe(body);
+  return { root, head, body, content, snapshot, key: null };
+}
+
+// Tell the app where the pane bodies are (left to right), in our page's pixels.
+function reportPanes() {
+  if (!state) return;
+  const rects = panes.map((p) => {
+    const r = p.body.getBoundingClientRect();
+    return { x: Math.max(0, r.left), y: Math.max(0, r.top), width: Math.max(1, r.width), height: Math.max(1, r.height) };
+  });
+  hub.setPanes(rects);
+}
+window.addEventListener("resize", reportPanes);
+
+function setSplitColumns(percent) {
+  $("stage").style.gridTemplateColumns = `minmax(0, ${percent}fr) var(--divider) minmax(0, ${100 - percent}fr)`;
+}
+
+function renderStage() {
+  const stage = $("stage");
+  const ids = state.firstRunDone ? shownIds() : [];
+  const split = ids.length === 2;
+  stage.dataset.split = String(split);
+  while (panes.length < ids.length) panes.push(makePane());
+  while (panes.length > ids.length) {
+    const p = panes.pop();
+    paneObserver.unobserve(p.body);
+    p.root.remove();
+  }
+  const want = split ? [panes[0].root, divider, panes[1].root] : panes.map((p) => p.root);
+  const have = [...stage.children].filter((n) => n.id !== "drop-zones");
+  if (want.length !== have.length || want.some((n, i) => n !== have[i])) stage.replaceChildren(...want, $("drop-zones"));
+  if (split) setSplitColumns(state.split);
+  else stage.style.gridTemplateColumns = "";
+  ids.forEach((id, i) => renderPane(panes[i], id, split, i));
+  requestAnimationFrame(reportPanes);
+}
+
+function renderPane(pane, id, split, index) {
+  pane.root.dataset.id = id;
+  pane.root.dataset.active = String(split && id === state.activeId);
+
+  pane.head.hidden = !split;
+  if (split) {
+    const mod = state.modules.find((m) => m.id === id);
+    const other = state.panes[1 - index];
+    pane.head.replaceChildren(
+      el(
+        "button",
+        { class: "pane__title", type: "button", title: "Make this the open page", onclick: () => hub.select(id) },
+        mod ? moduleIcon(mod, state.statuses[id]?.loading) : el("span", { class: "mod__icon mod__icon--tab", "aria-hidden": "true" }, svg(id === HOME ? ICONS.home : TAB_ICONS[id] ?? ICONS.open)),
+        el("span", { class: "pane__name", text: mod ? state.statuses[id]?.title || mod.name : pageName(id) }),
+      ),
+      el("button", { class: "icon-btn icon-btn--small", type: "button", title: "Swap sides", "aria-label": "Swap sides", onclick: () => hub.swapPanes() }, svg(ICONS.swap)),
+      el("button", { class: "icon-btn icon-btn--small", type: "button", title: "Close this side", "aria-label": `Close ${pageName(id)}`, onclick: () => hub.closePane(other) }, svg(ICONS.close)),
+    );
+  }
+
+  // What the body shows. Built again only when that changes (tabs keep their own state).
+  const mod = state.modules.find((m) => m.id === id);
+  const error = mod && state.statuses[id]?.error;
+  const key = id === HOME ? "home" : isTab(id) ? `tab:${id}` : error ? `error:${id}:${error.kind}:${error.status}` : `site:${id}`;
+  if (key !== pane.key) delete pane.content.dataset.tab;
+  if (id === HOME) {
+    pane.content.replaceChildren(buildHome());
+  } else if (key !== pane.key) {
+    pane.content.replaceChildren();
+    pane.content.scrollTop = 0;
+    if (isTab(id)) mountTab(id, pane.content);
+    else if (error) pane.content.append(errorPanel(mod, error));
+  } else if (isTab(id)) {
+    window.midaTabs?.update(id, pane.content, tabContext());
+  }
+  pane.key = key;
+}
+
+// Built-in tabs live in tabs.js (loaded as a module, so it may arrive a moment after this file).
+function tabContext() {
+  return { el, svg, state, hub, isFrozen: () => frozen };
+}
+function mountTab(id, container) {
+  if (window.midaTabs) window.midaTabs.mount(id, container, tabContext());
+  else container.append(el("p", { class: "tab__loading", text: "Loading…" }));
+}
+window.addEventListener("mida-tabs-ready", () => {
+  for (const pane of panes) pane.key = null;
+  if (state) renderStage();
+});
+
+// Dragging the divider between the two pages.
+{
+  let dragging = false;
+  divider.addEventListener("pointerdown", async (event) => {
+    event.preventDefault();
+    divider.setPointerCapture(event.pointerId);
+    dragging = true;
+    divider.classList.add("is-dragging");
+    // The pages are pictures while resizing, so the pointer stays on our screen.
+    await freeze();
+  });
+  divider.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    const r = $("stage").getBoundingClientRect();
+    state.split = Math.min(80, Math.max(20, Math.round(((event.clientX - r.left) / r.width) * 100)));
+    setSplitColumns(state.split);
+  });
+  const stop = () => {
+    if (!dragging) return;
+    dragging = false;
+    divider.classList.remove("is-dragging");
+    hub.setSplit(state.split);
+    maybeUnfreeze();
+  };
+  divider.addEventListener("pointerup", stop);
+  divider.addEventListener("pointercancel", stop);
+  divider.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    state.split = Math.min(80, Math.max(20, state.split + (event.key === "ArrowLeft" ? -5 : 5)));
+    setSplitColumns(state.split);
+    hub.setSplit(state.split);
+  });
+}
+
+// Dragging a module or tab from the sidebar onto the page area: left, right, or open it here.
+function startStageDrag() {
+  if (!state.firstRunDone) return;
+  freeze();
+  $("drop-zones").hidden = false;
+}
+function endStageDrag() {
+  const zones = $("drop-zones");
+  if (zones.hidden) return;
+  zones.hidden = true;
+  zones.querySelectorAll("[data-over]").forEach((z) => delete z.dataset.over);
+  maybeUnfreeze();
+}
+for (const zone of document.querySelectorAll(".drop-zone")) {
+  zone.addEventListener("dragover", (event) => {
+    if (!dragId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    zone.dataset.over = "true";
+  });
+  zone.addEventListener("dragleave", () => delete zone.dataset.over);
+  zone.addEventListener("drop", (event) => {
+    if (!dragId) return;
+    event.preventDefault();
+    const id = dragId;
+    const side = zone.dataset.side;
+    endDrag();
+    if (side === "open" || (state.panes.length !== 2 && id === state.activeId)) hub.select(id);
+    else hub.split(id, side);
+  });
+}
+
+function buildHome() {
   const profile = state.profile;
   const isDefault = profile && state.defaultProfile === profile.id;
-  $("home-page").replaceChildren(
+  return el(
+    "div",
+    { class: "home" },
     el(
       "header",
       { class: "home__hero" },
@@ -298,6 +549,23 @@ function renderHome() {
         ),
       ),
     ),
+    ...(state.tabs.length
+      ? [
+          el("h2", { class: "band", text: "Your tabs" }),
+          el(
+            "div",
+            { class: "tiles" },
+            ...state.tabs.map(tabInfo).filter(Boolean).map((tab) =>
+              el(
+                "button",
+                { class: "tile", type: "button", onclick: () => hub.select(tab.id) },
+                el("span", { class: "mod__icon mod__icon--tab", "aria-hidden": "true" }, svg(TAB_ICONS[tab.id] ?? ICONS.open)),
+                el("span", { class: "tile__text" }, el("span", { class: "tile__name", text: tab.name }), el("span", { class: "tile__host", text: tab.blurb })),
+              ),
+            ),
+          ),
+        ]
+      : []),
     el("h2", { class: "band", text: "Your modules" }),
     el(
       "div",
@@ -329,35 +597,31 @@ function render() {
   if ($("add").open) renderAddList();
 }
 
-// The app places module pages over the stage, so it needs the stage's exact position.
-function reportStage() {
-  const r = $("stage").getBoundingClientRect();
-  hub.setStageRect({ x: r.left, y: r.top, width: r.width, height: r.height });
-}
-new ResizeObserver(reportStage).observe($("stage"));
-window.addEventListener("resize", reportStage);
-
 // ---------- Pages above our screen: freeze while a menu or dialog is open ----------
 //
 // Module pages always sit above this screen. To show a menu or pop-up over one, we take a
-// picture of the page, show it in the page's place, then hide the real page until we're done.
+// picture of each page showing, show it in the page's place, then hide the real pages until
+// we're done.
 
 let frozen = false;
 
 async function freeze() {
   if (frozen) return;
   frozen = true;
-  const snapshot = $("snapshot");
-  const shot = pageShown() ? await hub.freezePage() : null;
-  if (shot && frozen) {
-    snapshot.src = shot;
-    try {
-      await snapshot.decode();
-    } catch {
-      // Shown without waiting.
-    }
-    snapshot.hidden = false;
-  }
+  await Promise.all(
+    panes.map(async (pane) => {
+      const id = pane.root.dataset.id;
+      const shot = siteShown(id) ? await hub.freezePage(id) : null;
+      if (!shot || !frozen) return;
+      pane.snapshot.src = shot;
+      try {
+        await pane.snapshot.decode();
+      } catch {
+        // Shown without waiting.
+      }
+      pane.snapshot.hidden = false;
+    }),
+  );
   await hub.setOverlay(true);
 }
 
@@ -373,8 +637,10 @@ function maybeUnfreeze() {
     await hub.setOverlay(false);
     setTimeout(() => {
       if (frozen) return;
-      $("snapshot").hidden = true;
-      $("snapshot").removeAttribute("src");
+      for (const pane of panes) {
+        pane.snapshot.hidden = true;
+        pane.snapshot.removeAttribute("src");
+      }
     }, 90);
   }, 40);
 }
@@ -505,7 +771,7 @@ async function openMenu(anchor, items) {
   // Over a site's page? Freeze it so the menu shows on top.
   const s = $("stage").getBoundingClientRect();
   const overlaps = left < s.right && left + m.width > s.left && top < s.bottom && top + m.height > s.top;
-  if (overlaps && pageShown()) {
+  if (overlaps && anySiteShown()) {
     menu.style.visibility = "hidden";
     await freeze();
     if (menu.hidden) return;
@@ -533,11 +799,33 @@ $("menu").addEventListener("keydown", (event) => {
 });
 window.addEventListener("blur", closeMenu);
 
+// "Open side by side" / "Close this side" for a page (module, tab or Home).
+function splitItems(id) {
+  const split = state.panes.length === 2;
+  if (split && state.panes.includes(id)) {
+    const other = state.panes.find((p) => p !== id);
+    return [{ label: "Close this side", icon: "close", action: () => hub.closePane(other) }];
+  }
+  if (!split && id === state.activeId) return [];
+  return [{ label: split ? "Put it on the right" : "Open side by side", icon: "split", action: () => hub.split(id, "right") }];
+}
+
+function tabMenu(tab, anchor) {
+  openMenu(anchor, [
+    { label: `Open ${tab.name}`, icon: "open", action: () => hub.select(tab.id) },
+    ...splitItems(tab.id),
+    "sep",
+    { label: "Hide this tab", icon: "remove", action: () => hub.setTabs(state.tabs.filter((t) => t !== tab.id)) },
+    { label: "Choose tabs…", icon: "edit", action: () => openSettings("tabs") },
+  ]);
+}
+
 function moduleMenu(mod, anchor) {
   const index = state.modules.findIndex((m) => m.id === mod.id);
   const hasPage = Boolean(state.statuses[mod.id]);
   openMenu(anchor, [
     { label: `Open ${mod.name}`, icon: "open", action: () => hub.select(mod.id) },
+    ...splitItems(mod.id),
     { label: "Reload", icon: "reload", disabled: !hasPage, action: () => hub.moduleAction(mod.id, "reload") },
     { label: "Open in your browser", icon: "browser", action: () => hub.moduleAction(mod.id, "browser") },
     "sep",
@@ -1180,6 +1468,24 @@ function aboutPanel() {
   ];
 }
 
+// Settings → Tabs: which built-in tabs this profile shows.
+function tabsPanel() {
+  const all = state.tabCatalogue.filter((t) => t.game === state.profile?.game);
+  const intro = [el("h2", { text: "Tabs" }), el("p", { text: "Mida's own pages, in the sidebar above your modules. Switch any of them off for this profile." })];
+  if (all.length === 0) return [...intro, el("p", { class: "note", text: "Built-in tabs are available on Destiny 2 profiles." })];
+  const set = (id, on) => {
+    const next = all.map((t) => t.id).filter((t) => (t === id ? on : state.tabs.includes(t)));
+    state.tabs = next;
+    hub.setTabs(next);
+  };
+  return [
+    ...intro,
+    ...all.map((t) =>
+      setting(t.name, `${t.blurb}${t.signIn ? " Needs a Bungie sign-in." : ""}`, toggle(`tab-${t.id}`, state.tabs.includes(t.id), (v) => set(t.id, v), `Show ${t.name}`), { row: true }),
+    ),
+  ];
+}
+
 function renderSettings() {
   const focusedKey = document.activeElement?.dataset?.key;
   for (const tab of document.querySelectorAll(".settings__tab")) tab.setAttribute("aria-selected", String(tab.dataset.tab === settingsTab));
@@ -1187,7 +1493,7 @@ function renderSettings() {
     const show = panel.dataset.panel === settingsTab;
     panel.hidden = !show;
     if (!show) continue;
-    const build = { personalization: personalizationPanel, accessibility: accessibilityPanel, about: aboutPanel }[settingsTab];
+    const build = { personalization: personalizationPanel, accessibility: accessibilityPanel, tabs: tabsPanel, about: aboutPanel }[settingsTab];
     panel.replaceChildren(...build());
   }
   if (focusedKey) document.querySelector(`[data-key="${CSS.escape(focusedKey)}"]`)?.focus();
@@ -1283,7 +1589,7 @@ hub.onStatus((id, status) => {
     if (status.loading) icon.dataset.loading = "true";
     else delete icon.dataset.loading;
   }
-  if (id === state.activeId || hadError !== Boolean(status.error)) renderActive();
+  if (shownIds().includes(id) || hadError !== Boolean(status.error)) renderActive();
 });
 hub.onCommand((command) => {
   if (command === "settings" && state?.firstRunDone && !$("settings").open) openSettings();

@@ -24,6 +24,31 @@ pub struct CatalogueEntry {
     pub starter: bool,
 }
 
+/// Mida's own built-in tabs (drawn by the app itself, not websites), per game. Each can be
+/// switched off per profile. `sign_in`: needs a Bungie sign-in to show anything.
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub struct BuiltInTab {
+    pub game: &'static str,
+    pub id: &'static str,
+    pub name: &'static str,
+    pub blurb: &'static str,
+    pub sign_in: bool,
+}
+
+pub const TABS: &[BuiltInTab] = &[
+    BuiltInTab { game: "destiny2", id: "tab-inventory", name: "Inventory", blurb: "Move gear between your characters and the vault.", sign_in: true },
+    BuiltInTab { game: "destiny2", id: "tab-seasonal", name: "Seasonal hub", blurb: "Bounties, the reward track and what's on this season.", sign_in: true },
+    BuiltInTab { game: "destiny2", id: "tab-quests", name: "Quests", blurb: "Every quest a character has picked up.", sign_in: true },
+    BuiltInTab { game: "destiny2", id: "tab-rad", name: "RAD assistant", blurb: "Raids and dungeons: encounters, loot, tips and maps.", sign_in: false },
+    BuiltInTab { game: "destiny2", id: "tab-featured", name: "Featured", blurb: "This week's raids and dungeons, rotators and timers.", sign_in: false },
+];
+
+/// The built-in tabs a game has (all of them, in order).
+pub fn tabs_for(game: &str) -> Vec<&'static str> {
+    TABS.iter().filter(|t| t.game == game).map(|t| t.id).collect()
+}
+
 /// Recommended sites per game, offered in the first-run picker and in "Add a module". `starter`
 /// ones are ticked by default. Addresses are the sites' own home pages.
 pub const CATALOGUE: &[CatalogueEntry] = &[

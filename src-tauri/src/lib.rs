@@ -25,7 +25,7 @@ mod win;
 use base64::Engine;
 use modules::{
     clean_image, clean_name, clean_text, clean_url, from_catalogue, is_sign_in, is_web, same_site, Module, CATALOGUE,
-    CUSTOM_GAME, GAMES, MAX_ICON, MAX_MODULES, MAX_PICTURE,
+    CUSTOM_GAME, GAMES, MAX_ICON, MAX_MODULES, MAX_PICTURE, TABS,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -96,7 +96,7 @@ struct ProfileInput {
 struct Hub {
     store: Mutex<Store>,
     statuses: Mutex<HashMap<String, Status>>, // the current profile's modules that have a page
-    stage: Mutex<Option<StageRect>>,          // where module pages go, in shell pixels
+    panes: Mutex<Vec<StageRect>>,             // where pages go (left to right), in shell pixels
     overlay: Mutex<bool>,                     // a shell menu or dialog is open, so pages are hidden
     update: Mutex<Option<UpdateInfo>>,
     pending: Mutex<Option<tauri_plugin_updater::Update>>,
@@ -160,6 +160,10 @@ fn public_state(app: &AppHandle) -> Value {
         "profile": profile.as_ref().map(|p| json!({ "id": p.id, "name": p.name, "image": p.image, "game": p.game, "gameName": p.game_name })),
         "modules": profile.as_ref().map(|p| p.modules.clone()).unwrap_or_default(),
         "activeId": profile.as_ref().map(|p| p.active_id.clone()).unwrap_or_else(|| HOME.into()),
+        "panes": profile.as_ref().map(|p| p.panes.clone()).unwrap_or_default(),
+        "split": profile.as_ref().map(|p| p.split).unwrap_or(50),
+        "tabs": profile.as_ref().map(|p| store::enabled_tabs(&p.game, &p.tabs)).unwrap_or_default(),
+        "tabCatalogue": TABS,
         "sidebarExpanded": settings.sidebar_expanded,
         "prefs": settings.prefs,
         "games": GAMES,
@@ -214,25 +218,41 @@ fn scaled(r: StageRect, scale: f64) -> Rect {
     }
 }
 
-/// Show only the active module's page, sized to the stage, and only when no menu, dialog or error
-/// needs the space. The floating controls follow the visible page.
+/// Where a page goes: side by side, pane i of the profile's panes gets the i-th rectangle the
+/// shell reported (left to right); otherwise the open page gets the stage.
+fn pane_rect(app: &AppHandle, id: &str) -> Option<StageRect> {
+    let profile = current(app)?;
+    let rects = hub(app).panes.lock().unwrap().clone();
+    if profile.panes.len() == 2 {
+        let index = profile.panes.iter().position(|p| p == id)?;
+        rects.get(index).copied()
+    } else if profile.active_id == id {
+        rects.first().copied()
+    } else {
+        None
+    }
+}
+
+/// Show the open page (or both pages side by side) in place, and only when no menu, dialog or
+/// error needs the space. The floating controls follow the open page.
 fn layout(app: &AppHandle) {
     let hub = hub(app);
     let active = active_id(app);
-    let stage = *hub.stage.lock().unwrap();
     let overlay = *hub.overlay.lock().unwrap();
     let p = prefs(app);
     let scale = p.ui_scale as f64 / 100.0;
     let pages: Vec<(String, bool)> =
         hub.statuses.lock().unwrap().iter().map(|(id, s)| (id.clone(), s.error.is_none())).collect();
-    let mut page_visible = false;
+    let mut active_rect = None;
     for (id, healthy) in pages {
         let Some(page) = app.get_webview(&label_for(&id)) else { continue };
-        match stage {
-            Some(r) if id == active && !overlay && healthy => {
+        match pane_rect(app, &id) {
+            Some(r) if !overlay && healthy => {
                 let _ = page.set_bounds(scaled(r, scale));
                 let _ = page.show();
-                page_visible = true;
+                if id == active {
+                    active_rect = Some(r);
+                }
             }
             _ => {
                 let _ = page.hide();
@@ -240,8 +260,8 @@ fn layout(app: &AppHandle) {
         }
     }
     if let Some(controls) = app.get_webview(CONTROLS) {
-        match stage {
-            Some(r) if page_visible && !p.show_address_bar => {
+        match active_rect {
+            Some(r) if !p.show_address_bar => {
                 let (w, h) = CONTROLS_SIZE;
                 let right = p.controls_corner.ends_with("right");
                 let bottom = p.controls_corner.starts_with("bottom");
@@ -350,7 +370,7 @@ fn ensure_page(app: &AppHandle, module: &Module) -> Option<Webview> {
             error: None,
         },
     );
-    let stage = hub_state.stage.lock().unwrap().unwrap_or(StageRect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 });
+    let stage = hub_state.panes.lock().unwrap().first().copied().unwrap_or(StageRect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 });
     let p = prefs(app);
     let r = scaled(stage, p.ui_scale as f64 / 100.0);
     match window.add_child(builder, r.position, r.size) {
@@ -475,28 +495,98 @@ fn close_controls(app: &AppHandle) {
 
 // ---------- Actions ----------
 
+/// Make sure every module showing (the open one, or both side by side) has its page.
+fn ensure_pane_pages(app: &AppHandle) {
+    let Some(profile) = current(app) else { return };
+    let ids = if profile.panes.len() == 2 { profile.panes.clone() } else { vec![profile.active_id.clone()] };
+    for id in ids {
+        if let Some(module) = profile.modules.iter().find(|m| m.id == id) {
+            ensure_page(app, module);
+        }
+    }
+}
+
+/// Open a page: Home, a built-in tab or a module. Side by side, it replaces the open pane
+/// (unless it's already showing in the other one, which then becomes the open one).
 fn select_module(app: &AppHandle, id: &str) {
-    if id == HOME {
-        hub(app).store.lock().unwrap().update_profile(|p| p.active_id = HOME.into());
-        layout(app);
-        emit_state(app);
+    let Some(profile) = current(app) else { return };
+    if !profile.has_page(id) {
         return;
     }
-    let Some(module) = find_module(app, id) else { return };
-    hub(app).store.lock().unwrap().update_profile(|p| p.active_id = id.to_string());
-    let page = ensure_page(app, &module);
+    hub(app).store.lock().unwrap().update_profile(|p| {
+        if p.panes.len() == 2 && !p.panes.iter().any(|x| x == id) {
+            if let Some(slot) = p.panes.iter_mut().find(|x| **x == p.active_id) {
+                *slot = id.to_string();
+            }
+        }
+        p.active_id = id.to_string();
+    });
+    ensure_pane_pages(app);
     layout(app);
     emit_state(app);
     let overlay = *hub(app).overlay.lock().unwrap();
-    if let (Some(page), false) = (page, overlay) {
+    if let (Some(page), false) = (app.get_webview(&label_for(id)), overlay) {
         let _ = page.set_focus();
     }
 }
 
+/// Show `id` side by side with the open page, on the given side ("left" or "right"). Already
+/// side by side: it takes that side.
+fn split_with(app: &AppHandle, id: &str, side: &str) {
+    let Some(profile) = current(app) else { return };
+    if !profile.has_page(id) || (profile.panes.len() != 2 && profile.active_id == id) {
+        return;
+    }
+    let left = side == "left";
+    hub(app).store.lock().unwrap().update_profile(|p| {
+        if p.panes.len() == 2 {
+            let (here, there) = if left { (0, 1) } else { (1, 0) };
+            if p.panes[there] == id {
+                p.panes.swap(0, 1);
+            } else {
+                p.panes[here] = id.to_string();
+            }
+        } else {
+            let open = p.active_id.clone();
+            p.panes = if left { vec![id.to_string(), open] } else { vec![open, id.to_string()] };
+        }
+        p.active_id = id.to_string();
+    });
+    ensure_pane_pages(app);
+    layout(app);
+    emit_state(app);
+}
+
+/// Back to one page: `keep` stays open.
+fn unsplit(app: &AppHandle, keep: &str) {
+    hub(app).store.lock().unwrap().update_profile(|p| {
+        if p.panes.iter().any(|x| x == keep) {
+            p.active_id = keep.to_string();
+        }
+        p.panes.clear();
+    });
+    layout(app);
+    emit_state(app);
+}
+
+/// The user clicked into a page that's showing side by side: it becomes the open one (for the
+/// address bar, shortcuts and the floating controls). Called from src/win.rs on Windows.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn page_focused(app: &AppHandle, id: &str) {
+    let Some(profile) = current(app) else { return };
+    if profile.panes.len() != 2 || profile.active_id == id || !profile.panes.iter().any(|p| p == id) {
+        return;
+    }
+    hub(app).store.lock().unwrap().update_profile(|p| p.active_id = id.to_string());
+    layout(app);
+    emit_state(app);
+}
+
 fn select_offset(app: &AppHandle, step: isize) {
     let Some(profile) = current(app) else { return };
-    // Home counts as the first stop.
+    // Home counts as the first stop, then the built-in tabs, then the modules.
     let mut stops: Vec<String> = vec![HOME.into()];
+    stops.extend(store::enabled_tabs(&profile.game, &profile.tabs));
     stops.extend(profile.modules.iter().map(|m| m.id.clone()));
     let index = stops.iter().position(|id| *id == profile.active_id).unwrap_or(0) as isize;
     let len = stops.len() as isize;
@@ -575,11 +665,14 @@ fn remove_module(app: &AppHandle, id: &str) {
     let Some(index) = profile.modules.iter().position(|m| m.id == id) else { return };
     let was_active = profile.active_id == id;
     let rest: Vec<&Module> = profile.modules.iter().filter(|m| m.id != id).collect();
-    let next = rest
-        .get(index)
-        .or_else(|| index.checked_sub(1).and_then(|i| rest.get(i)))
-        .map(|m| m.id.clone())
-        .unwrap_or_else(|| HOME.into());
+    // Side by side, the other pane stays; otherwise the next module down (or up, or Home).
+    let other_pane = profile.panes.iter().find(|p| *p != id && profile.panes.iter().any(|q| q == id)).cloned();
+    let next = other_pane.unwrap_or_else(|| {
+        rest.get(index)
+            .or_else(|| index.checked_sub(1).and_then(|i| rest.get(i)))
+            .map(|m| m.id.clone())
+            .unwrap_or_else(|| HOME.into())
+    });
     close_page(app, id);
     hub(app).icon_tried.lock().unwrap().remove(id);
     hub(app).store.lock().unwrap().update_profile(|p| p.modules.retain(|m| m.id != id));
@@ -635,6 +728,7 @@ fn new_profile(input: &ProfileInput, module_ids: &[String]) -> Option<Profile> {
         game_name: input.game_name.clone(),
         modules,
         active_id,
+        ..Profile::default()
     })
 }
 
@@ -786,13 +880,57 @@ async fn get_state(webview: Webview, app: AppHandle) -> Option<Value> {
     from_ours(&webview).then(|| public_state(&app))
 }
 
+/// Where pages go: one rectangle, or two side by side (left, right), in shell pixels.
 #[tauri::command]
-async fn set_stage_rect(webview: Webview, app: AppHandle, rect: StageRect) {
-    let nums = [rect.x, rect.y, rect.width, rect.height];
-    let valid = nums.iter().all(|n| n.is_finite() && *n >= 0.0 && *n < 100_000.0);
+async fn set_panes(webview: Webview, app: AppHandle, rects: Vec<StageRect>) {
+    let valid = rects.len() <= 2
+        && rects.iter().all(|r| [r.x, r.y, r.width, r.height].iter().all(|n| n.is_finite() && *n >= 0.0 && *n < 100_000.0));
     if from_shell(&webview) && valid {
-        *hub(&app).stage.lock().unwrap() = Some(rect);
+        *hub(&app).panes.lock().unwrap() = rects;
         layout(&app);
+    }
+}
+
+#[tauri::command]
+async fn split(webview: Webview, app: AppHandle, id: String, side: String) {
+    if from_shell(&webview) {
+        split_with(&app, &id, &side);
+    }
+}
+
+#[tauri::command]
+async fn close_pane(webview: Webview, app: AppHandle, keep: String) {
+    if from_shell(&webview) {
+        unsplit(&app, &keep);
+    }
+}
+
+#[tauri::command]
+async fn swap_panes(webview: Webview, app: AppHandle) {
+    if from_shell(&webview) {
+        hub(&app).store.lock().unwrap().update_profile(|p| p.panes.reverse());
+        layout(&app);
+        emit_state(&app);
+    }
+}
+
+/// The left pane's share, in percent (saved when the divider is let go).
+#[tauri::command]
+async fn set_split(webview: Webview, app: AppHandle, percent: u32) {
+    if from_shell(&webview) && (20..=80).contains(&percent) {
+        hub(&app).store.lock().unwrap().update_profile(|p| p.split = percent);
+        emit_state(&app);
+    }
+}
+
+/// Which built-in tabs the current profile shows, in order.
+#[tauri::command]
+async fn set_tabs(webview: Webview, app: AppHandle, ids: Vec<String>) {
+    if from_shell(&webview) && ids.len() <= 16 {
+        hub(&app).store.lock().unwrap().update_profile(|p| p.tabs = Some(ids));
+        ensure_pane_pages(&app);
+        layout(&app);
+        emit_state(&app);
     }
 }
 
@@ -812,16 +950,16 @@ async fn set_overlay(webview: Webview, app: AppHandle, open: bool) {
     }
 }
 
-/// A picture of the visible page (a JPEG data URL), shown in its place while a menu or dialog is
-/// open. None when no page is showing or the picture can't be taken.
+/// A picture of a visible page (a JPEG data URL), shown in its place while a menu or dialog is
+/// open. None when that page isn't showing or the picture can't be taken.
 #[tauri::command]
-async fn freeze_page(webview: Webview, app: AppHandle) -> Option<String> {
+async fn freeze_page(webview: Webview, app: AppHandle, id: String) -> Option<String> {
     if !from_shell(&webview) || *hub(&app).overlay.lock().unwrap() {
         return None;
     }
-    let active = active_id(&app);
-    let healthy = hub(&app).statuses.lock().unwrap().get(&active).is_some_and(|s| s.error.is_none());
-    let page = app.get_webview(&label_for(&active)).filter(|_| healthy)?;
+    pane_rect(&app, &id)?;
+    let healthy = hub(&app).statuses.lock().unwrap().get(&id).is_some_and(|s| s.error.is_none());
+    let page = app.get_webview(&label_for(&id)).filter(|_| healthy)?;
     #[cfg(windows)]
     {
         let bytes = tauri::async_runtime::spawn_blocking(move || win::capture(&page)).await.ok().flatten()?;
@@ -873,6 +1011,8 @@ async fn module_action(webview: Webview, app: AppHandle, id: String, action: Str
                 open_external(&app, &url);
             }
         }
+        // The site answered with an error page: show it anyway.
+        "show-anyway" => page_result(&app, &id, None),
         "up" => move_module(&app, &id, -1),
         "down" => move_module(&app, &id, 1),
         "remove" => remove_module(&app, &id),
@@ -1194,7 +1334,7 @@ pub fn run() {
             app.manage(Hub {
                 store: Mutex::new(Store::open(dir)),
                 statuses: Mutex::new(HashMap::new()),
-                stage: Mutex::new(None),
+                panes: Mutex::new(Vec::new()),
                 overlay: Mutex::new(false),
                 update: Mutex::new(None),
                 pending: Mutex::new(None),
@@ -1227,7 +1367,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
-            set_stage_rect,
+            set_panes,
+            split,
+            close_pane,
+            swap_panes,
+            set_split,
+            set_tabs,
             set_overlay,
             freeze_page,
             select,

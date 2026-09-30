@@ -159,3 +159,14 @@ html[data-theme="retro"] .theme-card[aria-pressed="true"] { border-color: #fff; 
 /* Floating site controls. */
 html[data-theme="retro"] .ctl { border-color: rgba(255, 255, 255, 0.4); background: rgba(6, 9, 13, 0.9); }
 html[data-theme="retro"] .ctl__progress::before { background: linear-gradient(90deg, transparent, #fff, transparent); }
+
+/* Built-in tabs. */
+html[data-theme="retro"] .card,
+html[data-theme="retro"] .encounter { background: rgba(4, 7, 11, 0.55); }
+html[data-theme="retro"] .card__kicker { color: #dfe4ea; letter-spacing: 0.24em; }
+html[data-theme="retro"] .card__name,
+html[data-theme="retro"] .encounter__name { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.95rem; }
+html[data-theme="retro"] .encounter__number { color: #fff; }
+html[data-theme="retro"] .badge { border-color: var(--retro-gold); color: var(--retro-gold); text-transform: uppercase; letter-spacing: 0.1em; }
+html[data-theme="retro"] .rad__item[aria-current="true"] { box-shadow: inset 0 0 0 1px #fff; }
+html[data-theme="retro"] .tab__title { text-transform: uppercase; letter-spacing: 0.14em; font-size: 1.5rem; }

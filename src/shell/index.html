@@ -37,6 +37,10 @@
             <span class="mod__name">Home</span>
           </button>
         </div>
+        <div class="tabs-nav" id="tabs-nav" hidden>
+          <div class="sidebar__label" id="tabs-label">Tabs</div>
+          <div class="tabs-list" id="tabs-list"></div>
+        </div>
         <div class="sidebar__label">Modules</div>
         <div class="modules" id="modules"></div>
       </nav>
@@ -93,11 +97,15 @@
         <div class="toolbar__progress" id="progress" aria-hidden="true"></div>
       </header>
 
+      <!-- One page, or two side by side ("panes", built by shell.js). Each pane holds a site (placed
+           over it by the app), Home, a built-in tab, or the "couldn't load" panel. -->
       <section class="stage" id="stage" aria-live="polite">
-        <!-- A picture of the page, shown in its place while a menu or pop-up is open. -->
-        <img class="stage__snapshot" id="snapshot" alt="" hidden>
-        <div class="home" id="home-page" hidden></div>
-        <div class="stage__msg" id="stage-msg" hidden></div>
+        <!-- Shown while dragging a module or tab over the page area. -->
+        <div class="drop-zones" id="drop-zones" hidden>
+          <div class="drop-zone" data-side="left"><span>Put it on the left</span></div>
+          <div class="drop-zone" data-side="open"><span>Open it here</span></div>
+          <div class="drop-zone" data-side="right"><span>Put it on the right</span></div>
+        </div>
       </section>
     </main>
   </div>
@@ -206,6 +214,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="4.5" r="1.5"/><path d="M5 8l7 1.5L19 8M12 9.5V14l-3 6M12 14l3 6"/></svg>
             Accessibility
           </button>
+          <button class="settings__tab" role="tab" type="button" data-tab="tabs" aria-selected="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+            Tabs
+          </button>
           <button class="settings__tab" role="tab" type="button" data-tab="about" aria-selected="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
             About
@@ -218,6 +230,7 @@
         </button>
         <section class="settings__panel" role="tabpanel" data-panel="personalization"></section>
         <section class="settings__panel" role="tabpanel" data-panel="accessibility" hidden></section>
+        <section class="settings__panel" role="tabpanel" data-panel="tabs" hidden></section>
         <section class="settings__panel" role="tabpanel" data-panel="about" hidden></section>
       </div>
     </div>
@@ -241,5 +254,6 @@
   <script src="theme.js"></script>
   <script src="bridge.js"></script>
   <script src="shell.js"></script>
+  <script type="module" src="tabs.js"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force $config | Out-Null
 
 # A returning user: one Destiny 2 profile with four modules (the last one can't load, to show
 # Mida's own error panel), seals.report open, window in the top-left corner.
-function Settings($addressBar, $theme = "dark", $expanded = $true) {
+function Settings($addressBar, $theme = "dark", $expanded = $true, $page = '"activeId": "seals-report", "tabs": []') {
   $open = if ($expanded) { "true" } else { "false" }
   $bar = if ($addressBar) { "true" } else { "false" }
   return @"
@@ -17,7 +17,7 @@ function Settings($addressBar, $theme = "dark", $expanded = $true) {
   "version": 2,
   "firstRunDone": true,
   "profiles": [{
-    "id": "p-test", "name": "Smoke test", "game": "destiny2", "activeId": "seals-report",
+    "id": "p-test", "name": "Smoke test", "game": "destiny2", $page,
     "modules": [
       { "id": "seals-report", "name": "seals.report", "url": "https://d2-seals-report.vercel.app/" },
       { "id": "light-gg", "name": "light.gg", "url": "https://www.light.gg/" },
@@ -70,8 +70,8 @@ function Shot($name) {
   $g.Dispose(); $bmp.Dispose()
 }
 
-function Start-Mida($addressBar, $theme = "dark", $expanded = $true) {
-  [IO.File]::WriteAllText((Join-Path $config "settings.json"), (Settings $addressBar $theme $expanded))
+function Start-Mida($addressBar, $theme = "dark", $expanded = $true, $page = '"activeId": "seals-report", "tabs": []') {
+  [IO.File]::WriteAllText((Join-Path $config "settings.json"), (Settings $addressBar $theme $expanded $page))
   $app = Start-Process -FilePath $Exe -PassThru
   Start-Sleep -Seconds 20
   # The app's own window (by process; PowerShell turns $null into "" for FindWindow, which fails).
@@ -117,6 +117,20 @@ Shot "06-error-panel"
 Start-Sleep -Seconds 3
 Shot "07-home-with-icons"
 
+# Side by side: open seals.report, then light.gg beside it from its menu ("Open side by side").
+[Input]::Click($hwnd, 110, $ROW[0], $false)
+Start-Sleep -Seconds 4
+[Input]::Click($hwnd, 110, $ROW[1], $true)
+Start-Sleep -Seconds 2
+[Input]::Click($hwnd, 170, $ROW[1] + 61, $false)
+Start-Sleep -Seconds 10
+Shot "07b-side-by-side"
+[Input]::Keys(0x11, 0xBC)                         # Ctrl+, : both pages become pictures
+Start-Sleep -Seconds 3
+Shot "07c-settings-over-side-by-side"
+[Input]::Keys(0, 0x1B)
+Start-Sleep -Seconds 1
+
 Write-Host "Still running: $(-not $app.HasExited)"
 Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
@@ -159,5 +173,13 @@ Start-Sleep -Milliseconds 300
 [Input]::SetCursorPos($p.X + 2, $p.Y + 4) | Out-Null
 Start-Sleep -Seconds 2
 Shot "14-flyout-over-site"
+Write-Host "Still running: $(-not $app.HasExited)"
+Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+# Built-in tabs (all shown): Featured beside seals.report, in Foundry.
+$app, $hwnd = Start-Mida $true "foundry" $true '"activeId": "tab-featured", "panes": ["seals-report", "tab-featured"], "split": 55'
+Start-Sleep -Seconds 4
+Shot "15-tab-beside-site"
 Write-Host "Still running: $(-not $app.HasExited)"
 Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue

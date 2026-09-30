@@ -4,7 +4,7 @@
 //! Version 2 (Mida 0.2): modules live inside profiles (one per game), plus app preferences.
 //! Version 1 files (Mida 0.1: one list of modules) are moved into a Destiny 2 profile.
 
-use crate::modules::{clean_image, clean_modules, clean_text, Module, CUSTOM_GAME, GAMES, MAX_PICTURE};
+use crate::modules::{clean_image, clean_modules, clean_text, tabs_for, Module, CUSTOM_GAME, GAMES, MAX_PICTURE};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -34,8 +34,39 @@ pub struct Profile {
     /// The game's name as the user typed it (custom games only).
     pub game_name: String,
     pub modules: Vec<Module>,
-    /// The open module's id, or "home".
+    /// The open page: "home", a module's id or a built-in tab's id.
     pub active_id: String,
+    /// Built-in tabs switched on, in order (games that have them). None: all of them.
+    pub tabs: Option<Vec<String>>,
+    /// Two pages side by side: their ids, left then right (empty: one page). The open page is
+    /// always one of them.
+    pub panes: Vec<String>,
+    /// The left pane's share of the width, in percent.
+    pub split: u32,
+}
+
+/// The built-in tabs a profile shows.
+pub fn enabled_tabs(game: &str, tabs: &Option<Vec<String>>) -> Vec<String> {
+    let all = tabs_for(game);
+    match tabs {
+        None => all.iter().map(|t| t.to_string()).collect(),
+        Some(list) => {
+            let mut out: Vec<String> = Vec::new();
+            for t in list {
+                if all.contains(&t.as_str()) && !out.contains(t) {
+                    out.push(t.clone());
+                }
+            }
+            out
+        }
+    }
+}
+
+impl Profile {
+    /// Whether `id` is something this profile can show: Home, one of its modules or tabs.
+    pub fn has_page(&self, id: &str) -> bool {
+        id == HOME || self.modules.iter().any(|m| m.id == id) || enabled_tabs(&self.game, &self.tabs).iter().any(|t| t == id)
+    }
 }
 
 /// App preferences (Settings). Every value is checked in `clean_prefs`.
@@ -160,18 +191,33 @@ pub fn clean_profile(p: Profile) -> Option<Profile> {
         return None;
     }
     let game = if GAMES.iter().any(|g| g.id == p.game) { p.game } else { CUSTOM_GAME.to_string() };
-    let modules = clean_modules(&p.modules);
-    let active_id = if p.active_id == HOME || modules.iter().any(|m| m.id == p.active_id) { p.active_id } else { HOME.to_string() };
+    let tabs = if tabs_for(&game).is_empty() { None } else { p.tabs.as_ref().map(|_| enabled_tabs(&game, &p.tabs)) };
     let name = clean_text(&p.name, 32);
-    Some(Profile {
+    let mut out = Profile {
         id: p.id,
         name: if name.is_empty() { "Profile".into() } else { name },
         image: clean_image(p.image.as_deref(), false, MAX_PICTURE),
         game_name: if game == CUSTOM_GAME { clean_text(&p.game_name, 40) } else { String::new() },
         game,
-        modules,
-        active_id,
-    })
+        modules: clean_modules(&p.modules),
+        active_id: HOME.to_string(),
+        tabs,
+        panes: Vec::new(),
+        split: if (20..=80).contains(&p.split) { p.split } else { 50 },
+    };
+    if out.has_page(&p.active_id) {
+        out.active_id = p.active_id;
+    }
+    // Side by side only with two different pages that both still exist, one of them open.
+    // Otherwise (a module removed, a tab switched off) the open page is shown alone.
+    let panes_ok = p.panes.len() == 2
+        && p.panes[0] != p.panes[1]
+        && p.panes.iter().all(|id| out.has_page(id))
+        && p.panes.contains(&out.active_id);
+    if panes_ok {
+        out.panes = p.panes;
+    }
+    Some(out)
 }
 
 fn clean(mut s: Settings) -> Settings {
@@ -186,6 +232,7 @@ fn clean(mut s: Settings) -> Settings {
             game_name: String::new(),
             modules: std::mem::take(&mut s.modules),
             active_id: active,
+            ..Profile::default()
         });
         s.first_run_done = true;
     }
