@@ -9,7 +9,8 @@ New-Item -ItemType Directory -Force $config | Out-Null
 
 # A returning user: one Destiny 2 profile with four modules (the last one can't load, to show
 # Mida's own error panel), seals.report open, window in the top-left corner.
-function Settings($addressBar, $theme = "dark") {
+function Settings($addressBar, $theme = "dark", $expanded = $true) {
+  $open = if ($expanded) { "true" } else { "false" }
   $bar = if ($addressBar) { "true" } else { "false" }
   return @"
 {
@@ -26,9 +27,9 @@ function Settings($addressBar, $theme = "dark") {
   }],
   "defaultProfile": "p-test",
   "currentProfile": "p-test",
-  "sidebarExpanded": true,
+  "sidebarExpanded": $open,
   "window": { "x": 0, "y": 0, "width": 1000, "height": 700, "maximized": false },
-  "prefs": { "showAddressBar": $bar, "controlsCorner": "top-right", "theme": "$theme" }
+  "prefs": { "showAddressBar": $bar, "controlsCorner": "top-right", "theme": "$theme", "foundryMode": "$(if ($theme -eq "foundry" -and -not $expanded) { "dark" } else { "light" })" }
 }
 "@
 }
@@ -69,8 +70,8 @@ function Shot($name) {
   $g.Dispose(); $bmp.Dispose()
 }
 
-function Start-Mida($addressBar, $theme = "dark") {
-  [IO.File]::WriteAllText((Join-Path $config "settings.json"), (Settings $addressBar $theme))
+function Start-Mida($addressBar, $theme = "dark", $expanded = $true) {
+  [IO.File]::WriteAllText((Join-Path $config "settings.json"), (Settings $addressBar $theme $expanded))
   $app = Start-Process -FilePath $Exe -PassThru
   Start-Sleep -Seconds 20
   # The app's own window (by process; PowerShell turns $null into "" for FindWindow, which fails).
@@ -144,5 +145,19 @@ Start-Sleep -Seconds 1
 [Input]::Click($hwnd, 110, $HOME_Y, $false)
 Start-Sleep -Seconds 3
 Shot "12-foundry-home"
+Write-Host "Still running: $(-not $app.HasExited)"
+Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+# Collapsed sidebar (Foundry, dark): pointing at it opens the flyout over the site.
+$app, $hwnd = Start-Mida $true "foundry" $false
+Shot "13-collapsed"
+[Input]::SetCursorPos(0, 0) | Out-Null
+$p = New-Object Input+POINT; $p.X = 30; $p.Y = 300; [Input]::ClientToScreen($hwnd, [ref]$p) | Out-Null
+[Input]::SetCursorPos($p.X, $p.Y) | Out-Null
+Start-Sleep -Milliseconds 300
+[Input]::SetCursorPos($p.X + 2, $p.Y + 4) | Out-Null
+Start-Sleep -Seconds 2
+Shot "14-flyout-over-site"
 Write-Host "Still running: $(-not $app.HasExited)"
 Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue

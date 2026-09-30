@@ -99,7 +99,10 @@ const pageShown = () => {
 
 function renderSidebar() {
   const app = $("app");
-  app.dataset.expanded = String(state.sidebarExpanded);
+  // While the flyout is open the sidebar shows expanded, over the page.
+  const expanded = state.sidebarExpanded || flyoutOpen;
+  app.dataset.expanded = String(expanded);
+  app.dataset.fit = String(state.prefs.sidebarFit);
   app.dataset.address = state.prefs.showAddressBar ? "shown" : "hidden";
   const toggle = $("toggle");
   const label = state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar";
@@ -113,12 +116,12 @@ function renderSidebar() {
   $("profile-name").textContent = profile?.name ?? "";
   $("profile-game").textContent = gameName(profile);
   // A tooltip only when collapsed (the name is hidden then).
-  $("profile-btn").title = profile && !state.sidebarExpanded ? `${profile.name} · ${gameName(profile)}` : "";
+  $("profile-btn").title = profile && !expanded ? `${profile.name} · ${gameName(profile)}` : "";
 
   $("home-item").setAttribute("aria-current", state.activeId === HOME ? "page" : "false");
   if (state.activeId !== HOME) $("home-item").removeAttribute("aria-current");
   // Like the modules: a tooltip only when the sidebar is collapsed and the name is hidden.
-  if (state.sidebarExpanded) $("home-item").removeAttribute("title");
+  if (expanded) $("home-item").removeAttribute("title");
   else $("home-item").setAttribute("title", "Home");
 
   $("modules").replaceChildren(
@@ -134,7 +137,7 @@ function renderSidebar() {
             class: "mod",
             type: "button",
             // A tooltip only when collapsed (the name is hidden then).
-            title: state.sidebarExpanded ? null : `${mod.name}${shortcut}`,
+            title: expanded ? null : `${mod.name}${shortcut}`,
             "aria-current": mod.id === state.activeId ? "page" : null,
             onclick: () => hub.select(mod.id),
             oncontextmenu: (event) => {
@@ -279,6 +282,9 @@ function renderHome() {
     el(
       "header",
       { class: "home__hero" },
+      // Glyph markings for the Foundry theme (hidden in the others).
+      el("i", { class: "home__glyph home__glyph--start", "aria-hidden": "true" }),
+      el("i", { class: "home__glyph home__glyph--end", "aria-hidden": "true" }),
       avatar(profile, "avatar--large"),
       el(
         "div",
@@ -356,7 +362,7 @@ async function freeze() {
 }
 
 function anythingOpen() {
-  return !$("menu").hidden || Boolean(document.querySelector("dialog[open]"));
+  return flyoutOpen || !$("menu").hidden || Boolean(document.querySelector("dialog[open]"));
 }
 
 // Called after a menu or dialog closes; waits a moment in case another one opens straight away.
@@ -375,6 +381,7 @@ function maybeUnfreeze() {
 
 async function openDialog(dialog) {
   closeMenu();
+  closeFlyout();
   await freeze();
   if (!dialog.open) dialog.showModal();
 }
@@ -400,7 +407,56 @@ function closeMenu() {
     if (menu.contains(document.activeElement) || document.activeElement === document.body) menuAnchor.focus();
   }
   menuAnchor = null;
+  // A menu opened from the flyout: the flyout stays while the pointer is still over it.
+  if (flyoutOpen && !document.querySelector(".sidebar").matches(":hover")) closeFlyout();
   maybeUnfreeze();
+}
+
+// ---------- Sidebar flyout ----------
+//
+// With the sidebar collapsed, pointing at it opens the full sidebar over the page for a moment.
+// The page can't sit under our own screen, so like a menu it's replaced by a picture of itself
+// while the flyout is open; the page is never resized.
+
+let flyoutOpen = false;
+let flyoutTimer = null;
+
+async function openFlyout() {
+  if (flyoutOpen || state.sidebarExpanded || !state.prefs.sidebarFlyout) return;
+  flyoutOpen = true;
+  await freeze();
+  if (!flyoutOpen) return;
+  $("app").dataset.flyout = "open";
+  renderSidebar();
+}
+
+function closeFlyout() {
+  clearTimeout(flyoutTimer);
+  if (!flyoutOpen) return;
+  flyoutOpen = false;
+  delete $("app").dataset.flyout;
+  renderSidebar();
+  maybeUnfreeze();
+}
+
+{
+  const sidebar = document.querySelector(".sidebar");
+  sidebar.addEventListener("pointerenter", () => {
+    if (!state || state.sidebarExpanded || !state.prefs.sidebarFlyout || flyoutOpen || anythingOpen()) return;
+    clearTimeout(flyoutTimer);
+    flyoutTimer = setTimeout(openFlyout, 160);
+  });
+  sidebar.addEventListener("pointerleave", () => {
+    clearTimeout(flyoutTimer);
+    if (flyoutOpen && $("menu").hidden) closeFlyout();
+  });
+  // Choosing a page closes it: the new page should show straight away.
+  sidebar.addEventListener("click", (event) => {
+    if (flyoutOpen && event.target.closest(".mod:not(.mod--add), .mod-row--home .mod")) closeFlyout();
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && flyoutOpen && $("menu").hidden) closeFlyout();
+  });
 }
 
 // items: { label, detail?, icon?, avatar?, danger?, disabled?, checked?, action } | "sep" | { heading }
@@ -894,7 +950,56 @@ const THEMES = [
   ["black", "Black", ["#060607", "#000000"]],
   ["light", "Light", ["#e6e1d7", "#f5f2ec"]],
   ["foundry", "Foundry", ["#f8f9f9", "#e3e7e8"]],
+  ["retro", "Retro (D1)", ["#0d1117", "#1a2230"]],
 ];
+
+// Shown open when the player picks "Custom" in Foundry's colours (before they change anything).
+let foundryCustomOpen = false;
+
+function foundrySettings(p) {
+  const presetId = Object.keys(FOUNDRY_COLOURS).find((id) => FOUNDRY_COLOURS[id].glow === p.foundryGlow && FOUNDRY_COLOURS[id].mark === p.foundryMark);
+  const current = presetId && !foundryCustomOpen ? presetId : "custom";
+  const chips = [
+    ...Object.entries(FOUNDRY_COLOURS).map(([id, c]) => [id, c.name, c.glow, c.mark]),
+    ["custom", "Custom", p.foundryGlow, p.foundryMark],
+  ];
+  const swatches = el(
+    "div",
+    { class: "swatches" },
+    ...chips.map(([id, name, glow, mark]) =>
+      el(
+        "button",
+        {
+          class: "swatch",
+          type: "button",
+          "data-key": `foundry-${id}`,
+          "aria-pressed": String(current === id),
+          onclick: () => {
+            foundryCustomOpen = id === "custom";
+            if (id === "custom") renderSettings();
+            else updatePrefs({ foundryGlow: glow, foundryMark: mark });
+          },
+        },
+        el("span", { class: "foundry-chip", style: { "--chip-glow": glow, "--chip-mark": mark } }),
+        el("span", { text: name }),
+      ),
+    ),
+  );
+  let editor = null;
+  if (current === "custom") {
+    const colorInput = (label, key) =>
+      el("label", { class: "color-input" }, el("input", { type: "color", value: p[key], oninput: (e) => updatePrefs({ [key]: e.target.value }, false) }), el("span", { text: label }));
+    editor = el(
+      "div",
+      { class: "gradient-editor" },
+      el("div", { class: "gradient-editor__row" }, colorInput("Lights (highlights, what's active)", "foundryGlow"), colorInput("Markings (chevrons, stripes)", "foundryMark")),
+    );
+  }
+  return [
+    setting("Foundry mode", "White architecture, or the same foundry in graphite.", segmented("foundry-mode", [["light", "Light"], ["dark", "Dark"]], p.foundryMode, (v) => updatePrefs({ foundryMode: v }), "Foundry mode")),
+    setting("Foundry colours", "The colour of the lights and of the markings.", el("div", {}, swatches, editor)),
+  ];
+}
 
 function personalizationPanel() {
   const p = state.prefs;
@@ -909,7 +1014,7 @@ function personalizationPanel() {
         { class: "theme-card", type: "button", "data-key": `theme-${id}`, "aria-pressed": String(p.theme === id), onclick: () => updatePrefs({ theme: id }) },
         el(
           "span",
-          { class: id === "foundry" ? "theme-card__preview theme-card__preview--foundry" : "theme-card__preview" },
+          { class: `theme-card__preview theme-card__preview--${id}` },
           el("i", { style: { background: side } }),
           el("i", { style: { background: `linear-gradient(160deg, ${main}, ${main} 55%, color-mix(in srgb, ${way.accent} 25%, ${main}))` } }),
         ),
@@ -1006,9 +1111,13 @@ function personalizationPanel() {
     el("h2", { text: "Personalization" }),
     el("p", { text: "How Mida looks. Changes show straight away." }),
     setting("Theme", null, themes),
-    p.theme === "foundry"
-      ? setting("Colorway", "Foundry has its own colours: pearl white, teal lights and red markings. Pick another theme to use a colorway.", el("div", {}, swatches), { disabled: true })
-      : setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor)),
+    ...(p.theme === "foundry"
+      ? foundrySettings(p)
+      : p.theme === "retro"
+        ? [setting("Colorway", "Retro keeps Destiny 1's own colours. Pick another theme to use a colorway.", el("div", {}, swatches), { disabled: true })]
+        : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
+    setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
+    setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
     setting("Show the address bar", "The bar above the site with back, forward, reload and the page's address.", toggle("address", p.showAddressBar, (v) => updatePrefs({ showAddressBar: v }), "Show the address bar"), { row: true }),
     setting("Site controls corner", "With the address bar hidden, back, forward and reload float in this corner of the site.", corners, { disabled: !hidden }),
     setting("Only show site controls when hovered", "They stay invisible until your mouse is over their corner.", toggle("autohide", p.controlsAutohide, (v) => updatePrefs({ controlsAutohide: v }), "Only show site controls when hovered"), { row: true, disabled: !hidden }),

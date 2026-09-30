@@ -42,7 +42,7 @@ pub struct Profile {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Prefs {
-    pub theme: String,            // dark | black | light | foundry
+    pub theme: String,            // dark | black | light | foundry | retro
     pub colorway: String,         // a preset id or "custom"
     pub custom_colors: Vec<String>, // 2-3 gradient stops, #rrggbb
     pub custom_accent: String,    // #rrggbb
@@ -54,6 +54,11 @@ pub struct Prefs {
     pub ui_scale: u32,            // percent
     pub high_contrast: bool,
     pub site_zoom: u32,           // percent
+    pub foundry_mode: String,     // light | dark (the Foundry theme's own light/dark)
+    pub foundry_glow: String,     // #rrggbb: Foundry's lights (accent)
+    pub foundry_mark: String,     // #rrggbb: Foundry's markings
+    pub sidebar_flyout: bool,     // collapsed sidebar opens over the page on hover
+    pub sidebar_fit: bool,        // sidebar only as tall as its contents
 }
 
 impl Default for Prefs {
@@ -71,6 +76,11 @@ impl Default for Prefs {
             ui_scale: 100,
             high_contrast: false,
             site_zoom: 80,
+            foundry_mode: "light".into(),
+            foundry_glow: "#52f2e2".into(),
+            foundry_mark: "#d8473a".into(),
+            sidebar_flyout: true,
+            sidebar_fit: false,
         }
     }
 }
@@ -89,7 +99,7 @@ pub fn clean_prefs(p: Prefs) -> Prefs {
     };
     let colors: Vec<String> = p.custom_colors.into_iter().filter(|c| is_hex(c)).take(3).map(|c| c.to_lowercase()).collect();
     Prefs {
-        theme: pick(p.theme, &["dark", "black", "light", "foundry"], d.theme),
+        theme: pick(p.theme, &["dark", "black", "light", "foundry", "retro"], d.theme),
         colorway: pick(p.colorway, COLORWAYS, d.colorway),
         custom_colors: if colors.len() >= 2 { colors } else { d.custom_colors },
         custom_accent: if is_hex(&p.custom_accent) { p.custom_accent.to_lowercase() } else { d.custom_accent },
@@ -101,6 +111,11 @@ pub fn clean_prefs(p: Prefs) -> Prefs {
         ui_scale: if UI_SCALES.contains(&p.ui_scale) { p.ui_scale } else { d.ui_scale },
         high_contrast: p.high_contrast,
         site_zoom: if (50..=150).contains(&p.site_zoom) && p.site_zoom % 10 == 0 { p.site_zoom } else { d.site_zoom },
+        foundry_mode: pick(p.foundry_mode, &["light", "dark"], d.foundry_mode),
+        foundry_glow: if is_hex(&p.foundry_glow) { p.foundry_glow.to_lowercase() } else { d.foundry_glow },
+        foundry_mark: if is_hex(&p.foundry_mark) { p.foundry_mark.to_lowercase() } else { d.foundry_mark },
+        sidebar_flyout: p.sidebar_flyout,
+        sidebar_fit: p.sidebar_fit,
     }
 }
 
@@ -286,6 +301,8 @@ mod tests {
         let p = clean_prefs(Prefs { theme: "neon".into(), ui_scale: 333, site_zoom: 85, custom_colors: vec!["#zzz".into()], ..Prefs::default() });
         assert_eq!((p.theme.as_str(), p.ui_scale, p.site_zoom, p.custom_colors.len()), ("dark", 100, 80, 2));
         assert_eq!(clean_prefs(Prefs { theme: "foundry".into(), ..Prefs::default() }).theme, "foundry");
+        let f = clean_prefs(Prefs { foundry_mode: "neon".into(), foundry_glow: "red".into(), foundry_mark: "#ABCDEF".into(), ..Prefs::default() });
+        assert_eq!((f.foundry_mode.as_str(), f.foundry_glow.as_str(), f.foundry_mark.as_str()), ("light", "#52f2e2", "#abcdef"));
         let bad = Profile { id: "Bad Id".into(), ..Profile::default() };
         assert!(clean_profile(bad).is_none());
         let custom = clean_profile(Profile { id: "p-1".into(), game: "halo".into(), game_name: " Halo ".into(), ..Profile::default() }).unwrap();

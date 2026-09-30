@@ -176,13 +176,28 @@ Pop-ups sit over a blurred picture of the site. The collapsed sidebar is an icon
 
 **Foundry theme** (`src/shell/foundry.css`, everything scoped to `html[data-theme="foundry"]`, also loaded by
 controls.html): Mida as the weapons foundry of the lore, from the owner's Deep Stone Crypt / Clovis Bray references.
+Light (pearl) or Dark (graphite) via prefs.foundryMode -> `data-foundry`; the lights (`--glow`, prefs.foundryGlow) and
+markings (`--mark`, prefs.foundryMark) are the player's colours (presets in theme.js FOUNDRY_COLOURS, or Custom).
+Markings are CSS masks coloured by `--mark`, so every chevron/glyph follows the chosen colour. On the light version the
+accent is the glow darkened 42% so focus rings read on white. The owner asked to drop the settings rail's line-art
+pattern (v0.3); the sidebar has a segmented seam, a hatched marking block and a light down its inner edge.
 Pearl-white architecture; thick white rounded "tube" frames (outline + rim shadow) around the site, dialogs and menus;
 dark recessed "screens" for icons, avatars, the toolbar readout, the main button and the settings rail (with faint teal
 line-art); teal indicator lights (`--glow`) for what's active; red markings (`--clovis`): double chevrons before
 headings, stepped seams with a red diamond, glyph-code strips, big chevrons on the Home hero, the update banner.
 Shapes use opposite-corner radii (e.g. 14px 4px 14px 4px). All art is our own inline SVG/gradients, no game art or
-logos. Colorways don't apply (fixed teal accent `#0f9488` in theme.js; the Colorway setting is greyed with a note).
+logos. Colorways don't apply (Settings shows Foundry mode and Foundry colours instead).
 The site sits 8-12px inside the stage edge so the frame shows (the page is placed at #stage's rect, margins excluded).
+
+**Retro theme** (`src/shell/retro.css`, `data-theme="retro"`): Destiny 1's menus. Deep blue-black with a faint grid,
+square corners everywhere, thin white lines, letterspaced capitals over a white rule, the white selection box, white
+main buttons, a gold tag. Colorways don't apply.
+
+**Sidebar modes:** `sidebarFlyout` (default on): with the sidebar collapsed, pointing at it for 160 ms opens the full
+sidebar over the page (`data-flyout="open"`: the sidebar is absolutely positioned, the grid column stays narrow, so the
+page never resizes). The page is replaced by its picture while it's open (same freeze as menus); choosing a page, Esc
+or leaving closes it; a menu opened from it keeps it open. `sidebarFit`: the sidebar is a card only as tall as its
+contents (`data-fit`).
 
 ## 7. Known limitations and things to verify
 
@@ -232,7 +247,13 @@ The site sits 8-12px inside the stage edge so the frame shows (the page is place
 
 * v0.3 (not released yet): **Foundry theme**, at the owner's request ("mida is an advanced weapons foundry in world
   lore"), with four reference pictures (Deep Stone Crypt interior, a Clovis Bray marking card, white weapon concepts,
-  Europa concept art).
+  Europa concept art). Owner feedback on the first version: "a great start"; drop the wiry pattern on the settings
+  rail, add a dark mode and colour choices incl. the accents ("don't want to force someone to look at white"), add
+  geometric detail to the sidebar. Same batch: sidebar flyout on hover (default on), fit-to-contents sidebar, and a
+  Destiny 1 retro theme.
+* Owner's larger plan (Sep 30 2026, not built yet): Bungie sign-in in Mida; Destiny 2 profiles get toggleable built-in
+  tabs (Inventory / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like
+  seals.report's Featured); modules and tabs placeable side by side on a grid.
 
 ## 9. Roadmap
 

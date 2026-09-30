@@ -127,6 +127,34 @@ html[data-theme="light"] .app {
     color-mix(in srgb, var(--bg-3) 16%, var(--ink)));
 }
 .app[data-expanded="false"] { grid-template-columns: var(--sidebar-closed) 1fr; }
+.app { position: relative; }
+.app > .main { grid-column: 2; grid-row: 1; }
+
+/* The flyout: the collapsed sidebar opened over the page (which keeps its size). */
+.app[data-flyout="open"] { grid-template-columns: var(--sidebar-closed) 1fr; }
+.app[data-flyout="open"] .sidebar {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--sidebar-open);
+  background: color-mix(in srgb, var(--panel-solid) 97%, transparent);
+  box-shadow: var(--shadow);
+  animation: flyout-in 140ms ease-out;
+}
+
+/* Fit to contents: the sidebar is a card only as tall as what's in it. */
+.app[data-fit="true"] .sidebar {
+  align-self: start;
+  max-height: calc(100vh - 16px);
+  margin: 8px 0 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+}
+.app[data-fit="true"] .modules-nav,
+.app[data-fit="true"] .modules { flex: 0 1 auto; }
+.app[data-fit="true"][data-flyout="open"] .sidebar { top: 0; bottom: auto; left: 0; width: calc(var(--sidebar-open) - 8px); }
 
 .main {
   display: grid;
@@ -597,6 +625,7 @@ html[data-theme="light"] .app {
 .tile__host { color: var(--mist-dim); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile--add { border-style: dashed; background: transparent; color: var(--mist); }
 .home__empty { color: var(--mist); }
+.home__glyph { display: none; }
 
 /* ---------- Buttons and fields ---------- */
 
@@ -900,7 +929,7 @@ html[data-theme="light"] .app {
 .segmented button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 
 /* Theme cards and colorway swatches. */
-.themes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
 .theme-card {
   padding: 8px;
   border: 1px solid var(--rule);
@@ -988,6 +1017,7 @@ html[data-theme="light"] .app {
 @keyframes pulse { 50% { opacity: 0.35; } }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(6px) scale(0.99); } }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes flyout-in { from { opacity: 0; transform: translateX(-10px); } }
 
 html[data-motion="reduce"] *,
 html[data-motion="reduce"] *::before,
