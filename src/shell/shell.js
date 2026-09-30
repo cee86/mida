@@ -797,7 +797,9 @@ $("menu").addEventListener("keydown", (event) => {
     closeMenu();
   }
 });
-window.addEventListener("blur", closeMenu);
+// Close menus when Mida loses the keyboard to another program. Opening a menu over a site hands
+// the keyboard to our screen, which can blur it for a moment on Windows: only a lasting blur counts.
+window.addEventListener("blur", () => setTimeout(() => !document.hasFocus() && closeMenu(), 150));
 
 // "Open side by side" / "Close this side" for a page (module, tab or Home).
 function splitItems(id) {
