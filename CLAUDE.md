@@ -50,9 +50,10 @@ status or use other sites' artwork as our own.
   itself on the new version (silent reinstall into the same folder). A failed download shows "Download failed · Click to
   try again". Nothing downloads or installs without the user's click, and no one re-downloads installers from GitHub.
 * **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json`
-  (semver: fixes 0.2.1, features 0.3.0) and push to `main`. The workflow sees there's no `v<version>` tag yet and runs
-  `electron-builder --publish always` with the run's own `GITHUB_TOKEN` (`contents: write`), creating a published
-  release with the installer, its blockmap and `latest.yml`. Pushes that don't change the version only build a test
+  (semver: fixes 0.3.1, features 0.4.0) and push to `main`. The workflow sees there's no `v<version>` release yet,
+  pushes the tag (GitHub won't publish a release for a missing tag), then runs `electron-builder --publish always` with
+  the run's own `GITHUB_TOKEN` (`contents: write`), creating a published release with the installer, its blockmap and
+  `latest.yml`. A newer push cancels a build still running. Pushes that don't change the version only build a test
   installer; nobody's app changes. Never re-use a version number. Updates need the repo to be **public** (the owner chose
   this over a separate public releases repo, so no token ever ships in the app or needs renewing).
 
