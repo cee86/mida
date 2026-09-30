@@ -137,8 +137,9 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
 
 ## 7. Known limitations and things to verify
 
-* **Unverified on the owner's PC:** Bungie sign-in inside DIM and seals.report, downloads (DIM exports), each site's
-  behaviour. Google sign-in may be refused (Google often blocks embedded browsers).
+* **Confirmed by the owner on their PC (v0.1.0, 30 Sep 2026):** "everything seems to be functioning", install size
+  "extremely small", resource use very low. Not specifically reported on yet: Google sign-in (Google often blocks
+  embedded browsers) and the in-app update itself (first real test comes with v0.1.1).
 * **Tauri's several-pages-in-one-window feature is marked experimental** (`unstable`); watch for fixes/changes when
   updating Tauri.
 * No custom "couldn't load" screen any more: WebView2 shows its own error page inside the module. The shell's error
