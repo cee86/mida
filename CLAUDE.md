@@ -7,9 +7,10 @@ meaningful change, update the relevant section (especially "Decisions log", "Kno
 
 ## 1. What this is
 
-**Mida** is a locally run Windows desktop app that shows Destiny 2 companion websites in one
-window, so players don't need a browser full of tabs: a toggleable sidebar of **modules** on the left, the chosen
-site on the right. It was started on 30 Sep 2026 by the owner of **seals.report** (https://d2-seals-report.vercel.app,
+**Mida** is a locally run Windows desktop app that shows game companion websites in one window, so players don't
+need a browser full of tabs: a toggleable sidebar of **modules** on the left, the chosen site (or the profile's Home
+page) on the right. Since v0.2 everything is organised in **profiles**, one per game: Destiny 2 profiles get Mida's
+recommended sites; profiles for any other game start empty and add their own. It was started on 30 Sep 2026 by the owner of **seals.report** (https://d2-seals-report.vercel.app,
 repo `cee86/d2-seals-report`), one of the starter modules. It began life in that repo's `desktop/` folder as
 "Companion Hub" and moved here, renamed **Mida** by the owner, the same day.
 
@@ -36,12 +37,14 @@ status or use other sites' artwork as our own.
   (see Decisions). Installer 1.83 MB; installed a few MB.
 * **Rust dependencies** (`src-tauri/Cargo.toml`, `Cargo.lock` committed): tauri (feature **`unstable`**, needed for
   several pages in one window: `Window::add_child`; still marked experimental by Tauri), plugins opener (links to the
-  system browser), single-instance, updater; serde/serde_json/url/tokio; on Windows only webview2-com + windows (same
-  versions Tauri uses) for shortcuts inside pages. npm: only `@tauri-apps/cli` (dev). Keep dependencies minimal.
+  system browser), single-instance, updater; serde/serde_json/url/tokio; reqwest (already in the app through the
+  updater; fetches site icons) and base64; on Windows only webview2-com + windows (same versions Tauri uses; features
+  KeyboardAndMouse, Shell, Com) for src-tauri/src/win.rs. npm: only `@tauri-apps/cli` (dev). Keep dependencies minimal.
 * **Builds:** `.github/workflows/build.yml` on `windows-latest`: build, then **`scripts/smoke-test.ps1`** runs the real
-  app with seals.report, light.gg and DIM, clicks a module, presses Ctrl+3 inside a page and Ctrl+B, and saves
-  screenshots (artifact `smoke-test`; the log prints how many colours each shot's site area has, a quick sign that a
-  page drew). The screenshots are also force-pushed to the `ci-screenshots` branch; read them with
+  app (v2 settings: one profile with seals.report, light.gg, DIM and a broken `.invalid` site) and screenshots: start
+  at 80% zoom, click light.gg, Ctrl+3 inside a page, a module menu over the site (page picture), settings over the
+  blurred site, the error panel, Home with fetched icons, then a second launch with the address bar hidden (floating
+  controls). Screenshots are the artifact `smoke-test`. The screenshots are also force-pushed to the `ci-screenshots` branch; read them with
   `git fetch origin +ci-screenshots:refs/remotes/origin/ci-screenshots` (note the `+`: the branch is replaced each run)
   and `git archive origin/ci-screenshots | tar -x -C <dir>`. Installer artifact `mida-windows`. Not code-signed, so SmartScreen warns on first install.
 * **Updates** (Electron 0.3 behaviour kept, owner's request "the app shouldn't automatically update"): the app only *checks*
@@ -74,48 +77,81 @@ libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libsoup-3.0-dev xdotool imagemag
 (settings live in `~/.config/report.seals.mida/`). Good for the shell, dialogs, menus and IPC. **Page placement can't
 be judged on Linux:** WebKitGTK stacks child pages and splits the window's height with the shell; Windows places them
 exactly. Trust the Windows smoke test for layout. The workspace can't reach the companion sites (pypi.org is reachable
-if you need any real https page). `cargo check --target x86_64-pc-windows-msvc` fails in `ring` (needs MSVC), so
-Windows-only code (`win_keys.rs`) is only compiled by CI.
+if you need any real https page). **Windows type-check from Linux: `scripts/check-windows.sh`** (clang-cl + llvm-lib
+18 and the msvc Rust target; stub C headers for `ring`), seconds instead of a CI round trip. Linux quirks seen: a page
+created at start-up can leave the shell blank, and zooming the shell before it is on screen blanks it (the app only
+zooms the shell when Interface size isn't 100%). Test Linux flows starting on Home.
 
 ## 4. How it works (file map)
 
 ```
-src-tauri/src/lib.rs      The app. Window "main" with the shell page ("shell", sized to the window on every resize)
-                          and one child page per module ("m-<id>", created on first open, kept alive and hidden).
-                          The active page is placed at the rectangle the shell reports (set_stage_rect) and hidden
-                          while a shell dialog is open (set_overlay). Status per module (loading, title, url) comes from
-                          page-load and title-change events and is pushed to the shell ("status"); everything else is
-                          "state". Native right-click menu per module. Updater. Window place saved on close.
+src-tauri/src/lib.rs      The app. Window "main" holds: the shell page ("shell", sized to the window on every resize),
+                          one child page per module of the current profile ("m-<id>", created on first open, kept alive
+                          and hidden; all closed when switching profile) and, with the address bar hidden, the floating
+                          site controls ("controls", transparent, recreated after each new page so it stays on top).
+                          The active page sits at the rectangle the shell reports (set_stage_rect, times Interface size)
+                          and is hidden while a shell menu/dialog is open (set_overlay) or it has an error.
+                          freeze_page returns a JPEG of the page (Windows) that the shell shows in its place meanwhile.
+                          Status per module (loading, title, url, error) is pushed as "status"; everything else "state"
+                          (emit_filter to shell + controls only). Site icons: after a page loads, eval_with_callback
+                          asks it for its icon (apple-touch-icon, biggest icon, /favicon.ico), reqwest fetches it
+                          (https, image, <110 KB) and it's kept as a data URL on the module. Pages start at the Site
+                          zoom pref (80%). Updater, profiles, prefs, shortcuts, window place.
                           Threads: pages are created only off the main thread (WebView2 freezes otherwise) and our
                           locks are never held while calling a page or the window.
-src-tauri/src/modules.rs  Built-in site list (CATALOGUE) and pure checks with tests: clean_url (https only, no
-                          credentials), clean_name, same_site (handles shared hosts like *.vercel.app), is_sign_in, is_web.
-src-tauri/src/store.rs    settings.json in the app's config folder (%APPDATA%\report.seals.mida): { firstRunDone,
-                          modules, activeId, sidebarExpanded, window }. Cleaned on read; saved via a temp file.
-src-tauri/src/win_keys.rs Windows only: Ctrl+B, Ctrl+1-9, Ctrl+Tab while a module page has the keyboard
-                          (WebView2 AcceleratorKeyPressed). Reload/back/zoom keys are the page's own.
+src-tauri/src/win.rs      Windows only (WebView2 via webview2-com): shortcuts inside pages (AcceleratorKeyPressed:
+                          Ctrl+B, 1-9, Tab, comma), load results (NavigationCompleted: network/certificate failures and
+                          HTTP 500/502/504 -> PageError; 503 left alone for maintenance / "checking your browser"
+                          pages; cancelled/unknown ignored, e.g. downloads), crashes (ProcessFailed), page pictures
+                          (CapturePreview JPEG into an IStream).
+src-tauri/src/modules.rs  GAMES, per-game CATALOGUE and pure checks with tests: clean_url (https only), clean_name,
+                          clean_text, clean_image (data:image only, size-limited; SVG only for site icons), same_site,
+                          is_sign_in, is_web.
+src-tauri/src/store.rs    settings.json in %APPDATA%\report.seals.mida, version 2: { firstRunDone, profiles[{ id, name,
+                          image, game, gameName, modules, activeId ("home" or a module) }], defaultProfile,
+                          currentProfile, sidebarExpanded, window, prefs }. Version 1 files (Mida 0.1) become a
+                          "My profile" Destiny 2 profile. Prefs (clean_prefs): theme dark|black|light, colorway preset or
+                          custom (2-3 colours, accent, angle), showAddressBar, controlsCorner, controlsAutohide,
+                          reduceMotion system|on|off, uiScale 90-150, highContrast, siteZoom 50-150 (default 80).
 src-tauri/tauri.conf.json Product, version (from package.json), CSP, NSIS installer (per-user, installs WebView2 if
-                          missing), updater endpoint + public key. capabilities/shell.json: the shell may only listen to
-                          events; module pages get nothing.
-src/shell/                The app's own screen: index.html, shell.css, shell.js (unchanged from Electron days) and
-                          bridge.js (window.hub over Tauri's invoke/listen, plus the shell's shortcut keys).
+                          missing), updater endpoint + public key. capabilities/shell.json: the shell and controls may
+                          only listen to events; module pages get nothing.
+src/shell/index.html etc. The app's own screen. shell.js: sidebar (profile chip + menu, Home, draggable modules, update
+                          banner, Add a module, Settings), toolbar, stage (Home page, error panel, page picture),
+                          themed menus (openMenu; freezes the page when a menu overlaps it), dialogs (wizard for first
+                          run / new profile, edit profile, confirm, rename, add, settings with Personalization /
+                          Accessibility / About tabs, update). bridge.js: window.hub over Tauri invoke/listen and the
+                          shortcut keys. theme.js: COLORWAYS and applyTheme (data-theme/contrast/motion + CSS vars),
+                          shared with controls.html/.css/.js (the floating site controls). icon.png for About.
+                          CSP note: inline style="" attributes are blocked; set styles through element.style (el()'s
+                          `style: {...}` does this).
 scripts/smoke-test.ps1    CI only: runs the built app on Windows and takes screenshots.
-art/icon.svg              Mida's icon source (gold ring, three module dots, sun-orange star). Regenerate the files in
-                          src-tauri/icons with `npx tauri icon art/icon.svg` (keep only the ones tauri.conf lists).
+scripts/check-windows.sh  Type-checks the Windows build from Linux.
+art/icon.svg              Mida's icon source. Regenerate src-tauri/icons with `npx tauri icon art/icon.svg` (keep only the
+                          ones tauri.conf lists); src/shell/icon.png is the 128px one.
 ```
 
-**Modules:** starters ticked on first run: seals.report, light.gg, DIM. Also offered: raid.report, dungeon.report,
-D2 Foundry, Braytech, Today in Destiny. Any https site can be added (max 40). Right-click or the ⋯ button: open,
-reload, open in browser, move up/down, remove. The sidebar shows each module's first letter (favicons were dropped
-with Electron; WebView2's favicon event could bring them back).
+**Profiles:** first run is a two-step wizard: name, optional picture (cropped to 128px WebP in the page), game (Destiny 2
+or "Another game" + its name), then module picks (D2) or a note (custom). New profiles open on Home. The profile menu
+(top of the sidebar) switches profiles, edits, sets the default (opened at start), creates (max 12) and deletes (with a
+confirm; never the last one). Switching closes the other profile's pages. All profiles share one browser profile
+(sign-ins), by design for now.
 
-**Shortcuts:** Ctrl+B sidebar, Ctrl+1–9 module n, Ctrl+Tab / Ctrl+Shift+Tab next/previous, Alt+Left/Right and mouse
-side buttons back/forward, Ctrl+R / F5 reload, Ctrl+= / - / 0 zoom (the page's own; not remembered since the move to Tauri).
+**Modules:** Destiny 2 recommendations: seals.report, light.gg, DIM ticked; raid.report, dungeon.report, D2 Foundry,
+Braytech, Today in Destiny offered. Any https site can be added (max 40 per profile). Drag to reorder. Menu (right-click
+or ⋯): open, reload, open in browser, rename, refresh icon, move up/down, remove.
+
+**Shortcuts:** Ctrl+B sidebar, Ctrl+1–9 module n, Ctrl+Tab / Ctrl+Shift+Tab next/previous (Home counts as the first
+stop), Ctrl+, settings, Alt+Left/Right and mouse side buttons back/forward, Ctrl+R / F5 reload, Ctrl+= / - / 0 zoom
+(the page's own; Site zoom in settings sets where every page starts).
 
 ## 5. Security (don't weaken any of this)
 
-* Module pages can't call the app: every command checks the caller is the page labelled "shell", Tauri refuses IPC
-  from remote origins anyway, and the only capability (`shell.json`) is for the shell.
+* Module pages can't call the app: every command checks the caller is our own page ("shell"; the floating "controls"
+  only for get_state, nav and key), Tauri refuses IPC from remote origins anyway, and the only capability
+  (`shell.json`) is for those two pages. open_link only opens fixed Mida URLs.
+* Site icons are fetched only over https, only images, size-limited, and shown with <img> (SVG can't run anything
+  there). Profile pictures never leave the computer (resized in the page, stored in settings.json).
 * Every permission request (camera, mic, location, notifications, clipboard read, USB...) is refused
   (`on_permission_request` → Deny), in module pages and the shell.
 * Only http(s) navigation in module pages; the shell can't navigate anywhere but its own files.
@@ -129,21 +165,27 @@ side buttons back/forward, Ctrl+R / F5 reload, Ctrl+= / - / 0 zoom (the page's o
 
 ## 6. Design
 
-Matches seals.report's feel: charcoal/navy palette (`--ink #0e1013`, `--char #15171b`, `--cream #f1e6d2` text,
-`--mist #a39e95`), **sun orange `#f19a3f`** for focus, the current module and loading; translucent gold only for
-ornament linework (heading rules). In-game-style letterspaced uppercase heading bands with a thin line below.
-System fonts (Segoe UI) so nothing loads from the web. Inline stroke SVG icons, no emoji in the UI. Sentence case.
-Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "toggleable sidebar"; assumption).
+Matches seals.report's feel: charcoal/navy palette, cream text, an **accent colour** (sun orange `#f19a3f` in the
+default Sunrise colorway) for focus, the current item and loading; translucent gold only for ornament linework
+(heading rules). In-game-style letterspaced uppercase heading bands with a thin line below. System fonts (Segoe UI) so
+nothing loads from the web. Inline stroke SVG icons, no emoji in the UI. Sentence case. Every colour is a CSS variable:
+themes Dark / Black / Light swap the base colours, colorways (Sunrise, Arc, Void, Solar, Strand, Stasis, Crimson,
+Custom) set `--accent` and the background gradient `--bg-1..3` (Light uses a soft tint of it), high contrast makes
+panels solid and borders/text stronger, reduce motion stops animations. Menus and pop-ups are themed (no native menus).
+Pop-ups sit over a blurred picture of the site. The collapsed sidebar is an icon strip.
 
 ## 7. Known limitations and things to verify
 
 * **Confirmed by the owner on their PC (v0.1.0, 30 Sep 2026):** "everything seems to be functioning", install size
   "extremely small", resource use very low. Not specifically reported on yet: Google sign-in (Google often blocks
-  embedded browsers) and the in-app update itself (first real test comes with v0.1.1).
+  embedded browsers) and the in-app update itself (first real test: v0.1.0 -> v0.2.0).
+* v0.2 features verified on Linux (wizard, profiles, custom game, menus, settings, themes, drag, rename, migration)
+  and in the Windows smoke test; the page picture, icons, error panel and floating controls only exist on Windows.
+* The floating controls are a small see-through page over the site: with "only when hovered" it's invisible but still
+  takes clicks in its corner. Site favicons: sites that block non-browser downloads just keep their letter.
 * **Tauri's several-pages-in-one-window feature is marked experimental** (`unstable`); watch for fixes/changes when
   updating Tauri.
-* No custom "couldn't load" screen any more: WebView2 shows its own error page inside the module. The shell's error
-  panel code remains but isn't triggered. Back/forward buttons are always enabled (Tauri doesn't report history).
+* Back/forward buttons are always enabled (Tauri doesn't report history).
 * Moving from the Electron build (0.3.0) to the Tauri one can't happen through the old updater (it looks for latest.yml,
   and its releases were deleted), so anyone on it uninstalls "Mida" and installs the Tauri v0.1.0 by hand once. Different
   install folders:
@@ -171,9 +213,16 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
   tried on GitHub's Windows machine (smoke test: pages placed right, module switching, Ctrl+3 inside a page, Ctrl+B)
   before replacing main. The owner deleted the Electron releases and chose to start the numbering again at v0.1.0.
 
+* v0.2.0 (30 Sep 2026, owner's batch): profiles per game (+ default), Home page, settings pop-up (Personalization,
+  Accessibility, About), themes/colorways incl. custom gradient, hide the address bar with floating corner controls
+  (optionally hover-only), themed menus, site icons, rename, drag to reorder, 80% default site zoom, Mida's own error
+  panel. Claude's calls: pages show a picture of themselves under menus/pop-ups (pages always sit above the app's
+  screen); 503 isn't treated as an error; profiles share sign-ins. The `tauri` branch was to be removed (the owner
+  deletes it on GitHub; the session's git access can't delete branches).
+
 ## 9. Roadmap
 
-1. Test on the owner's PC: each starter site, Bungie sign-in, downloads (DIM exports).
-2. Favicons in the sidebar (WebView2's favicon event) and a couldn't-load panel from WebView2's navigation result.
-3. Drag to reorder modules; optional preloading of all modules at start; unloading modules unused for a while.
+1. **Destiny 2 Home page design** (the owner will direct it; custom games keep the basic Home).
+2. Test on the owner's PC: Bungie sign-in, downloads (DIM exports), the v0.1.0 -> v0.2.0 in-app update.
+3. Optional preloading of all modules at start; unloading modules unused for a while; separate sign-ins per profile.
 4. Code signing (removes the first-install warning).

@@ -646,6 +646,9 @@ fn shortcut_action(key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<Box<
         (false, _, true, "arrowright") => Box::new(|a| navigate(a, "forward")),
         (true, back, false, "tab") => Box::new(move |a| select_offset(a, if back { -1 } else { 1 })),
         (true, false, false, ",") => Box::new(|a| {
+            if let Some(shell) = a.get_webview(SHELL) {
+                let _ = shell.set_focus();
+            }
             let _ = a.emit_to(EventTarget::webview(SHELL), "command", "settings");
         }),
         (true, false, false, digit) if digit.len() == 1 && ("1"..="9").contains(&digit) => {
@@ -800,10 +803,12 @@ async fn set_overlay(webview: Webview, app: AppHandle, open: bool) {
     }
     *hub(&app).overlay.lock().unwrap() = open;
     layout(&app);
-    if !open {
-        if let Some(page) = app.get_webview(&label_for(&active_id(&app))) {
-            let _ = page.set_focus();
-        }
+    if open {
+        // The keyboard may still be with the (now hidden) site, e.g. after Ctrl+, pressed inside it;
+        // give it to the app's screen so Esc and Tab work in the menu or pop-up.
+        let _ = webview.set_focus();
+    } else if let Some(page) = app.get_webview(&label_for(&active_id(&app))) {
+        let _ = page.set_focus();
     }
 }
 
