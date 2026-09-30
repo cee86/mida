@@ -63,7 +63,9 @@ function Shot($name) {
 
 $app = Start-Process -FilePath $Exe -PassThru
 Start-Sleep -Seconds 25
-$hwnd = [Input]::FindWindow($null, "Mida")
+# The app's own window (by process; PowerShell turns $null into "" for FindWindow, which then fails).
+$hwnd = (Get-Process -Id $app.Id).MainWindowHandle
+if ($hwnd -eq [IntPtr]::Zero) { $hwnd = [Input]::FindWindow([NullString]::Value, "Mida") }
 Write-Host "Mida window found: $($hwnd -ne [IntPtr]::Zero)"
 [Input]::SetForegroundWindow($hwnd) | Out-Null
 Shot "1-seals-report"

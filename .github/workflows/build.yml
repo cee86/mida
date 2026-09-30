@@ -75,6 +75,22 @@ jobs:
         shell: pwsh
         run: ./scripts/smoke-test.ps1
 
+      # Also put the screenshots on the "ci-screenshots" branch (replaced each run), where Claude can
+      # read them: the cloud workspace can't download Actions artifacts.
+      - name: Share the screenshots
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [ -n "$(ls smoke/*.png 2>/dev/null)" ] || exit 0
+          cd smoke
+          git init -q -b ci-screenshots
+          git add *.png
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Smoke test screenshots: ${GITHUB_REF_NAME} ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
