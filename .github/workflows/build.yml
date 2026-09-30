@@ -14,12 +14,18 @@ on:
 permissions:
   contents: write # needed to create releases; the token is GitHub's own, per run
 
+# A newer push replaces a build still running for the same branch, so two builds never race
+# to publish the same release.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       # npm ci installs exactly the versions in package-lock.json.
@@ -28,14 +34,30 @@ jobs:
       - name: Is this a new version?
         id: version
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version=$(node -p "require('./package.json').version")
-          if [ "$GITHUB_REF" = "refs/heads/main" ] && ! git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # A release (not just a tag) decides it, so a failed attempt is retried on the next push.
+          if [ "$GITHUB_REF" = "refs/heads/main" ] && ! gh release view "v$version" > /dev/null 2>&1; then
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "Releasing v$version"
           else
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "v$version is already released (or this isn't main): building only"
+          fi
+
+      # GitHub only publishes a release for a tag that already exists, so make it first.
+      # (Tags pushed with the run's own token don't start another run.)
+      - name: Tag the version
+        if: steps.version.outputs.release == 'true'
+        shell: bash
+        run: |
+          tag="v${{ steps.version.outputs.version }}"
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            git tag "$tag"
+            git push origin "$tag"
           fi
 
       - name: Build and release
