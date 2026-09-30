@@ -893,11 +893,13 @@ const THEMES = [
   ["dark", "Dark", ["#15171b", "#0e1013"]],
   ["black", "Black", ["#060607", "#000000"]],
   ["light", "Light", ["#e6e1d7", "#f5f2ec"]],
+  ["foundry", "Foundry", ["#f8f9f9", "#e3e7e8"]],
 ];
 
 function personalizationPanel() {
   const p = state.prefs;
-  const way = colorwayOf(p);
+  // The previews show the chosen colorway, which Foundry itself doesn't use.
+  const way = colorwayOf({ ...p, theme: "dark" });
   const themes = el(
     "div",
     { class: "themes" },
@@ -907,7 +909,7 @@ function personalizationPanel() {
         { class: "theme-card", type: "button", "data-key": `theme-${id}`, "aria-pressed": String(p.theme === id), onclick: () => updatePrefs({ theme: id }) },
         el(
           "span",
-          { class: "theme-card__preview" },
+          { class: id === "foundry" ? "theme-card__preview theme-card__preview--foundry" : "theme-card__preview" },
           el("i", { style: { background: side } }),
           el("i", { style: { background: `linear-gradient(160deg, ${main}, ${main} 55%, color-mix(in srgb, ${way.accent} 25%, ${main}))` } }),
         ),
@@ -917,7 +919,7 @@ function personalizationPanel() {
   );
 
   const presets = Object.entries(COLORWAYS).map(([id, w]) => [id, w.name, `linear-gradient(${w.angle}deg, ${w.colors.join(", ")})`, w.accent]);
-  const custom = colorwayOf({ ...p, colorway: "custom" });
+  const custom = colorwayOf({ ...p, theme: "dark", colorway: "custom" });
   presets.push(["custom", "Custom", gradientCss(custom), custom.accent]);
   const swatches = el(
     "div",
@@ -1004,7 +1006,9 @@ function personalizationPanel() {
     el("h2", { text: "Personalization" }),
     el("p", { text: "How Mida looks. Changes show straight away." }),
     setting("Theme", null, themes),
-    setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor)),
+    p.theme === "foundry"
+      ? setting("Colorway", "Foundry has its own colours: pearl white, teal lights and red markings. Pick another theme to use a colorway.", el("div", {}, swatches), { disabled: true })
+      : setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor)),
     setting("Show the address bar", "The bar above the site with back, forward, reload and the page's address.", toggle("address", p.showAddressBar, (v) => updatePrefs({ showAddressBar: v }), "Show the address bar"), { row: true }),
     setting("Site controls corner", "With the address bar hidden, back, forward and reload float in this corner of the site.", corners, { disabled: !hidden }),
     setting("Only show site controls when hovered", "They stay invisible until your mouse is over their corner.", toggle("autohide", p.controlsAutohide, (v) => updatePrefs({ controlsAutohide: v }), "Only show site controls when hovered"), { row: true, disabled: !hidden }),

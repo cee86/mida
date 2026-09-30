@@ -900,7 +900,7 @@ html[data-theme="light"] .app {
 .segmented button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 
 /* Theme cards and colorway swatches. */
-.themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.themes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .theme-card {
   padding: 8px;
   border: 1px solid var(--rule);

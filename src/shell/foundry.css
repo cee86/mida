@@ -1,0 +1,513 @@
+/* The Foundry theme: Mida as the weapons foundry it's named after. Pearl-white architecture with
+   thick rounded "tube" frames, dark recessed screens, teal indicator lights and red chevron and
+   glyph markings, inspired by the Deep Stone Crypt / Clovis Bray look. All the art here is our
+   own simple geometry (inline SVG and gradients), not the game's artwork.
+   Everything is scoped to html[data-theme="foundry"], loaded after shell.css (and controls.css). */
+
+html[data-theme="foundry"] {
+  --ink: #e3e7e8;
+  --char: #eceff0;
+  --ash: #f6f7f7;
+  --ash-raised: #fbfcfc;
+  --ash-fill: #d6dbdd;
+  --rule: #c2c9cc;
+  --cream: #15191b;
+  --mist: #4b5458;
+  --mist-dim: #737d82;
+  --danger: #c63b2d;
+  --ornament: #d8473a;
+  --on-accent: #04211e;
+
+  --panel: rgba(248, 249, 249, 0.92);
+  --panel-solid: #f6f7f7;
+  --popup: rgba(247, 248, 248, 0.97);
+  --hover: rgba(21, 25, 27, 0.05);
+  --selected: rgba(21, 25, 27, 0.085);
+  --backdrop: rgba(205, 212, 215, 0.38);
+  --shadow: 0 24px 60px rgba(28, 38, 44, 0.26);
+
+  /* Foundry's own colours. */
+  --tube: #fbfcfc;            /* the white frame "tubes" */
+  --tube-edge: #bfc6ca;       /* their shaded rim */
+  --screen: #15191b;          /* dark recessed displays */
+  --screen-2: #1e2427;
+  --screen-text: #dff7f3;
+  --glow: #52f2e2;            /* indicator lights */
+  --glow-rgb: 82, 242, 226;
+  --clovis: #d8473a;          /* red markings */
+
+  /* Red double chevron, a stepped seam with a red diamond, and a strip of made-up glyph code. */
+  --chevrons: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 10'%3E%3Cpath d='M0 0h3.2l5 5-5 5H0l5-5zM6.6 0h3.2l5 5-5 5H6.6l5-5z' fill='%23d8473a'/%3E%3C/svg%3E");
+  --seam: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 8'%3E%3Cpath d='M3.5 1l3 3-3 3-3-3z' fill='%23d8473a'/%3E%3Cpath d='M10 4.5h22l3 3h37' stroke='%238f989d' fill='none'/%3E%3C/svg%3E");
+  --glyphs: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 6'%3E%3Cpath d='M0 0h2v6H0zM3 0h2v6H3zM7 0h5v2H7zM7 4h5v2H7zM14 0h2v2h2v4h-4zM20 0h6v2h-2v4h-2V2h-2zM30 0h2v6h-2zM33 2h4v2h-4zM38 0h2v6h-2zM42 0h4v2h-2v4h-2z' fill='%23d8473a'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+
+html[data-theme="foundry"][data-contrast="high"] {
+  --rule: #6b7478;
+  --mist: #262b2e;
+  --mist-dim: #3d4448;
+  --tube-edge: #6b7478;
+  --panel: var(--panel-solid);
+  --popup: var(--panel-solid);
+}
+
+/* Profile pictures without an image sit on a dark screen, like module icons. */
+html[data-theme="foundry"] .avatar {
+  background: linear-gradient(160deg, var(--screen-2), var(--screen));
+  color: var(--glow);
+  border-radius: 9px 3px 9px 3px;
+}
+
+/* ---------- Architecture: background, sidebar pillar, toolbar ---------- */
+
+html[data-theme="foundry"] .app {
+  background:
+    /* faint panel seams */
+    repeating-linear-gradient(90deg, transparent 0 239px, rgba(21, 25, 27, 0.035) 239px 240px),
+    linear-gradient(172deg, #f1f3f3, #e3e7e8 55%, #d7dcde);
+}
+html[data-theme="foundry"][data-contrast="high"] .app { background: var(--ink); }
+
+html[data-theme="foundry"] .sidebar {
+  position: relative;
+  background: linear-gradient(90deg, #f8f9f9, #eff1f2);
+  border-right: 1px solid var(--tube-edge);
+  box-shadow: inset -3px 0 0 var(--tube), 4px 0 14px rgba(28, 38, 44, 0.08);
+}
+
+/* Four indicator lights beside the name. */
+html[data-theme="foundry"] .sidebar__top::after {
+  content: "";
+  width: 44px;
+  height: 8px;
+  margin-left: auto;
+  margin-right: 4px;
+  background: radial-gradient(circle, #aefcf3 0 1.6px, rgba(var(--glow-rgb), 0.55) 2.4px, transparent 4px) 0 50% / 11px 8px repeat-x;
+  filter: drop-shadow(0 0 3px rgba(var(--glow-rgb), 0.7));
+}
+html[data-theme="foundry"] .app[data-expanded="false"] .sidebar__top::after { display: none; }
+
+html[data-theme="foundry"] .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+}
+html[data-theme="foundry"] .brand::after {
+  content: "";
+  width: 15px;
+  height: 10px;
+  background: var(--chevrons) center / contain no-repeat;
+}
+
+html[data-theme="foundry"] .profile-chip {
+  background: var(--tube);
+  border: 1px solid var(--tube-edge);
+  border-radius: 14px 4px 14px 4px;
+  box-shadow: inset 0 -2px 0 rgba(21, 25, 27, 0.06), 0 2px 6px rgba(28, 38, 44, 0.08);
+}
+html[data-theme="foundry"] .profile-chip:hover { background: #ffffff; border-color: #9fa8ad; }
+
+/* "MODULES": red chevrons in front, a stepped seam underneath. */
+html[data-theme="foundry"] .sidebar__label {
+  padding-left: 21px;
+  color: var(--cream);
+  background: var(--chevrons) 0 1px / 13px 9px no-repeat;
+}
+html[data-theme="foundry"] .sidebar__label::after {
+  height: 8px;
+  bottom: -4px;
+  background:
+    var(--seam) 0 0 / 72px 8px no-repeat,
+    linear-gradient(90deg, #8f989d, transparent) 72px 7px / calc(100% - 72px) 1px no-repeat;
+}
+html[data-theme="foundry"] .app[data-expanded="false"] .sidebar__label { background: none; padding-left: 0; }
+
+html[data-theme="foundry"] .sidebar__bottom {
+  position: relative;
+  border-top: 1px solid var(--tube-edge);
+  box-shadow: inset 0 3px 0 var(--tube);
+}
+/* A strip of glyph code on the seam. */
+html[data-theme="foundry"] .sidebar__bottom::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: 14px;
+  width: 46px;
+  height: 7px;
+  padding: 0 4px;
+  background: var(--glyphs) center / 46px 6px no-repeat, #f0f2f3;
+  box-sizing: content-box;
+  opacity: 0.85;
+}
+html[data-theme="foundry"] .app[data-expanded="false"] .sidebar__bottom::before { display: none; }
+
+/* Module rows: dark recessed icon screens; the open one gets a lit edge. */
+html[data-theme="foundry"] .mod { border-radius: 12px 4px 12px 4px; color: var(--mist); }
+html[data-theme="foundry"] .mod:hover { background: rgba(21, 25, 27, 0.05); color: var(--cream); }
+html[data-theme="foundry"] .mod[aria-current="page"] {
+  background: var(--tube);
+  color: var(--cream);
+  box-shadow: 0 0 0 1px var(--tube-edge), 0 2px 8px rgba(28, 38, 44, 0.1);
+}
+html[data-theme="foundry"] .mod[aria-current="page"]::before {
+  left: -6px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--glow);
+  box-shadow: 0 0 6px 1px rgba(var(--glow-rgb), 0.8);
+}
+html[data-theme="foundry"] .mod__icon {
+  background: linear-gradient(160deg, var(--screen-2), var(--screen));
+  border: 1px solid #0b0d0e;
+  border-radius: 9px 3px 9px 3px;
+  color: var(--screen-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+html[data-theme="foundry"] .mod[aria-current="page"] .mod__icon { box-shadow: inset 0 0 0 1px rgba(var(--glow-rgb), 0.45), 0 0 8px rgba(var(--glow-rgb), 0.25); }
+html[data-theme="foundry"] .mod__icon--home { color: var(--glow); }
+html[data-theme="foundry"] .mod__icon--add {
+  background: transparent;
+  border: 1px dashed #9aa3a8;
+  color: var(--mist);
+  box-shadow: none;
+}
+html[data-theme="foundry"] .mod__icon[data-loading="true"]::after {
+  background: var(--glow);
+  border-color: var(--panel-solid);
+  box-shadow: 0 0 6px rgba(var(--glow-rgb), 0.9);
+}
+html[data-theme="foundry"] .mod__more { border-radius: 8px 2px 8px 2px; }
+html[data-theme="foundry"] .drop-line { background: var(--glow); box-shadow: 0 0 6px rgba(var(--glow-rgb), 0.8); }
+
+/* Update banner: a red marking panel with big pale chevrons. */
+html[data-theme="foundry"] .update-banner {
+  border: 0;
+  border-radius: 12px 3px 12px 3px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M0 0h9l16 20L9 40H0l16-20zM15 0h9l16 20-16 20h-9l16-20z' fill='%23ffffff' fill-opacity='.16'/%3E%3C/svg%3E") right -6px center / 44px 44px no-repeat,
+    var(--clovis);
+  color: #fff;
+}
+html[data-theme="foundry"] .update-banner:hover:not(:disabled) { background-color: #c63d31; }
+html[data-theme="foundry"] .update-banner__icon { background: rgba(255, 255, 255, 0.18); color: #fff; }
+html[data-theme="foundry"] .update-banner__detail { color: rgba(255, 255, 255, 0.82); }
+html[data-theme="foundry"] .update-banner[data-status="error"] .update-banner__detail { color: #fff; }
+html[data-theme="foundry"] .update-banner__bar { background: rgba(255, 255, 255, 0.2); }
+html[data-theme="foundry"] .update-banner__bar span { background: #fff; }
+
+/* Toolbar: open to the architecture, the page name on a dark readout screen. */
+html[data-theme="foundry"] .toolbar { background: transparent; border-bottom: 0; padding: 0 12px 0 10px; }
+html[data-theme="foundry"] .toolbar__where {
+  align-self: center;
+  height: 32px;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 12px 3px 12px 3px;
+  background: linear-gradient(180deg, var(--screen-2), var(--screen));
+  box-shadow: inset 0 0 0 1px #0b0d0e, inset 0 -1px 0 rgba(var(--glow-rgb), 0.35), 0 0 0 3px var(--tube), 0 0 0 4px var(--tube-edge);
+}
+html[data-theme="foundry"] .toolbar__title { color: var(--screen-text); font-weight: 600; letter-spacing: 0.02em; }
+html[data-theme="foundry"] .toolbar__url { color: rgba(var(--glow-rgb), 0.72); }
+html[data-theme="foundry"] .toolbar__where::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--glow);
+  box-shadow: 0 0 6px var(--glow);
+}
+html[data-theme="foundry"] .toolbar__progress { left: 14px; right: 14px; bottom: 3px; }
+html[data-theme="foundry"] .toolbar__progress::before { background: linear-gradient(90deg, transparent, var(--glow), transparent); }
+html[data-theme="foundry"] .icon-btn { border-radius: 10px 3px 10px 3px; }
+html[data-theme="foundry"] .icon-btn:hover:not(:disabled) { background: var(--tube); box-shadow: 0 0 0 1px var(--tube-edge); }
+
+/* ---------- The stage: sites sit inside a thick white frame ---------- */
+
+html[data-theme="foundry"] .stage {
+  margin: 8px 12px 12px 10px;
+  border-radius: 4px;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(var(--glow-rgb), 0.08), transparent 70%),
+    linear-gradient(180deg, #f3f5f5, #e7ebec);
+  outline: 6px solid var(--tube);
+  box-shadow: 0 0 0 7px var(--tube-edge), 0 0 0 8px rgba(255, 255, 255, 0.7), 0 14px 30px rgba(28, 38, 44, 0.18);
+}
+html[data-theme="foundry"] .app[data-address="hidden"] .stage { margin-top: 12px; }
+
+html[data-theme="foundry"] .stage__icon {
+  border-radius: 14px 4px 14px 4px;
+  background: rgba(216, 71, 58, 0.08);
+  border-color: var(--clovis);
+  color: var(--clovis);
+}
+
+/* ---------- Home ---------- */
+
+/* The hero is a marking panel: red chevrons at both ends, glyph code in the corners. */
+html[data-theme="foundry"] .home__hero {
+  position: relative;
+  padding: 26px 96px 26px 96px;
+  border-radius: 22px 6px 22px 6px;
+  background:
+    var(--glyphs) 22px 14px / 46px 6px no-repeat,
+    var(--glyphs) right 22px bottom 14px / 46px 6px no-repeat,
+    linear-gradient(180deg, #fbfcfc, #eef1f2);
+  border: 1px solid var(--tube-edge);
+  box-shadow: inset 0 0 0 5px var(--tube), inset 0 0 0 6px rgba(191, 198, 202, 0.6), 0 10px 26px rgba(28, 38, 44, 0.12);
+}
+html[data-theme="foundry"] .home__hero::before,
+html[data-theme="foundry"] .home__hero::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 54px;
+  height: 64px;
+  transform: translateY(-50%);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54 64'%3E%3Cpath d='M22 0h12L12 32l22 32H22L0 32zM42 0h12L32 32l22 32H42L20 32z' fill='%23d8473a'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+html[data-theme="foundry"] .home__hero::before { left: 24px; }
+html[data-theme="foundry"] .home__hero::after { right: 24px; transform: translateY(-50%) scaleX(-1); }
+html[data-theme="foundry"] .home__hero .avatar {
+  background: linear-gradient(160deg, var(--screen-2), var(--screen));
+  color: var(--glow);
+  border-radius: 22px 6px 22px 6px;
+  box-shadow: 0 0 0 4px var(--tube), 0 0 0 5px var(--tube-edge), inset 0 0 0 1px rgba(var(--glow-rgb), 0.4);
+}
+html[data-theme="foundry"] .home__name { font-weight: 500; letter-spacing: 0.02em; }
+html[data-theme="foundry"] .home__tag {
+  border-radius: 3px;
+  border-color: var(--clovis);
+  color: var(--clovis);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.66rem;
+}
+
+html[data-theme="foundry"] .tile {
+  border: 1px solid var(--tube-edge);
+  border-radius: 16px 4px 16px 4px;
+  background: var(--tube);
+  box-shadow: inset 0 -2px 0 rgba(21, 25, 27, 0.05), 0 3px 10px rgba(28, 38, 44, 0.08);
+}
+html[data-theme="foundry"] .tile:hover {
+  background: #ffffff;
+  border-color: rgba(var(--glow-rgb), 0.9);
+  box-shadow: 0 0 0 1px rgba(var(--glow-rgb), 0.5), 0 0 14px rgba(var(--glow-rgb), 0.25), 0 6px 16px rgba(28, 38, 44, 0.12);
+}
+html[data-theme="foundry"] .tile--add { background: transparent; border-style: dashed; border-color: #9aa3a8; box-shadow: none; }
+
+/* ---------- Heading bands, buttons, fields ---------- */
+
+html[data-theme="foundry"] .band {
+  padding: 7px 12px 7px 32px;
+  border-radius: 10px 2px 0 0;
+  background: var(--chevrons) 12px center / 13px 9px no-repeat, linear-gradient(90deg, rgba(21, 25, 27, 0.07), rgba(21, 25, 27, 0.02));
+  color: var(--cream);
+}
+html[data-theme="foundry"] .band::after {
+  height: 8px;
+  bottom: -9px;
+  background:
+    var(--seam) 0 0 / 72px 8px no-repeat,
+    linear-gradient(90deg, #8f989d, rgba(143, 152, 157, 0.2) 60%, transparent) 72px 7px / calc(100% - 72px) 1px no-repeat;
+}
+
+html[data-theme="foundry"] .btn {
+  border-radius: 12px 3px 12px 3px;
+  border-color: var(--tube-edge);
+  background: var(--tube);
+  box-shadow: inset 0 -2px 0 rgba(21, 25, 27, 0.06);
+}
+html[data-theme="foundry"] .btn:hover { background: #ffffff; border-color: #9fa8ad; }
+/* The main action is a dark screen with a lit lower edge. */
+html[data-theme="foundry"] .btn--primary {
+  background: linear-gradient(180deg, var(--screen-2), var(--screen));
+  border-color: #0b0d0e;
+  color: #effffd;
+  box-shadow: inset 0 -2px 0 var(--glow), 0 2px 8px rgba(var(--glow-rgb), 0.25);
+}
+html[data-theme="foundry"] .btn--primary:hover { background: #262d30; }
+html[data-theme="foundry"] .btn--danger { background: rgba(216, 71, 58, 0.1); border-color: var(--clovis); color: #a8301f; }
+
+html[data-theme="foundry"] .field__input,
+html[data-theme="foundry"] .select {
+  border-radius: 10px 3px 10px 3px;
+  background: #ffffff;
+  border-color: var(--tube-edge);
+  box-shadow: inset 0 1px 2px rgba(21, 25, 27, 0.08);
+}
+html[data-theme="foundry"] .field__input:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--glow-rgb), 0.3); }
+
+/* ---------- Menus ---------- */
+
+html[data-theme="foundry"] .menu {
+  border-color: var(--tube-edge);
+  border-radius: 16px 4px 16px 4px;
+  background: var(--popup);
+  outline: 3px solid var(--tube);
+  box-shadow: 0 0 0 4px var(--tube-edge), var(--shadow);
+}
+html[data-theme="foundry"] .menu__item { border-radius: 10px 2px 10px 2px; }
+html[data-theme="foundry"] .menu__item:hover:not(:disabled),
+html[data-theme="foundry"] .menu__item:focus-visible { background: rgba(21, 25, 27, 0.06); box-shadow: inset 3px 0 0 var(--glow); }
+html[data-theme="foundry"] .menu__item svg { color: var(--mist-dim); }
+html[data-theme="foundry"] .menu__item--danger { color: var(--danger); }
+html[data-theme="foundry"] .menu__item--danger svg { color: var(--danger); }
+html[data-theme="foundry"] .menu__sep { background: linear-gradient(90deg, var(--clovis) 0 8px, transparent 8px 12px, var(--rule) 12px); }
+html[data-theme="foundry"] .menu__label { color: var(--clovis); }
+html[data-theme="foundry"] .menu__check { color: var(--accent); }
+
+/* ---------- Dialogs ---------- */
+
+html[data-theme="foundry"] .dialog {
+  border-color: var(--tube-edge);
+  border-radius: 22px 6px 22px 6px;
+  background: var(--popup);
+  outline: 6px solid var(--tube);
+  box-shadow: 0 0 0 7px var(--tube-edge), var(--shadow);
+}
+html[data-theme="foundry"] .dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(12px) saturate(0.8); }
+html[data-theme="foundry"] .dialog__title,
+html[data-theme="foundry"] .settings__panel h2 { display: flex; align-items: center; gap: 12px; font-weight: 500; }
+html[data-theme="foundry"] .dialog__title::before,
+html[data-theme="foundry"] .settings__panel h2::before {
+  content: "";
+  flex-shrink: 0;
+  width: 16px;
+  height: 11px;
+  background: var(--chevrons) center / contain no-repeat;
+}
+html[data-theme="foundry"] .dialog__actions {
+  border-top: 1px solid var(--tube-edge);
+  box-shadow: inset 0 3px 0 var(--tube);
+  background: rgba(21, 25, 27, 0.025);
+}
+
+html[data-theme="foundry"] .pick,
+html[data-theme="foundry"] .game,
+html[data-theme="foundry"] .cat-row {
+  border-color: var(--tube-edge);
+  border-radius: 14px 4px 14px 4px;
+  background: var(--tube);
+}
+html[data-theme="foundry"] .pick:has(input:checked),
+html[data-theme="foundry"] .game:has(input:checked) {
+  border-color: var(--accent);
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(var(--glow-rgb), 0.6), 0 0 12px rgba(var(--glow-rgb), 0.22);
+}
+html[data-theme="foundry"] .note { border-radius: 12px 3px 12px 3px; background: rgba(21, 25, 27, 0.05); border-left: 3px solid var(--clovis); }
+
+/* ---------- Settings: the section rail is a dark display panel ---------- */
+
+html[data-theme="foundry"] .dialog--settings { background: var(--panel-solid); }
+html[data-theme="foundry"] .settings__tabs {
+  position: relative;
+  border-right: 1px solid #0b0d0e;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 120'%3E%3Cg fill='none' stroke='%2352f2e2' stroke-opacity='.13'%3E%3Cpath d='M10 0v44M10 52v68M30 0v18M30 26v94M50 0v70M50 78v42'/%3E%3Cpath d='M26 40l4-4 4 4M26 46l4-4 4 4M46 100l4-4 4 4M6 84l4 4 4-4'/%3E%3Cpath d='M14 60h8M38 12h8M34 108h6' stroke-opacity='.2'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 60px 120px,
+    linear-gradient(180deg, #1c2124, #121517);
+  color: #cfdadd;
+}
+/* Indicator lights at the foot of the rail. */
+html[data-theme="foundry"] .settings__tabs::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  bottom: 18px;
+  width: 8px;
+  height: 52px;
+  background: radial-gradient(circle, #aefcf3 0 1.6px, rgba(var(--glow-rgb), 0.55) 2.4px, transparent 4px) 50% 0 / 8px 13px repeat-y;
+  filter: drop-shadow(0 0 3px rgba(var(--glow-rgb), 0.7));
+}
+html[data-theme="foundry"] .settings__title { display: flex; align-items: center; gap: 10px; color: #f3fbfa; font-weight: 500; letter-spacing: 0.04em; }
+html[data-theme="foundry"] .settings__title::after {
+  content: "";
+  width: 15px;
+  height: 10px;
+  background: var(--chevrons) center / contain no-repeat;
+}
+html[data-theme="foundry"] .settings__tab { color: #a9b6ba; border-radius: 10px 2px 10px 2px; }
+html[data-theme="foundry"] .settings__tab:hover { background: rgba(255, 255, 255, 0.06); color: #eef8f7; }
+html[data-theme="foundry"] .settings__tab[aria-selected="true"] {
+  background: rgba(var(--glow-rgb), 0.1);
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 var(--glow), inset 0 0 0 1px rgba(var(--glow-rgb), 0.25);
+}
+html[data-theme="foundry"] .settings__tab:focus-visible { outline-color: var(--glow); }
+/* Separators: a hairline with a short red mark at its start. */
+html[data-theme="foundry"] .setting {
+  border-bottom: 0;
+  background:
+    linear-gradient(var(--clovis), var(--clovis)) 0 100% / 10px 2px no-repeat,
+    linear-gradient(var(--rule), var(--rule)) 14px 100% / calc(100% - 14px) 1px no-repeat;
+}
+html[data-theme="foundry"] .setting:last-child { background: none; }
+
+html[data-theme="foundry"] .switch span { background: #d3d9db; border-color: var(--tube-edge); box-shadow: inset 0 1px 2px rgba(21, 25, 27, 0.15); }
+html[data-theme="foundry"] .switch span::after { background: #ffffff; box-shadow: 0 1px 3px rgba(21, 25, 27, 0.35); }
+html[data-theme="foundry"] .switch input:checked + span { background: var(--screen); border-color: #0b0d0e; box-shadow: inset 0 0 0 1px rgba(var(--glow-rgb), 0.4); }
+html[data-theme="foundry"] .switch input:checked + span::after { background: var(--glow); box-shadow: 0 0 8px rgba(var(--glow-rgb), 0.9); }
+
+html[data-theme="foundry"] .segmented { border-radius: 12px 3px 12px 3px; background: rgba(21, 25, 27, 0.05); border-color: var(--tube-edge); }
+html[data-theme="foundry"] .segmented button { border-radius: 9px 2px 9px 2px; }
+html[data-theme="foundry"] .segmented button[aria-pressed="true"] {
+  background: linear-gradient(180deg, var(--screen-2), var(--screen));
+  color: #effffd;
+  box-shadow: inset 0 -2px 0 var(--glow);
+}
+
+html[data-theme="foundry"] .theme-card,
+html[data-theme="foundry"] .corner,
+html[data-theme="foundry"] .gradient-editor { border-radius: 14px 4px 14px 4px; border-color: var(--tube-edge); }
+html[data-theme="foundry"] .theme-card[aria-pressed="true"],
+html[data-theme="foundry"] .swatch[aria-pressed="true"] .swatch__chip { box-shadow: 0 0 0 2px var(--accent), 0 0 10px rgba(var(--glow-rgb), 0.35); }
+html[data-theme="foundry"] .corner[aria-pressed="true"]::after { background: var(--glow); box-shadow: 0 0 5px var(--glow); }
+
+/* Scrollbars in keeping. */
+html[data-theme="foundry"] .home,
+html[data-theme="foundry"] .modules,
+html[data-theme="foundry"] .dialog__body,
+html[data-theme="foundry"] .settings__body { scrollbar-color: #b3bbbf transparent; }
+
+/* High contrast: keep the shapes, drop the glow and textures. */
+html[data-theme="foundry"][data-contrast="high"] .settings__tabs { background: #121517; }
+html[data-theme="foundry"][data-contrast="high"] .home__hero { background: var(--panel-solid); }
+
+/* ---------- The theme's own preview card in Settings ---------- */
+
+.theme-card__preview--foundry { position: relative; }
+.theme-card__preview--foundry::before {
+  content: "";
+  position: absolute;
+  inset: 14px 12px 14px calc(26% + 12px);
+  border-radius: 8px 2px 8px 2px;
+  background: linear-gradient(180deg, #1e2427, #15191b);
+  box-shadow: 0 0 0 3px #fbfcfc, 0 0 0 4px #bfc6ca, inset 0 -1px 0 #52f2e2;
+}
+.theme-card__preview--foundry::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  width: 13px;
+  height: 9px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 10'%3E%3Cpath d='M0 0h3.2l5 5-5 5H0l5-5zM6.6 0h3.2l5 5-5 5H6.6l5-5z' fill='%23d8473a'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---------- Floating site controls (controls.html) ---------- */
+
+html[data-theme="foundry"] .ctl {
+  border-color: var(--tube-edge);
+  border-radius: 14px 4px 14px 4px;
+  background: var(--tube);
+  box-shadow: inset 0 -2px 0 rgba(21, 25, 27, 0.06);
+}
+html[data-theme="foundry"] .ctl__progress::before { background: linear-gradient(90deg, transparent, var(--glow), transparent); }

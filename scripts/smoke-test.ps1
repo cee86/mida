@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force $config | Out-Null
 
 # A returning user: one Destiny 2 profile with four modules (the last one can't load, to show
 # Mida's own error panel), seals.report open, window in the top-left corner.
-function Settings($addressBar) {
+function Settings($addressBar, $theme = "dark") {
   $bar = if ($addressBar) { "true" } else { "false" }
   return @"
 {
@@ -28,7 +28,7 @@ function Settings($addressBar) {
   "currentProfile": "p-test",
   "sidebarExpanded": true,
   "window": { "x": 0, "y": 0, "width": 1000, "height": 700, "maximized": false },
-  "prefs": { "showAddressBar": $bar, "controlsCorner": "top-right" }
+  "prefs": { "showAddressBar": $bar, "controlsCorner": "top-right", "theme": "$theme" }
 }
 "@
 }
@@ -69,8 +69,8 @@ function Shot($name) {
   $g.Dispose(); $bmp.Dispose()
 }
 
-function Start-Mida($addressBar) {
-  [IO.File]::WriteAllText((Join-Path $config "settings.json"), (Settings $addressBar))
+function Start-Mida($addressBar, $theme = "dark") {
+  [IO.File]::WriteAllText((Join-Path $config "settings.json"), (Settings $addressBar $theme))
   $app = Start-Process -FilePath $Exe -PassThru
   Start-Sleep -Seconds 20
   # The app's own window (by process; PowerShell turns $null into "" for FindWindow, which fails).
@@ -123,5 +123,26 @@ Start-Sleep -Seconds 2
 # Again with the address bar hidden: floating site controls in the top-right corner.
 $app, $hwnd = Start-Mida $false
 Shot "08-floating-controls"
+Write-Host "Still running: $(-not $app.HasExited)"
+Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+# The Foundry theme: a site in its frame, a menu, and settings.
+$app, $hwnd = Start-Mida $true "foundry"
+Shot "09-foundry-site"
+[Input]::Click($hwnd, 110, $ROW[1], $true)        # right-click light.gg
+Start-Sleep -Seconds 2
+Shot "10-foundry-menu"
+[Input]::Keys(0, 0x1B)
+Start-Sleep -Seconds 1
+[Input]::Click($hwnd, 600, 400, $false)
+[Input]::Keys(0x11, 0xBC)                         # Ctrl+,
+Start-Sleep -Seconds 3
+Shot "11-foundry-settings"
+[Input]::Keys(0, 0x1B)
+Start-Sleep -Seconds 1
+[Input]::Click($hwnd, 110, $HOME_Y, $false)
+Start-Sleep -Seconds 3
+Shot "12-foundry-home"
 Write-Host "Still running: $(-not $app.HasExited)"
 Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue

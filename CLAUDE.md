@@ -174,6 +174,16 @@ Custom) set `--accent` and the background gradient `--bg-1..3` (Light uses a sof
 panels solid and borders/text stronger, reduce motion stops animations. Menus and pop-ups are themed (no native menus).
 Pop-ups sit over a blurred picture of the site. The collapsed sidebar is an icon strip.
 
+**Foundry theme** (`src/shell/foundry.css`, everything scoped to `html[data-theme="foundry"]`, also loaded by
+controls.html): Mida as the weapons foundry of the lore, from the owner's Deep Stone Crypt / Clovis Bray references.
+Pearl-white architecture; thick white rounded "tube" frames (outline + rim shadow) around the site, dialogs and menus;
+dark recessed "screens" for icons, avatars, the toolbar readout, the main button and the settings rail (with faint teal
+line-art); teal indicator lights (`--glow`) for what's active; red markings (`--clovis`): double chevrons before
+headings, stepped seams with a red diamond, glyph-code strips, big chevrons on the Home hero, the update banner.
+Shapes use opposite-corner radii (e.g. 14px 4px 14px 4px). All art is our own inline SVG/gradients, no game art or
+logos. Colorways don't apply (fixed teal accent `#0f9488` in theme.js; the Colorway setting is greyed with a note).
+The site sits 8-12px inside the stage edge so the frame shows (the page is placed at #stage's rect, margins excluded).
+
 ## 7. Known limitations and things to verify
 
 * **Confirmed by the owner on their PC (v0.1.0, 30 Sep 2026):** "everything seems to be functioning", install size
@@ -219,6 +229,10 @@ Pop-ups sit over a blurred picture of the site. The collapsed sidebar is an icon
   panel. Claude's calls: pages show a picture of themselves under menus/pop-ups (pages always sit above the app's
   screen); 503 isn't treated as an error; profiles share sign-ins. The `tauri` branch was to be removed (the owner
   deletes it on GitHub; the session's git access can't delete branches).
+
+* v0.3 (not released yet): **Foundry theme**, at the owner's request ("mida is an advanced weapons foundry in world
+  lore"), with four reference pictures (Deep Stone Crypt interior, a Clovis Bray marking card, white weapon concepts,
+  Europa concept art).
 
 ## 9. Roadmap
 

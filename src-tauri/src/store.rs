@@ -42,7 +42,7 @@ pub struct Profile {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Prefs {
-    pub theme: String,            // dark | black | light
+    pub theme: String,            // dark | black | light | foundry
     pub colorway: String,         // a preset id or "custom"
     pub custom_colors: Vec<String>, // 2-3 gradient stops, #rrggbb
     pub custom_accent: String,    // #rrggbb
@@ -89,7 +89,7 @@ pub fn clean_prefs(p: Prefs) -> Prefs {
     };
     let colors: Vec<String> = p.custom_colors.into_iter().filter(|c| is_hex(c)).take(3).map(|c| c.to_lowercase()).collect();
     Prefs {
-        theme: pick(p.theme, &["dark", "black", "light"], d.theme),
+        theme: pick(p.theme, &["dark", "black", "light", "foundry"], d.theme),
         colorway: pick(p.colorway, COLORWAYS, d.colorway),
         custom_colors: if colors.len() >= 2 { colors } else { d.custom_colors },
         custom_accent: if is_hex(&p.custom_accent) { p.custom_accent.to_lowercase() } else { d.custom_accent },
@@ -285,6 +285,7 @@ mod tests {
     fn cleans_prefs_and_profiles() {
         let p = clean_prefs(Prefs { theme: "neon".into(), ui_scale: 333, site_zoom: 85, custom_colors: vec!["#zzz".into()], ..Prefs::default() });
         assert_eq!((p.theme.as_str(), p.ui_scale, p.site_zoom, p.custom_colors.len()), ("dark", 100, 80, 2));
+        assert_eq!(clean_prefs(Prefs { theme: "foundry".into(), ..Prefs::default() }).theme, "foundry");
         let bad = Profile { id: "Bad Id".into(), ..Profile::default() };
         assert!(clean_profile(bad).is_none());
         let custom = clean_profile(Profile { id: "p-1".into(), game: "halo".into(), game_name: " Halo ".into(), ..Profile::default() }).unwrap();

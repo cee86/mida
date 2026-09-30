@@ -4,7 +4,7 @@
 "use strict";
 
 // Colorway presets: an accent colour and a background gradient (dark themes; the light theme
-// uses a soft tint of the same colours).
+// uses a soft tint of the same colours; Foundry has fixed colours, see foundry.css).
 const COLORWAYS = {
   sunrise: { name: "Sunrise", accent: "#f19a3f", colors: ["#0d1624", "#12161d", "#2a1a12"], angle: 170 },
   arc: { name: "Arc", accent: "#6cc8ff", colors: ["#07131f", "#0b1d2e", "#10314a"], angle: 160 },
@@ -15,7 +15,11 @@ const COLORWAYS = {
   crimson: { name: "Crimson", accent: "#ff6b6b", colors: ["#150709", "#200b0f", "#3a1016"], angle: 160 },
 };
 
+// Foundry (a theme, not a colorway) always uses its own teal: dark enough to read on white.
+const FOUNDRY = { name: "Foundry", accent: "#0f9488", colors: ["#f1f3f3", "#e3e7e8", "#d7dcde"], angle: 172 };
+
 function colorwayOf(prefs) {
+  if (prefs.theme === "foundry") return FOUNDRY;
   if (prefs.colorway === "custom") {
     const colors = prefs.customColors?.length >= 2 ? prefs.customColors : COLORWAYS.sunrise.colors;
     return { accent: prefs.customAccent || COLORWAYS.sunrise.accent, colors, angle: prefs.customAngle ?? 160 };
