@@ -124,8 +124,8 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
   each site's behaviour, favicons. Google sign-in may be refused (Google often blocks embedded browsers).
 * Unsigned installer (SmartScreen warning on first install); default Electron app icon.
 * The auto-update flow (download, restart, silent reinstall) couldn't be run end to end from the cloud workspace
-  (no Windows); verify it on the owner's PC with the first release after v0.2.0. v0.1 has no updater, so anyone on
-  v0.1 installs v0.2.0 by hand once.
+  (no Windows); verify it on the owner's PC with the first release after v0.3.0. Earlier builds have no working
+  updater, so everyone installs v0.3.0 by hand once.
 * Memory grows with each opened module (they stay alive by design).
 
 ## 8. Decisions log
@@ -133,9 +133,10 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
 * v0.1 (30 Sep 2026): Electron over Tauri (reasons in §3); modules load on first open and stay alive; one shared
   browser profile; first-run picker with seals.report, light.gg and DIM ticked; custom https sites allowed; moved from
   `cee86/d2-seals-report/desktop` to its own repo at the owner's request; the owner named the app **Mida** (the repo name).
-* v0.2.0 (30 Sep 2026): auto-update from GitHub releases; the owner chose to make the repo public for it.
+* v0.2.0 (30 Sep 2026): auto-update from GitHub releases; the owner chose to make the repo public for it. Never
+  published (its release build failed: GitHub needs the tag to exist first, now fixed in the workflow).
 * v0.3.0 (30 Sep 2026): updates ask first (pop-up + sidebar banner until updated) instead of downloading and installing
-  by themselves (owner's request). 0.2.0 still auto-installs the move to 0.3.0; from 0.3.0 on it's the user's choice.
+  by themselves (owner's request). The first published release: https://github.com/cee86/mida/releases/tag/v0.3.0
 
 ## 9. Roadmap
 
