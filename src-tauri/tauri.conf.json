@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mida",
+  "version": "../package.json",
+  "identifier": "report.seals.mida",
+  "build": {
+    "frontendDist": "../src/shell"
+  },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": true,
+    "security": {
+      "csp": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost",
+      "capabilities": [
+        "shell"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "seals.report",
+    "shortDescription": "Destiny 2 companion sites in one window",
+    "longDescription": "Destiny 2 companion sites in one desktop window. Not affiliated with Bungie or any of the sites it shows.",
+    "copyright": "Not affiliated with Bungie.",
+    "category": "Utility",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyNkVBNEY0RTQzRjQwQUEKUldTcVFEL2s5S1J1SWtsYUdQNERWenVqRVIvV0FMbEtjenA2RkpvVFhrR2VTMXlyQ1ZQQzFvQW4K",
+      "endpoints": [
+        "https://github.com/cee86/mida/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

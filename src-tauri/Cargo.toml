@@ -1,0 +1,38 @@
+[package]
+name = "mida"
+version = "0.4.0"
+description = "Destiny 2 companion sites in one desktop window. Not affiliated with Bungie."
+edition = "2021"
+publish = false
+
+[lib]
+name = "mida_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+# "unstable" enables several web pages inside one window (Window::add_child).
+tauri = { version = "2.12", features = ["unstable"] }
+tauri-plugin-opener = "2.7"
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-updater = "2.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+tokio = { version = "1", features = ["time"] }
+
+[target.'cfg(windows)'.dependencies]
+# Only for Mida's keyboard shortcuts inside module pages (src/win_keys.rs); the same versions
+# Tauri itself already uses, so nothing new is downloaded into the app.
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+
+[profile.release]
+# Smallest reasonable app: optimise for size, strip symbols, one codegen unit, link-time optimisation.
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

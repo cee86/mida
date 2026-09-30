@@ -30,86 +30,98 @@ status or use other sites' artwork as our own.
 
 ## 3. Tech stack
 
-* **Electron** (`^44`) + **electron-builder** (`^26`), both dev dependencies only; plain JavaScript (CommonJS in the
-  main process), plain HTML/CSS for the app's own screen, no frameworks. `package-lock.json` is committed and CI uses
-  `npm ci`, so builds use exactly the tested versions. Keep dependencies minimal on purpose.
-* **Why Electron** (owner asked for a recommendation): each site needs a real browser page (companion sites,
-  seals.report included, refuse to load inside an iframe: X-Frame-Options / frame-ancestors). Electron's
-  `WebContentsView` gives one per module, kept alive in the background, with the same Chromium the sites are tested
-  on. Tauri would be a far smaller download, but its multi-webview support was still marked unstable. Trade-off: a
-  ~100 MB installer and more memory per open module.
-* **Builds:** `.github/workflows/build.yml` builds a Windows NSIS installer on every push (and on demand), uploaded as
-  the run's `mida-windows` artifact. The owner installs nothing locally. Not code-signed yet, so Windows
-  SmartScreen warns on first install ("More info" > "Run anyway").
-* **Updates** (v0.2 auto, v0.3 ask-first at the owner's request: "the app shouldn't automatically update"):
-  `electron-updater` (the one runtime dependency) only *checks* GitHub releases of `cee86/mida` by itself, at start and
-  every 4 hours (installed app only, never `npm start`). When a new version is found: a pop-up ("Update available",
-  Update now / Later; once per version per session, never over the first-run picker or another dialog, shown when it
-  closes) and a banner at the bottom of the sidebar that stays until the app is updated (collapsed sidebar: icon only).
-  Choosing Update downloads inside the app (banner shows %, checked against the release's sha512), then Mida restarts
-  itself on the new version (silent reinstall into the same folder). A failed download shows "Download failed · Click to
-  try again". Nothing downloads or installs without the user's click, and no one re-downloads installers from GitHub.
-* **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json`
-  (semver: fixes 0.3.1, features 0.4.0) and push to `main`. The workflow sees there's no `v<version>` release yet,
-  pushes the tag (GitHub won't publish a release for a missing tag), then runs `electron-builder --publish always` with
-  the run's own `GITHUB_TOKEN` (`contents: write`), creating a published release with the installer, its blockmap and
-  `latest.yml`. A newer push cancels a build still running. Pushes that don't change the version only build a test
-  installer; nobody's app changes. Never re-use a version number. Updates need the repo to be **public** (the owner chose
-  this over a separate public releases repo, so no token ever ships in the app or needs renewing).
+* **Tauri 2** (Rust core in `src-tauri/`) using **Windows' built-in WebView2** (the engine behind Edge), plus plain
+  HTML/CSS/JS for the app's own screen (`src/shell/`), no frameworks. v0.1–v0.3 were Electron; the owner found the
+  ~400 MB install far too big (v0.4 switch, see Decisions). Expected: installer ~5–10 MB, installed ~15–25 MB.
+* **Rust dependencies** (`src-tauri/Cargo.toml`, `Cargo.lock` committed): tauri (feature **`unstable`**, needed for
+  several pages in one window: `Window::add_child`; still marked experimental by Tauri), plugins opener (links to the
+  system browser), single-instance, updater; serde/serde_json/url/tokio; on Windows only webview2-com + windows (same
+  versions Tauri uses) for shortcuts inside pages. npm: only `@tauri-apps/cli` (dev). Keep dependencies minimal.
+* **Builds:** `.github/workflows/build.yml` on `windows-latest`: build, then **`scripts/smoke-test.ps1`** runs the real
+  app with seals.report, light.gg and DIM, clicks a module, presses Ctrl+3 inside a page and Ctrl+B, and saves
+  screenshots (artifact `smoke-test`; the log prints how many colours each shot's site area has, a quick sign that a
+  page drew). Installer artifact `mida-windows`. Not code-signed, so SmartScreen warns on first install.
+* **Updates** (v0.3 behaviour kept, owner's request "the app shouldn't automatically update"): the app only *checks*
+  `https://github.com/cee86/mida/releases/latest/download/latest.json` at start and every 4 hours (installed app only).
+  New version → pop-up ("Update available", Update now / Later; once per version per session, never over another
+  dialog) + a sidebar banner until updated. Update = download in the app with %, **signature checked** against the
+  public key in `tauri.conf.json` (`plugins.updater.pubkey`), then the installer runs in passive mode and Mida reopens.
+* **Update signing key:** the private half lives only in the repo secret **`TAURI_SIGNING_PRIVATE_KEY`** (no
+  password). Never commit it or paste it in chat. Losing it means installed copies can't update (they'd need one manual
+  reinstall of a build with a new key). Anyone who has it could sign an update, but could only deliver it through a
+  release on `cee86/mida`, so both the key and the repo must be protected.
+* **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json` (Tauri
+  reads it: `"version": "../package.json"`; semver: fixes 0.4.1, features 0.5.0) and push to `main`. The workflow sees
+  no `v<version>` release, builds signed (`createUpdaterArtifacts`), writes `latest.json` (version, signature, installer
+  URL) and runs `gh release create` (creates the tag too). Test builds pass
+  `--config '{"bundle":{"createUpdaterArtifacts":false}}'` so they need no key. A newer push cancels a running build.
+  Never re-use a version number. The repo must stay **public** so installed apps can download releases.
 
 ```bash
 npm install
-npm start      # run the app
-npm run dist   # Windows installer into dist/ (on Windows; CI does this)
+npm start      # tauri dev (needs Rust; on Linux also the WebKitGTK dev packages)
+npm run dist   # tauri build (Windows installer on Windows; CI does this)
+cd src-tauri && cargo test --lib   # the address and site checks
 ```
 
-Testing in the Claude Code cloud workspace: `npm install` downloads Electron; run under `xvfb-run` and drive it with
-the globally installed Playwright (`_electron.launch({ executablePath: 'node_modules/electron/dist/electron',
-args: ['--no-sandbox', '--user-data-dir=<scratch>', '.'] })`). Pick the shell page with
-`app.windows().find(w => w.url().startsWith('file:'))` (module views also count as windows), and screenshot a module
-view with `webContents.capturePage()` (page screenshots only show the shell). Keyboard shortcuts can't be simulated
-that way (they're read from real input events). The workspace can't reach the companion sites.
+Testing in the Claude Code cloud workspace: Rust is installed; `apt-get update && apt-get install
+libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libsoup-3.0-dev xdotool imagemagick` lets you build a Linux copy
+(`npx tauri build --debug --no-bundle`) and drive it on Xvfb with xdotool, screenshots with `import -window root`
+(settings live in `~/.config/report.seals.mida/`). Good for the shell, dialogs, menus and IPC. **Page placement can't
+be judged on Linux:** WebKitGTK stacks child pages and splits the window's height with the shell; Windows places them
+exactly. Trust the Windows smoke test for layout. The workspace can't reach the companion sites (pypi.org is reachable
+if you need any real https page). `cargo check --target x86_64-pc-windows-msvc` fails in `ring` (needs MSVC), so
+Windows-only code (`win_keys.rs`) is only compiled by CI.
 
 ## 4. How it works (file map)
 
 ```
-src/main.js       The app (also the updater: setUpUpdates / downloadUpdate). Window + "shell" page; one WebContentsView per module laid over the shell's stage area,
-                  created on first open and kept alive (hidden) afterwards; the active one is shown at the rectangle
-                  the shell reports ("stage:rect"), hidden while a shell dialog is open ("overlay") or an error shows.
-                  Status per module (loading, title, url, back/forward, error) is pushed to the shell. Shortcuts via
-                  before-input-event on every page; mouse back/forward via app-command. Favicons are fetched once and
-                  saved as small data URLs. Window size/position remembered.
-src/modules.js    Built-in site list (CATALOGUE) and pure checks: cleanUrl (https only, no credentials), cleanName,
-                  cleanIcon, sameSite (handles shared hosts like *.vercel.app), isSignInUrl, isWebUrl.
-src/store.js      settings.json in the app's data folder: { firstRunDone, modules, activeId, sidebarExpanded, zoom,
-                  window }. Everything read back is cleaned; saves are debounced and written via a temp file.
-src/preload.js    window.hub: the fixed list of actions the shell may ask for. Module pages have no preload.
-src/shell/        The app's own screen (index.html, shell.css, shell.js): sidebar, toolbar, stage messages
-                  (no modules / couldn't load), first-run "Welcome" picker, "Add a module" dialog.
+src-tauri/src/lib.rs      The app. Window "main" with the shell page ("shell", sized to the window on every resize)
+                          and one child page per module ("m-<id>", created on first open, kept alive and hidden).
+                          The active page is placed at the rectangle the shell reports (set_stage_rect) and hidden
+                          while a shell dialog is open (set_overlay). Status per module (loading, title, url) comes from
+                          page-load and title-change events and is pushed to the shell ("status"); everything else is
+                          "state". Native right-click menu per module. Updater. Window place saved on close.
+                          Threads: pages are created only off the main thread (WebView2 freezes otherwise) and our
+                          locks are never held while calling a page or the window.
+src-tauri/src/modules.rs  Built-in site list (CATALOGUE) and pure checks with tests: clean_url (https only, no
+                          credentials), clean_name, same_site (handles shared hosts like *.vercel.app), is_sign_in, is_web.
+src-tauri/src/store.rs    settings.json in the app's config folder (%APPDATA%\report.seals.mida): { firstRunDone,
+                          modules, activeId, sidebarExpanded, window }. Cleaned on read; saved via a temp file.
+src-tauri/src/win_keys.rs Windows only: Ctrl+B, Ctrl+1-9, Ctrl+Tab while a module page has the keyboard
+                          (WebView2 AcceleratorKeyPressed). Reload/back/zoom keys are the page's own.
+src-tauri/tauri.conf.json Product, version (from package.json), CSP, NSIS installer (per-user, installs WebView2 if
+                          missing), updater endpoint + public key. capabilities/shell.json: the shell may only listen to
+                          events; module pages get nothing.
+src/shell/                The app's own screen: index.html, shell.css, shell.js (unchanged from Electron days) and
+                          bridge.js (window.hub over Tauri's invoke/listen, plus the shell's shortcut keys).
+scripts/smoke-test.ps1    CI only: runs the built app on Windows and takes screenshots.
+art/icon.svg              Mida's icon source (gold ring, three module dots, sun-orange star). Regenerate the files in
+                          src-tauri/icons with `npx tauri icon art/icon.svg` (keep only the ones tauri.conf lists).
 ```
 
 **Modules:** starters ticked on first run: seals.report, light.gg, DIM. Also offered: raid.report, dungeon.report,
 D2 Foundry, Braytech, Today in Destiny. Any https site can be added (max 40). Right-click or the ⋯ button: open,
-reload, open in browser, move up/down, remove.
+reload, open in browser, move up/down, remove. The sidebar shows each module's first letter (favicons were dropped
+with Electron; WebView2's favicon event could bring them back).
 
 **Shortcuts:** Ctrl+B sidebar, Ctrl+1–9 module n, Ctrl+Tab / Ctrl+Shift+Tab next/previous, Alt+Left/Right and mouse
-side buttons back/forward, Ctrl+R / F5 reload (Ctrl+Shift+R ignoring cache), Ctrl+= / - / 0 zoom (per module, saved).
+side buttons back/forward, Ctrl+R / F5 reload, Ctrl+= / - / 0 zoom (the page's own; not remembered since v0.4).
 
 ## 5. Security (don't weaken any of this)
 
-* Module pages: `sandbox`, `contextIsolation`, no `nodeIntegration`, no preload, `<webview>` blocked.
-* Every permission request (camera, mic, location, notifications, USB...) is refused except clipboard write,
-  fullscreen and persistent storage. The shell's session refuses everything.
-* Only http(s) navigation; other schemes (file:, steam:, javascript:...) are blocked, never handed to other programs.
+* Module pages can't call the app: every command checks the caller is the page labelled "shell", Tauri refuses IPC
+  from remote origins anyway, and the only capability (`shell.json`) is for the shell.
+* Every permission request (camera, mic, location, notifications, clipboard read, USB...) is refused
+  (`on_permission_request` → Deny), in module pages and the shell.
+* Only http(s) navigation in module pages; the shell can't navigate anywhere but its own files.
 * New windows: sign-in pop-ups to Bungie/platform sign-in hosts (`SIGN_IN_SITES`) open in-app so they can hand back;
   same-site links load in the module; a link to another module's site opens that module; anything else opens in the
-  system browser (`shell.openExternal`, http(s) only).
-* The shell has a strict CSP (own files only, images from data: URLs) and never inserts site text as HTML. Every IPC
-  message is checked to come from the shell and validated.
-* All modules share one persistent browser profile (`persist:modules`), like tabs in one browser: sign in to Bungie
-  once, and sites still can't read each other's data (normal same-site rules).
-* The user agent drops "Electron" and the app name so sites and sign-in pages treat it as Chrome.
-* Single-instance lock: opening the app again focuses the existing window.
+  system browser (opener plugin, http(s) only).
+* The shell has a strict CSP (tauri.conf.json: own files, data: images, IPC only) and never inserts site text as HTML.
+* All pages share WebView2's one profile, like tabs in one browser: sign in to Bungie once; sites still can't read each
+  other's data. WebView2 presents itself as Edge, so sites and sign-in pages treat it as a normal browser.
+* Updates are signature-checked (see §3); single-instance: opening Mida again focuses the existing window.
 
 ## 6. Design
 
@@ -121,12 +133,16 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
 
 ## 7. Known limitations and things to verify
 
-* **Unverified on real sites** (the cloud workspace can't reach them): Bungie sign-in inside DIM and seals.report,
-  each site's behaviour, favicons. Google sign-in may be refused (Google often blocks embedded browsers).
-* Unsigned installer (SmartScreen warning on first install); default Electron app icon.
-* The auto-update flow (download, restart, silent reinstall) couldn't be run end to end from the cloud workspace
-  (no Windows); verify it on the owner's PC with the first release after v0.3.0. Earlier builds have no working
-  updater, so everyone installs v0.3.0 by hand once.
+* **Unverified on the owner's PC:** Bungie sign-in inside DIM and seals.report, downloads (DIM exports), each site's
+  behaviour. Google sign-in may be refused (Google often blocks embedded browsers).
+* **Tauri's several-pages-in-one-window feature is marked experimental** (`unstable`); watch for fixes/changes when
+  updating Tauri.
+* No custom "couldn't load" screen any more: WebView2 shows its own error page inside the module. The shell's error
+  panel code remains but isn't triggered. Back/forward buttons are always enabled (Tauri doesn't report history).
+* Moving from Electron (v0.3) to Tauri (v0.4) can't happen through the old updater (it looks for latest.yml, which Tauri
+  releases don't have), so v0.3 users uninstall "Mida" and install v0.4 by hand once. Different install folders:
+  Electron `%LOCALAPPDATA%\Programs\mida`, Tauri `%LOCALAPPDATA%\Mida`.
+* Unsigned installer (SmartScreen warning on first install).
 * Memory grows with each opened module (they stay alive by design).
 
 ## 8. Decisions log
@@ -139,9 +155,14 @@ Reduced motion respected. The collapsed sidebar is an icon strip (the owner's "t
 * v0.3.0 (30 Sep 2026): updates ask first (pop-up + sidebar banner until updated) instead of downloading and installing
   by themselves (owner's request). The first published release: https://github.com/cee86/mida/releases/tag/v0.3.0
 
+* v0.4.0 (30 Sep 2026): **Electron -> Tauri** at the owner's request ("the install size is massive"): Electron always
+  ships its own Chrome (~280 MB of the ~285 MB app); Tauri uses Windows' WebView2 instead. Same screen, same features and
+  security rules; ask-first updates now signature-checked; new app icon (art/icon.svg). Built on branch `tauri` and
+  tried on GitHub's Windows machine (smoke test) before replacing main.
+
 ## 9. Roadmap
 
 1. Test on the owner's PC: each starter site, Bungie sign-in, downloads (DIM exports).
-2. App icon (the seals.report Crest or something of Mida's own; ask the owner).
+2. Favicons in the sidebar (WebView2's favicon event) and a couldn't-load panel from WebView2's navigation result.
 3. Drag to reorder modules; optional preloading of all modules at start; unloading modules unused for a while.
 4. Code signing (removes the first-install warning).

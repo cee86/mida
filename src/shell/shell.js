@@ -1,13 +1,13 @@
 // The shell page: draws the sidebar, toolbar and dialogs from the state the app sends,
-// and passes clicks back through window.hub (src/preload.js). Text from sites (titles,
+// and passes clicks back through window.hub (bridge.js). Text from sites (titles,
 // addresses) is only ever set as plain text, never as HTML.
 "use strict";
 
-// `hub` is provided by src/preload.js (window.hub).
+// `hub` is provided by bridge.js (window.hub).
 const $ = (id) => document.getElementById(id);
 
 let state = null;
-const mac = () => state?.platform === "darwin";
+const mac = () => state?.platform === "macos" || state?.platform === "darwin";
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);

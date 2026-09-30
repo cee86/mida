@@ -1,7 +1,7 @@
 {
   "name": "mida",
   "productName": "Mida",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Destiny 2 companion sites in one desktop window. Not affiliated with Bungie.",
   "author": "seals.report",
@@ -9,42 +9,12 @@
     "type": "git",
     "url": "https://github.com/cee86/mida.git"
   },
-  "main": "src/main.js",
   "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder --win --publish never"
+    "start": "tauri dev",
+    "dist": "tauri build",
+    "tauri": "tauri"
   },
   "devDependencies": {
-    "electron": "^44.5.1",
-    "electron-builder": "^26.0.0"
-  },
-  "build": {
-    "appId": "report.seals.mida",
-    "productName": "Mida",
-    "files": [
-      "src/**/*",
-      "package.json"
-    ],
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": "nsis"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "cee86",
-        "repo": "mida",
-        "releaseType": "release"
-      }
-    ]
-  },
-  "dependencies": {
-    "electron-updater": "^6.8.9"
+    "@tauri-apps/cli": "^2.12.0"
   }
 }
