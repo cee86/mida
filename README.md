@@ -1,6 +1,6 @@
 # Mida
 
-AIO companion site/app compiler. Built on tauri. Primarily intended for use with Destiny 2
+AIO companion site/app compiler. Built on tauri. Primarily intended for use with Destiny 2.
 
 
 ## Getting the app (no tools needed)
