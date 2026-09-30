@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("hub", {
   nav: (action) => ipcRenderer.send("nav", action),
   moduleMenu: (id) => ipcRenderer.send("module:menu", id),
   toggleSidebar: () => ipcRenderer.send("sidebar:toggle"),
+  installUpdate: () => ipcRenderer.send("update:install"),
   finishFirstRun: (ids) => ipcRenderer.invoke("firstrun:finish", ids),
   addFromCatalogue: (id) => ipcRenderer.invoke("module:add-catalogue", id),
   addCustom: (name, url) => ipcRenderer.invoke("module:add-custom", { name, url }),

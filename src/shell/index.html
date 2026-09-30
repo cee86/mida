@@ -49,6 +49,10 @@
           <span class="toolbar__title" id="title"></span>
           <span class="toolbar__url" id="url"></span>
         </div>
+        <button class="update-btn" id="update" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+          <span id="update-text">Restart to update</span>
+        </button>
         <button class="icon-btn" id="external" type="button" aria-label="Open in your browser" title="Open in your browser">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></svg>
         </button>
@@ -100,6 +104,7 @@
       </form>
       <p class="dialog__error" id="add-error" role="alert"></p>
       <p class="dialog__fine">Right-click a module in the sidebar (or use its ⋯ button) to move or remove it.</p>
+      <p class="dialog__fine" id="version"></p>
     </div>
   </dialog>
 

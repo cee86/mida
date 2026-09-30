@@ -9,10 +9,19 @@ site keeps its place and sign-in.
 
 ## Getting the app (no tools needed)
 
-Every push builds a Windows installer on GitHub:
-GitHub > Actions > "Build" > the latest run > Artifacts > `mida-windows`.
-Unzip it and run the installer. Windows will warn that the app is from an unknown publisher
-(the app isn't code-signed yet): choose "More info" then "Run anyway".
+Download the installer (`Mida-Setup-<version>.exe`) from the latest release:
+https://github.com/cee86/mida/releases/latest. Windows will warn that the app is from an unknown
+publisher (the app isn't code-signed yet): choose "More info" then "Run anyway".
+
+After that Mida updates itself: it checks for new versions at start and every few hours,
+downloads them quietly, and shows "Restart to update" in the toolbar (or installs the next time
+you close it).
+
+## Releasing an update
+
+Raise `version` in `package.json` and push to `main`. GitHub builds the installer and publishes
+it as a release, and installed copies pick it up. Pushes that don't change the version only build
+a test installer (Actions > "Build" > the run > Artifacts > `mida-windows`).
 
 ## Running from the code
 

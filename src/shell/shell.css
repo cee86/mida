@@ -305,6 +305,27 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .icon-btn:hover:not(:disabled) { background: var(--ash-raised); color: var(--cream); }
 .icon-btn:disabled { opacity: 0.35; cursor: default; }
 
+/* "Restart to update": only shown once a new version has downloaded. */
+.update-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px 0 9px;
+  border: 1px solid rgba(241, 154, 63, 0.55);
+  border-radius: 999px;
+  background: rgba(241, 154, 63, 0.12);
+  color: var(--cream);
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.update-btn:hover { background: rgba(241, 154, 63, 0.22); }
+.update-btn[hidden] { display: none; }
+.update-btn svg { width: 16px; height: 16px; color: var(--sun); }
+
 /* ---------- Stage (where module pages sit) ---------- */
 
 .stage {

@@ -143,9 +143,20 @@ function renderActive() {
   }
 }
 
+function renderUpdate() {
+  const button = $("update");
+  button.hidden = !state.updateReady;
+  if (state.updateReady) {
+    $("update-text").textContent = `Restart to update to ${state.updateReady.version}`;
+    button.title = "The new version has downloaded. Restart Mida to start using it (or it installs next time you close Mida).";
+  }
+  $("version").textContent = `Mida ${state.version}. Updates download by themselves.`;
+}
+
 function render() {
   renderSidebar();
   renderActive();
+  renderUpdate();
   if (!state.firstRunDone && !$("welcome").open) openWelcome();
   if ($("add").open) renderAddList();
 }
@@ -267,6 +278,7 @@ $("add-form").addEventListener("submit", (event) => {
 // ---------- Toolbar buttons ----------
 
 $("toggle").addEventListener("click", () => hub.toggleSidebar());
+$("update").addEventListener("click", () => hub.installUpdate());
 for (const action of ["back", "forward", "reload", "home", "external"]) {
   $(action).addEventListener("click", () => hub.nav(action));
 }

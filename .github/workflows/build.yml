@@ -1,6 +1,10 @@
-# Builds the Windows installer on every push, or on demand from the Actions tab.
-# The installer is attached to the run as "mida-windows"
-# (Actions tab > the run > Artifacts).
+# Builds the Windows installer on every push (and on demand from the Actions tab).
+#
+# Releasing an update: raise "version" in package.json and push to main. This workflow then
+# publishes a GitHub release "v<version>" with the installer and latest.yml, and every
+# installed copy of Mida downloads it by itself (it checks at start and every few hours).
+# Pushes that don't change the version only build a test installer, attached to the run as
+# "mida-windows" (Actions tab > the run > Artifacts); nobody's app changes.
 name: Build
 
 on:
@@ -8,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # needed to create releases; the token is GitHub's own, per run
 
 jobs:
   windows:
@@ -20,7 +24,30 @@ jobs:
           node-version: 22
       # npm ci installs exactly the versions in package-lock.json.
       - run: npm ci --no-audit --no-fund
-      - run: npm run dist
+
+      - name: Is this a new version?
+        id: version
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF" = "refs/heads/main" ] && ! git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "Releasing v$version"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "v$version is already released (or this isn't main): building only"
+          fi
+
+      - name: Build and release
+        if: steps.version.outputs.release == 'true'
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build only
+        if: steps.version.outputs.release != 'true'
+        run: npm run dist
+
       - uses: actions/upload-artifact@v4
         with:
           name: mida-windows

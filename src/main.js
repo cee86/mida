@@ -16,6 +16,7 @@ const {
   CATALOGUE, MAX_MODULES, cleanUrl, cleanName, cleanIcon, fromCatalogue, sameSite, isSignInUrl, isWebUrl,
 } = require("./modules");
 const { createStore } = require("./store");
+const { autoUpdater } = require("electron-updater");
 
 // Every module shares one saved browser profile, like tabs in one browser: sign in to
 // Bungie once and each site's own "Sign in with Bungie" goes straight through. Sites still
@@ -29,6 +30,7 @@ let store = null;
 const views = new Map(); // module id -> { view, status }
 let stageRect = null; // where module pages go, in shell pixels (reported by the shell)
 let overlayOpen = false; // a shell dialog is open, so pages are hidden beneath it
+let updateReady = null; // { version } once a new version has downloaded
 
 const moduleById = (id) => store.get().modules.find((m) => m.id === id) ?? null;
 
@@ -51,6 +53,8 @@ function publicState() {
     maxModules: MAX_MODULES,
     statuses,
     platform: process.platform,
+    version: app.getVersion(),
+    updateReady,
   };
 }
 
@@ -341,6 +345,36 @@ function moduleMenu(id) {
   ]).popup({ window: win });
 }
 
+// ---------- Updates ----------
+
+// New versions are published as GitHub releases of cee86/mida. The app checks at start and
+// every few hours, downloads quietly, and installs when you restart (or next time you quit).
+// Downloads come from GitHub over https and are checked against the release's checksum.
+// Only the installed app checks; running from the code (npm start) never does.
+const UPDATE_CHECK_EVERY = 4 * 60 * 60 * 1000;
+
+function setUpUpdates() {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-downloaded", (info) => {
+    updateReady = { version: String(info.version).slice(0, 32) };
+    sendState();
+  });
+  // No internet, GitHub down...: try again at the next check; nothing to tell the user.
+  autoUpdater.on("error", (err) => console.error("Update check failed:", err?.message));
+  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  check();
+  setInterval(check, UPDATE_CHECK_EVERY);
+}
+
+function installUpdate() {
+  if (!updateReady) return;
+  store.flush();
+  // Silent: reinstall into the same folder without the installer's pages, then reopen Mida.
+  autoUpdater.quitAndInstall(true, true);
+}
+
 // ---------- Keyboard and mouse shortcuts ----------
 
 // Handled for the shell and every module page, so they work wherever the focus is.
@@ -404,6 +438,10 @@ function registerIpc() {
 
   ipcMain.on("sidebar:toggle", (event) => {
     if (fromShell(event)) toggleSidebar();
+  });
+
+  ipcMain.on("update:install", (event) => {
+    if (fromShell(event)) installUpdate();
   });
 
   ipcMain.handle("firstrun:finish", (event, ids) => {
@@ -542,6 +580,7 @@ if (!app.requestSingleInstanceLock()) {
     setUpMenu();
     registerIpc();
     createWindow();
+    setUpUpdates();
     app.on("activate", () => {
       if (!win) createWindow();
     });
