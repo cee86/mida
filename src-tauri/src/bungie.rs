@@ -9,7 +9,7 @@
 //! Field names follow Bungie's API documentation; this couldn't be checked against live data
 //! from where it was written, so read failures say so plainly instead of guessing.
 
-use crate::auth::API_KEY;
+use crate::auth::api_key;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -48,7 +48,8 @@ fn unwrap(bytes: &[u8]) -> Result<Value, String> {
         Some(1) => Ok(body["Response"].clone()),
         Some(5) => Err("Bungie's API is down for maintenance. Try again once the game servers are back.".into()),
         Some(36) | Some(51) => Err("Bungie asked Mida to slow down. Wait a moment and try again.".into()),
-        Some(2101) | Some(2102) => Err("Bungie rejected Mida's API key.".into()),
+        Some(2101) => Err("Bungie rejected Mida's API key (Bungie error 2101: invalid or expired key).".into()),
+        Some(2102) => Err("Bungie says Mida's request had no API key (Bungie error 2102).".into()),
         // Bungie's own wording plus the code, so a problem can be told apart from another.
         Some(12) => Err(format!(
             "Bungie hasn't given Mida permission for this: Mida's app settings on bungie.net are missing a permission (Bungie error 12: {}).",
@@ -60,7 +61,7 @@ fn unwrap(bytes: &[u8]) -> Result<Value, String> {
 }
 
 pub async fn get(path: &str, token: Option<&str>) -> Result<Value, String> {
-    let key = API_KEY.ok_or("This copy of Mida can't talk to Bungie (it was built without an API key).")?;
+    let key = api_key().ok_or("This copy of Mida can't talk to Bungie (it was built without an API key).")?;
     let mut req = client().get(format!("{ROOT}/Platform{path}")).header("X-API-Key", key);
     if let Some(token) = token {
         req = req.bearer_auth(token);
@@ -70,7 +71,7 @@ pub async fn get(path: &str, token: Option<&str>) -> Result<Value, String> {
 }
 
 async fn post(path: &str, token: &str, body: Value) -> Result<Value, String> {
-    let key = API_KEY.ok_or("This copy of Mida can't talk to Bungie (it was built without an API key).")?;
+    let key = api_key().ok_or("This copy of Mida can't talk to Bungie (it was built without an API key).")?;
     let res = client()
         .post(format!("{ROOT}/Platform{path}"))
         .header("X-API-Key", key)

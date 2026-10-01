@@ -186,7 +186,7 @@ fn public_state(app: &AppHandle) -> Value {
         "version": app.package_info().version.to_string(),
         "update": update,
         "account": {
-            "available": auth::API_KEY.is_some(),
+            "available": auth::api_key().is_some(),
             "signedIn": hub.account.lock().unwrap().is_some(),
             "name": hub.account.lock().unwrap().as_ref().map(|a| a.name.clone()),
             "busy": *hub.signing_in.lock().unwrap(),
@@ -907,7 +907,7 @@ async fn sign_in_now(app: AppHandle) {
     if *hub(&app).signing_in.lock().unwrap() {
         return;
     }
-    if auth::API_KEY.is_none() {
+    if auth::api_key().is_none() {
         set_account_status(&app, false, Some("This copy of Mida was built without a Bungie API key, so it can't sign in.".into()));
         return;
     }

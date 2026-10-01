@@ -59,6 +59,22 @@ jobs:
             echo "v$version is already released (or this isn't main): test build only"
           fi
 
+      # Says whether the Bungie API key secret looks right and whether Bungie accepts it; never
+      # prints the key itself.
+      - name: Check the Bungie API key
+        shell: bash
+        env:
+          KEY: ${{ secrets.MIDA_BUNGIE_API_KEY }}
+        run: |
+          key="$(printf '%s' "$KEY" | tr -d '[:space:]')"
+          if [ -z "$key" ]; then echo "::warning::MIDA_BUNGIE_API_KEY is empty or missing: this build can't sign in."; exit 0; fi
+          [ "$key" != "$KEY" ] && echo "Note: the secret has spaces or line breaks around it (Mida ignores them)."
+          echo "Length: ${#key} characters (a Bungie API key is 32)."
+          if [[ "$key" =~ ^[0-9a-fA-F]{32}$ ]]; then echo "Shape: looks like a Bungie API key."; else echo "::warning::Shape: doesn't look like a Bungie API key (32 letters a-f and digits)."; fi
+          answer=$(curl -s -H "X-API-Key: $key" "https://www.bungie.net/Platform/Destiny2/Milestones/" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.ErrorCode+" "+j.ErrorStatus)}catch{console.log("no answer")}})')
+          echo "Bungie says: $answer"
+          case "$answer" in 1\ *) ;; *) echo "::warning::Bungie didn't accept MIDA_BUNGIE_API_KEY ($answer).";; esac
+
       - name: Build and sign (release)
         if: steps.version.outputs.release == 'true'
         run: npx tauri build

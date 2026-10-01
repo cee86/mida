@@ -24,6 +24,11 @@ use url::Url;
 
 pub const SITE: &str = "https://d2-seals-report.vercel.app";
 pub const API_KEY: Option<&str> = option_env!("MIDA_BUNGIE_API_KEY");
+
+/// The API key without any spaces or line breaks pasted around it; None if there isn't one.
+pub fn api_key() -> Option<&'static str> {
+    API_KEY.map(str::trim).filter(|k| !k.is_empty())
+}
 /// How long the browser sign-in may take before Mida stops listening.
 const SIGN_IN_WAIT: Duration = Duration::from_secs(300);
 
