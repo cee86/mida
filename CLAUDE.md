@@ -56,8 +56,13 @@ status or use other sites' artwork as our own.
   password). Never commit it or paste it in chat. Losing it means installed copies can't update (they'd need one manual
   reinstall of a build with a new key). Anyone who has it could sign an update, but could only deliver it through a
   release on `cee86/mida`, so both the key and the repo must be protected.
-* **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json` (Tauri
-  reads it: `"version": "../package.json"`; semver: fixes 0.1.1, features 0.2.0) and push to `main`. The workflow sees
+* **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json` and `package-lock.json` (Tauri
+  reads it: `"version": "../package.json"`; semver: fixes 0.1.1, features 0.2.0) and push to `main`. Leave
+  `src-tauri/Cargo.toml`'s version at 0.0.0: changing it invalidates the Rust build cache (v0.4.2). CI speed (v0.4.2):
+  separate release/test caches, test builds without LTO (CARGO_PROFILE_RELEASE_LTO=false, 16 codegen units), no
+  screenshot run on releases (the test build of the same code had one), no build for .md/art-only pushes. A build-time
+  check reports whether MIDA_BUNGIE_API_KEY is 32 hex characters and Bungie accepts it (never printing it); the
+  secret belongs in the mida repo (it was once added to seals.report by mistake, giving builds an empty key). The workflow sees
   no `v<version>` release, builds signed (`createUpdaterArtifacts`), writes `latest.json` (version, signature, installer
   URL) and runs `gh release create --latest` (creates the tag too; `--latest` because installed copies read
   `releases/latest`, which GitHub would otherwise give to the highest version number). Test builds pass

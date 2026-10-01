@@ -1,7 +1,9 @@
 # Builds Mida for Windows on every push (and on demand from the Actions tab), then runs it on
 # GitHub's Windows machine with real sites and saves screenshots (scripts/smoke-test.ps1).
 #
-# Releasing an update: raise "version" in package.json and push to main. The build then signs
+# Releasing an update: raise "version" in package.json (and package-lock.json) and push to main.
+# (src-tauri/Cargo.toml's version stays 0.0.0 on purpose: the app's version comes from package.json,
+# and leaving Cargo's alone keeps the build cache valid across releases.) The build then signs
 # the installer with Mida's update key (the TAURI_SIGNING_PRIVATE_KEY secret) and publishes a
 # GitHub release "v<version>" with the installer, its signature and latest.json, which every
 # installed Mida checks. Other pushes only build a test installer (the run's Artifacts:
@@ -10,6 +12,8 @@ name: Build
 
 on:
   push:
+    # Text-only changes (README, notes, artwork sources) don't need a build.
+    paths-ignore: ["**.md", "art/**", "LICENSE"]
   workflow_dispatch:
 
 permissions:
@@ -29,14 +33,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
-      # Keeps compiled Rust libraries between runs, so builds after the first are much faster.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-      # npm ci installs exactly the versions in package-lock.json.
-      - run: npm ci --no-audit --no-fund
-
       - name: Is this a new version?
         id: version
         shell: bash
@@ -58,6 +54,16 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "v$version is already released (or this isn't main): test build only"
           fi
+
+      - uses: dtolnay/rust-toolchain@stable
+      # Keeps compiled Rust libraries between runs, so builds after the first are much faster.
+      # Release and test builds use different settings (below), so each keeps its own cache.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ steps.version.outputs.release == 'true' && 'release' || 'test' }}
+      # npm ci installs exactly the versions in package-lock.json.
+      - run: npm ci --no-audit --no-fund
 
       # Says whether the Bungie API key secret looks right and whether Bungie accepts it; never
       # prints the key itself.
@@ -90,8 +96,15 @@ jobs:
         run: npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
         env:
           MIDA_BUNGIE_API_KEY: ${{ secrets.MIDA_BUNGIE_API_KEY }}
+          # Test builds skip the slow whole-program shrinking that releases get (Cargo.toml's
+          # release profile); they're a little bigger but build minutes faster.
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
 
+      # Releases are the same code as the test build just checked plus a version number, so they
+      # skip the screenshot run.
       - name: Try it on Windows with real sites
+        if: steps.version.outputs.release != 'true'
         shell: pwsh
         run: ./scripts/smoke-test.ps1
 
