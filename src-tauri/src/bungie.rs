@@ -49,8 +49,13 @@ fn unwrap(bytes: &[u8]) -> Result<Value, String> {
         Some(5) => Err("Bungie's API is down for maintenance. Try again once the game servers are back.".into()),
         Some(36) | Some(51) => Err("Bungie asked Mida to slow down. Wait a moment and try again.".into()),
         Some(2101) | Some(2102) => Err("Bungie rejected Mida's API key.".into()),
-        Some(99) | Some(12) => Err("Your Bungie sign-in has ended. Sign in again.".into()),
-        _ => Err(body["Message"].as_str().unwrap_or("Bungie couldn't do that.").to_string()),
+        // Bungie's own wording plus the code, so a problem can be told apart from another.
+        Some(12) => Err(format!(
+            "Bungie hasn't given Mida permission for this: Mida's app settings on bungie.net are missing a permission (Bungie error 12: {}).",
+            body["Message"].as_str().unwrap_or("")
+        )),
+        Some(99) => Err("Bungie didn't accept Mida's sign-in for this (Bungie error 99). Sign out in Settings > Tabs and sign in again.".into()),
+        code => Err(format!("{} (Bungie error {})", body["Message"].as_str().unwrap_or("Bungie couldn't do that."), code.unwrap_or(0))),
     }
 }
 

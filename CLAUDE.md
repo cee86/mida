@@ -156,7 +156,7 @@ client secret lives only in seals.report's Vercel env (`MIDA_CLIENT_ID`/`MIDA_CL
 on 127.0.0.1:<random port> (`auth::listen`/`wait_for_code`, 5 min, only `/callback` with the matching random state),
 opens `seals.report/api/mida/login?port&state` in the system browser -> Bungie -> `/api/mida/callback` -> redirect to the
 listener with the code -> Mida POSTs it to `/api/mida/token` (the server swaps it with the secret, stores nothing) ->
-`GetMembershipsForCurrentUser` -> `auth::pick_membership` (primary / cross save). Tokens: `account.bin` next to
+the public `/User/GetMembershipsById/{membership_id}/254/` (the Bungie.net id the token response carries; v0.4.0 used `GetMembershipsForCurrentUser`, which needs a permission Mida's app doesn't have, and every sign-in failed) -> `auth::pick_membership` (primary / cross save). Bungie errors show their code (12 = a permission missing from the app on bungie.net). Tokens: `account.bin` next to
 settings.json, encrypted with Windows DPAPI for the current user (memory only on non-Windows test builds); refreshed
 through `/api/mida/token` when within 60 s of expiry; signed out when the refresh ends. The shell never sees a token.
 API key: `option_env!("MIDA_BUNGIE_API_KEY")`, from the repo secret of that name in the build workflow (builds without

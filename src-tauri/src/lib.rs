@@ -920,11 +920,25 @@ async fn sign_in_now(app: AppHandle) {
         let code = tauri::async_runtime::spawn_blocking(move || auth::wait_for_code(listener, &state))
             .await
             .map_err(|_| "Sign-in stopped unexpectedly. Try again.".to_string())??;
-        let (access, access_until, refresh, refresh_until) = auth::exchange("code", &code).await?;
-        let user = bungie::get("/User/GetMembershipsForCurrentUser/", Some(&access)).await?;
+        let t = auth::exchange("code", &code).await?;
+        // Which Destiny account this is: Bungie's public lookup by the Bungie.net account number
+        // that comes with the tokens (needs no extra permission), else asking with the sign-in.
+        let user = if is_id(&t.bungie_id) {
+            bungie::get(&format!("/User/GetMembershipsById/{}/254/", t.bungie_id), None).await?
+        } else {
+            bungie::get("/User/GetMembershipsForCurrentUser/", Some(&t.access)).await?
+        };
         let (membership_type, membership_id, name) =
             auth::pick_membership(&user).ok_or("That Bungie account has no Destiny 2 characters.")?;
-        Ok(auth::Account { access, access_until, refresh, refresh_until, name, membership_type, membership_id })
+        Ok(auth::Account {
+            access: t.access,
+            access_until: t.access_until,
+            refresh: t.refresh,
+            refresh_until: t.refresh_until,
+            name,
+            membership_type,
+            membership_id,
+        })
     }
     .await;
     match result {
@@ -956,12 +970,12 @@ async fn account(app: &AppHandle) -> Result<auth::Account, String> {
         return Err("Your Bungie sign-in has ended. Sign in again.".into());
     }
     match auth::exchange("refresh", &current.refresh).await {
-        Ok((access, access_until, refresh, refresh_until)) => {
+        Ok(t) => {
             let fresh = auth::Account {
-                access,
-                access_until,
-                refresh: if refresh.is_empty() { current.refresh.clone() } else { refresh },
-                refresh_until: if refresh_until == 0 { current.refresh_until } else { refresh_until },
+                access: t.access,
+                access_until: t.access_until,
+                refresh: if t.refresh.is_empty() { current.refresh.clone() } else { t.refresh },
+                refresh_until: if t.refresh_until == 0 { current.refresh_until } else { t.refresh_until },
                 ..current
             };
             auth::save(&hub(app).dir, &fresh);

@@ -187,7 +187,7 @@ pub fn wait_for_code(listener: TcpListener, state: &str) -> Result<String, Strin
 // ---------- Tokens and the account ----------
 
 /// Swaps a code ("code") or refresh token ("refresh") for tokens, through seals.report.
-pub async fn exchange(grant: &str, value: &str) -> Result<(String, u64, String, u64), String> {
+pub async fn exchange(grant: &str, value: &str) -> Result<Tokens, String> {
     let client = reqwest::Client::new();
     let res = client
         .post(format!("{SITE}/api/mida/token"))
@@ -207,7 +207,21 @@ pub async fn exchange(grant: &str, value: &str) -> Result<(String, u64, String, 
     let refresh = body["refresh_token"].as_str().unwrap_or("").to_string();
     let access_until = t + body["expires_in"].as_u64().unwrap_or(3600);
     let refresh_until = if refresh.is_empty() { 0 } else { t + body["refresh_expires_in"].as_u64().unwrap_or(0) };
-    Ok((access, access_until, refresh, refresh_until))
+    // The Bungie.net account the sign-in belongs to (a number), sent with the tokens.
+    let bungie_id = match &body["membership_id"] {
+        Value::String(s) => s.clone(),
+        Value::Number(n) => n.to_string(),
+        _ => String::new(),
+    };
+    Ok(Tokens { access, access_until, refresh, refresh_until, bungie_id })
+}
+
+pub struct Tokens {
+    pub access: String,
+    pub access_until: u64,
+    pub refresh: String,
+    pub refresh_until: u64,
+    pub bungie_id: String,
 }
 
 /// The main Destiny account behind a Bungie sign-in (cross save aware), and the Bungie Name.
