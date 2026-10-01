@@ -7,7 +7,7 @@ AIO companion site/app compiler. Built on tauri. Primarily intended for use with
 
 Download the installer (`Mida-Setup-<version>.exe`) from the latest release:
 https://github.com/cee86/mida/releases/latest. Windows will warn that the app is from an unknown
-publisher (the app isn't code-signed yet): choose "More info" then "Run anyway".
+publisher. Choose "More info" then "Run anyway".
 
 
 ## Releasing an update
