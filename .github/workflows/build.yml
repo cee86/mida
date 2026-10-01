@@ -65,11 +65,15 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          # Built into the app for Bungie sign-in (src/auth.rs); never printed.
+          MIDA_BUNGIE_API_KEY: ${{ secrets.MIDA_BUNGIE_API_KEY }}
 
       - name: Build (test)
         if: steps.version.outputs.release != 'true'
         shell: bash
         run: npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        env:
+          MIDA_BUNGIE_API_KEY: ${{ secrets.MIDA_BUNGIE_API_KEY }}
 
       - name: Try it on Windows with real sites
         shell: pwsh

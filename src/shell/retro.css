@@ -170,3 +170,8 @@ html[data-theme="retro"] .encounter__number { color: #fff; }
 html[data-theme="retro"] .badge { border-color: var(--retro-gold); color: var(--retro-gold); text-transform: uppercase; letter-spacing: 0.1em; }
 html[data-theme="retro"] .rad__item[aria-current="true"] { box-shadow: inset 0 0 0 1px #fff; }
 html[data-theme="retro"] .tab__title { text-transform: uppercase; letter-spacing: 0.14em; font-size: 1.5rem; }
+
+/* Bungie tabs. */
+html[data-theme="retro"] .meter__fill { background: #f2f4f6; }
+html[data-theme="retro"] .item--equipped { box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 3px #fff; }
+html[data-theme="retro"] .inv__class { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.82rem; }

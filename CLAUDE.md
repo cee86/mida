@@ -148,7 +148,31 @@ rotators) and the RAD assistant (every raid/dungeon: encounters with their loot,
 places and an asset-pack note for content to come) work offline. `src/shell/d2/` holds **unchanged copies** of
 seals.report's lib/rotations.js, rotators.js and loot-tables.js: copy them again when seals.report changes them (the
 admin's rotator corrections live in seals.report's Redis and don't reach Mida yet; a small public endpoint could fix
-that). Inventory, Seasonal hub and Quests show a "needs a Bungie sign-in" panel until sign-in exists (part 3).
+that; Featured now asks seals.report's `/api/mida/rotators` once a run through `d2_rotators`).
+
+**Bungie sign-in** (src/auth.rs, v0.4): Mida's own Bungie app (Confidential; redirect
+`https://d2-seals-report.vercel.app/api/mida/callback`; scopes: read Destiny 2 inventory/vault, move or equip gear). Its
+client secret lives only in seals.report's Vercel env (`MIDA_CLIENT_ID`/`MIDA_CLIENT_SECRET`). Flow: Mida listens once
+on 127.0.0.1:<random port> (`auth::listen`/`wait_for_code`, 5 min, only `/callback` with the matching random state),
+opens `seals.report/api/mida/login?port&state` in the system browser -> Bungie -> `/api/mida/callback` -> redirect to the
+listener with the code -> Mida POSTs it to `/api/mida/token` (the server swaps it with the secret, stores nothing) ->
+`GetMembershipsForCurrentUser` -> `auth::pick_membership` (primary / cross save). Tokens: `account.bin` next to
+settings.json, encrypted with Windows DPAPI for the current user (memory only on non-Windows test builds); refreshed
+through `/api/mida/token` when within 60 s of expiry; signed out when the refresh ends. The shell never sees a token.
+API key: `option_env!("MIDA_BUNGIE_API_KEY")`, from the repo secret of that name in the build workflow (builds without
+it can't sign in and say so). The Bungie account is shared by all profiles. Settings -> Tabs shows it (sign in/out).
+
+**Destiny 2 data** (src/bungie.rs): `load_manifest` slims DestinyInventoryItemLiteDefinition + DestinyObjectiveDefinition
+to what the tabs use and keeps it in `manifest/<version>.json` (downloaded again only after a game update; memory-cached
+per run). `shape_inventory` (components 100,102,200,201,205,300: weapons, armor, ghost, sparrow, ship buckets on each
+character and the vault bucket 138197802), `shape_activity` + `season` + `alerts` (100,104,200,201,202,300,301: the
+Quests bucket split into quests and bounties, season rank from the season pass's reward/prestige progressions, the
+artifact, Bungie's global alerts as plain text). `transfer` goes character -> vault -> character; `equip` brings the item
+over first. All unverified against live data (no Bungie access from the build workspace): field names follow Bungie's
+docs. The shell tabs (tabs.js): Inventory (DIM-like rows per bucket: each character's equipped + other items, then the
+vault; click for moves, drag between cells, drop on the equipped item to equip; moves show at once and undo on error,
+then a quiet re-read 6 s later), Quests and Seasonal hub (character picker, last played first; objective bars; bounty
+expiry countdowns). CSP allows images from https://www.bungie.net (item icons, emblems).
 
 **Profiles:** first run is a two-step wizard: name, optional picture (cropped to 128px WebP in the page), game (Destiny 2
 or "Another game" + its name), then module picks (D2) or a note (custom). New profiles open on Home. The profile menu
@@ -274,6 +298,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.4 (part 3, not released yet): Bungie sign-in, Inventory, Quests, Seasonal hub; seals.report gained
+  `/api/mida/login|callback|token|rotators` (on its branch claude/wizardly-meitner-y4xwui until merged to main).
 * Sign-in plan the owner agreed to: a separate Bungie app for Mida (Confidential), its client secret kept on the
   seals.report server, which exchanges and refreshes tokens for Mida and stores nothing; Mida keeps the tokens on the
   PC encrypted by Windows. Needs the owner to register the app and add two Vercel env vars (steps to come).

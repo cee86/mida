@@ -181,5 +181,8 @@ Start-Sleep -Seconds 2
 $app, $hwnd = Start-Mida $true "foundry" $true '"activeId": "tab-featured", "panes": ["seals-report", "tab-featured"], "split": 55'
 Start-Sleep -Seconds 4
 Shot "15-tab-beside-site"
+[Input]::Click($hwnd, 110, 208, $false)            # the Inventory tab (first tab row): signed out, it offers sign-in
+Start-Sleep -Seconds 2
+Shot "16-inventory-sign-in"
 Write-Host "Still running: $(-not $app.HasExited)"
 Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue

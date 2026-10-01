@@ -446,7 +446,18 @@ function renderPane(pane, id, split, index) {
 
 // Built-in tabs live in tabs.js (loaded as a module, so it may arrive a moment after this file).
 function tabContext() {
-  return { el, svg, state, hub, isFrozen: () => frozen };
+  return {
+    el,
+    svg,
+    hub,
+    openMenu,
+    openSettings,
+    isFrozen: () => frozen,
+    // Always the latest state (it's replaced on every update).
+    get state() {
+      return state;
+    },
+  };
 }
 function mountTab(id, container) {
   if (window.midaTabs) window.midaTabs.mount(id, container, tabContext());
@@ -595,6 +606,8 @@ function render() {
   renderUpdate();
   if (!state.firstRunDone && !$("wizard").open) openWizard("first");
   if ($("add").open) renderAddList();
+  // The Tabs page shows the Bungie account, which changes while it's open (signing in).
+  if ($("settings").open && settingsTab === "tabs") renderSettings();
 }
 
 // ---------- Pages above our screen: freeze while a menu or dialog is open ----------
@@ -1480,8 +1493,22 @@ function tabsPanel() {
     state.tabs = next;
     hub.setTabs(next);
   };
+  const a = state.account ?? {};
+  const account = setting(
+    "Bungie account",
+    a.signedIn
+      ? `Signed in as ${a.name}. Inventory, Quests and Seasonal hub read this account. The sign-in is kept on this computer only, encrypted by Windows.`
+      : a.available
+        ? "Sign in for Inventory, Quests and Seasonal hub. Signing in happens in your browser, on bungie.net."
+        : "This copy of Mida was built without a Bungie key, so it can't sign in.",
+    a.signedIn
+      ? el("button", { class: "btn btn--small", type: "button", text: "Sign out", onclick: () => hub.signOut() })
+      : el("button", { class: "btn btn--small btn--primary", type: "button", disabled: !a.available || a.busy || null, text: a.busy ? "Waiting…" : "Sign in", onclick: () => hub.signIn() }),
+    { row: true },
+  );
   return [
     ...intro,
+    account,
     ...all.map((t) =>
       setting(t.name, `${t.blurb}${t.signIn ? " Needs a Bungie sign-in." : ""}`, toggle(`tab-${t.id}`, state.tabs.includes(t.id), (v) => set(t.id, v), `Show ${t.name}`), { row: true }),
     ),

@@ -13,10 +13,15 @@
 //! permission requests (camera, microphone, location, notifications...) are refused, and links
 //! to other sites open in your normal browser.
 //!
+//! Bungie sign-in (src/auth.rs) and the Destiny 2 tabs' data (src/bungie.rs) stay in the app: the
+//! shell only ever gets the shaped data, never a token.
+//!
 //! Threads: pages must be created away from the main thread (WebView2 freezes otherwise), so
 //! anything that may create one runs in an async command or `spawn_blocking`. Our own locks are
 //! never held while calling a page or the window, so nothing can wait on itself.
 
+mod auth;
+mod bungie;
 mod modules;
 mod store;
 #[cfg(windows)]
@@ -30,7 +35,8 @@ use modules::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use store::{clean_prefs, Prefs, Profile, Store, WindowPlace, HOME, MAX_PROFILES};
 use tauri::webview::{NewWindowResponse, PageLoadEvent, PermissionResponse, WebviewBuilder};
@@ -102,6 +108,11 @@ struct Hub {
     pending: Mutex<Option<tauri_plugin_updater::Update>>,
     creating: Mutex<()>,                   // one page created at a time
     icon_tried: Mutex<HashSet<String>>,    // module ids whose icon was looked for this session
+    dir: PathBuf,                          // where settings.json (and the saved sign-in) live
+    account: Mutex<Option<auth::Account>>, // the Bungie sign-in, if any
+    signing_in: Mutex<bool>,
+    account_error: Mutex<Option<String>>,
+    manifest: tokio::sync::Mutex<Option<Arc<bungie::Manifest>>>,
 }
 
 fn hub(app: &AppHandle) -> tauri::State<'_, Hub> {
@@ -174,6 +185,13 @@ fn public_state(app: &AppHandle) -> Value {
         "platform": std::env::consts::OS,
         "version": app.package_info().version.to_string(),
         "update": update,
+        "account": {
+            "available": auth::API_KEY.is_some(),
+            "signedIn": hub.account.lock().unwrap().is_some(),
+            "name": hub.account.lock().unwrap().as_ref().map(|a| a.name.clone()),
+            "busy": *hub.signing_in.lock().unwrap(),
+            "error": hub.account_error.lock().unwrap().clone(),
+        },
     })
 }
 
@@ -875,6 +893,227 @@ fn from_ours(page: &Webview) -> bool {
     page.label() == SHELL || page.label() == CONTROLS
 }
 
+// ---------- Bungie sign-in and the Destiny 2 tabs ----------
+
+fn set_account_status(app: &AppHandle, busy: bool, error: Option<String>) {
+    *hub(app).signing_in.lock().unwrap() = busy;
+    *hub(app).account_error.lock().unwrap() = error;
+    emit_state(app);
+}
+
+/// The whole sign-in: listen on this computer, open the browser, wait for the code, swap it for
+/// tokens (through seals.report), find the Destiny account, save it.
+async fn sign_in_now(app: AppHandle) {
+    if *hub(&app).signing_in.lock().unwrap() {
+        return;
+    }
+    if auth::API_KEY.is_none() {
+        set_account_status(&app, false, Some("This copy of Mida was built without a Bungie API key, so it can't sign in.".into()));
+        return;
+    }
+    set_account_status(&app, true, None);
+    let result: Result<auth::Account, String> = async {
+        let state = auth::random_state().ok_or("Couldn't start sign-in. Try again.")?;
+        let (listener, port) = auth::listen().ok_or("Couldn't start sign-in. Try again.")?;
+        let url = Url::parse(&format!("{}/api/mida/login?port={port}&state={state}", auth::SITE)).map_err(|_| "Couldn't start sign-in.")?;
+        let _ = app.opener().open_url(url.as_str(), None::<&str>);
+        let code = tauri::async_runtime::spawn_blocking(move || auth::wait_for_code(listener, &state))
+            .await
+            .map_err(|_| "Sign-in stopped unexpectedly. Try again.".to_string())??;
+        let (access, access_until, refresh, refresh_until) = auth::exchange("code", &code).await?;
+        let user = bungie::get("/User/GetMembershipsForCurrentUser/", Some(&access)).await?;
+        let (membership_type, membership_id, name) =
+            auth::pick_membership(&user).ok_or("That Bungie account has no Destiny 2 characters.")?;
+        Ok(auth::Account { access, access_until, refresh, refresh_until, name, membership_type, membership_id })
+    }
+    .await;
+    match result {
+        Ok(account) => {
+            auth::save(&hub(&app).dir, &account);
+            *hub(&app).account.lock().unwrap() = Some(account);
+            set_account_status(&app, false, None);
+        }
+        Err(error) => set_account_status(&app, false, Some(error)),
+    }
+}
+
+fn sign_out_now(app: &AppHandle) {
+    *hub(app).account.lock().unwrap() = None;
+    auth::forget(&hub(app).dir);
+    set_account_status(app, false, None);
+}
+
+/// The signed-in account with a fresh access token (refreshed through seals.report when it's
+/// about to run out; signed out if Bungie ended the sign-in).
+async fn account(app: &AppHandle) -> Result<auth::Account, String> {
+    let current = hub(app).account.lock().unwrap().clone().ok_or("Sign in with Bungie first.")?;
+    let now = auth::now();
+    if current.access_until > now + 60 {
+        return Ok(current);
+    }
+    if current.refresh.is_empty() || current.refresh_until <= now {
+        sign_out_now(app);
+        return Err("Your Bungie sign-in has ended. Sign in again.".into());
+    }
+    match auth::exchange("refresh", &current.refresh).await {
+        Ok((access, access_until, refresh, refresh_until)) => {
+            let fresh = auth::Account {
+                access,
+                access_until,
+                refresh: if refresh.is_empty() { current.refresh.clone() } else { refresh },
+                refresh_until: if refresh_until == 0 { current.refresh_until } else { refresh_until },
+                ..current
+            };
+            auth::save(&hub(app).dir, &fresh);
+            *hub(app).account.lock().unwrap() = Some(fresh.clone());
+            Ok(fresh)
+        }
+        Err(error) if error.contains("Sign in again") => {
+            sign_out_now(app);
+            Err(error)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Destiny's item list, loaded once per run (from disk when the game hasn't updated).
+async fn manifest(app: &AppHandle) -> Result<Arc<bungie::Manifest>, String> {
+    let hub = hub(app);
+    let mut slot = hub.manifest.lock().await;
+    if let Some(m) = slot.as_ref() {
+        return Ok(m.clone());
+    }
+    let m = Arc::new(bungie::load_manifest(&hub.dir).await?);
+    *slot = Some(m.clone());
+    Ok(m)
+}
+
+fn answer(result: Result<Value, String>) -> Value {
+    match result {
+        Ok(data) => json!({ "ok": true, "data": data }),
+        Err(error) => json!({ "ok": false, "error": error }),
+    }
+}
+
+fn is_id(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 20 && value.chars().all(|c| c.is_ascii_digit())
+}
+
+/// An item move as the shell sends it, checked.
+#[derive(Deserialize)]
+struct ItemRef {
+    hash: u32,
+    instance: Option<String>,
+    owner: String,
+    quantity: Option<i64>,
+}
+
+fn checked_move(item: ItemRef) -> Option<bungie::Move> {
+    let owner_ok = item.owner == "vault" || is_id(&item.owner);
+    let instance_ok = item.instance.as_deref().map(is_id).unwrap_or(true);
+    (owner_ok && instance_ok).then(|| bungie::Move {
+        hash: item.hash,
+        instance: item.instance,
+        owner: item.owner,
+        quantity: item.quantity.unwrap_or(1).clamp(1, 9999),
+    })
+}
+
+#[tauri::command]
+async fn sign_in(webview: Webview, app: AppHandle) {
+    if from_shell(&webview) {
+        sign_in_now(app).await;
+    }
+}
+
+#[tauri::command]
+async fn sign_out(webview: Webview, app: AppHandle) {
+    if from_shell(&webview) {
+        sign_out_now(&app);
+    }
+}
+
+#[tauri::command]
+async fn d2_inventory(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let m = manifest(&app).await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,200,201,205,300").await?;
+            Ok(bungie::shape_inventory(&profile, &m))
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+async fn d2_activity(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let m = manifest(&app).await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,104,200,201,202,300,301").await?;
+            let mut data = bungie::shape_activity(&profile, &m);
+            data["season"] = bungie::season(&profile, &a.access).await;
+            data["alerts"] = Value::Array(bungie::alerts().await);
+            Ok(data)
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+async fn d2_transfer(webview: Webview, app: AppHandle, item: ItemRef, to: String) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    let Some(mv) = checked_move(item).filter(|_| to == "vault" || is_id(&to)) else { return fail("That move isn't possible.") };
+    answer(
+        async {
+            let a = account(&app).await?;
+            bungie::transfer(a.membership_type, &a.access, &mv, &to).await?;
+            Ok(Value::Null)
+        }
+        .await,
+    )
+}
+
+/// Equip an item on a character, bringing it over first if it's somewhere else.
+#[tauri::command]
+async fn d2_equip(webview: Webview, app: AppHandle, item: ItemRef, character: String) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    let Some(mv) = checked_move(item).filter(|m| m.instance.is_some() && is_id(&character)) else { return fail("That can't be equipped.") };
+    answer(
+        async {
+            let a = account(&app).await?;
+            bungie::transfer(a.membership_type, &a.access, &mv, &character).await?;
+            bungie::equip(a.membership_type, &a.access, mv.instance.as_deref().unwrap_or(""), &character).await?;
+            Ok(Value::Null)
+        }
+        .await,
+    )
+}
+
+/// seals.report's rotator corrections for the Featured tab (public data; empty when offline).
+#[tauri::command]
+async fn d2_rotators(webview: Webview) -> Value {
+    if !from_shell(&webview) {
+        return json!({});
+    }
+    let res = reqwest::Client::new().get(format!("{}/api/mida/rotators", auth::SITE)).timeout(Duration::from_secs(10)).send().await;
+    let Ok(res) = res else { return json!({}) };
+    let Ok(bytes) = res.bytes().await else { return json!({}) };
+    serde_json::from_slice::<Value>(&bytes).ok().map(|v| v["saved"].clone()).filter(|v| v.is_object()).unwrap_or_else(|| json!({}))
+}
+
 #[tauri::command]
 async fn get_state(webview: Webview, app: AppHandle) -> Option<Value> {
     from_ours(&webview).then(|| public_state(&app))
@@ -1332,6 +1571,11 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             app.manage(Hub {
+                account: Mutex::new(auth::load(&dir)),
+                signing_in: Mutex::new(false),
+                account_error: Mutex::new(None),
+                manifest: tokio::sync::Mutex::new(None),
+                dir: dir.clone(),
                 store: Mutex::new(Store::open(dir)),
                 statuses: Mutex::new(HashMap::new()),
                 panes: Mutex::new(Vec::new()),
@@ -1368,6 +1612,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_state,
             set_panes,
+            sign_in,
+            sign_out,
+            d2_inventory,
+            d2_activity,
+            d2_transfer,
+            d2_equip,
+            d2_rotators,
             split,
             close_pane,
             swap_panes,

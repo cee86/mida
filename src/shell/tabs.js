@@ -110,7 +110,7 @@ function featured(ctx) {
       "div",
       { class: "cards" },
       ...ROTATORS.map((def) => {
-        const rotator = withSaved(def, null);
+        const rotator = withSaved(def, savedRotators[def.id] ?? null);
         const at = rotatorNow(rotator, now, 3);
         const detail = at.current.detail;
         return el(
@@ -130,7 +130,7 @@ function featured(ctx) {
     el(
       "p",
       { class: "tab__note" },
-      "Bungie doesn't publish these schedules, so they're counted from known weeks (the same ones seals.report's Featured page uses). Times are shown in your time zone.",
+      "Bungie doesn't publish these schedules, so they're counted from known weeks, with any corrections made on seals.report. Times are shown in your time zone.",
     ),
   );
 }
@@ -254,30 +254,422 @@ function rad(ctx) {
   return el("div", { class: "tab tab--rad" }, el("div", { class: "rad" }, list, detail));
 }
 
-// ---------- Tabs that need a Bungie sign-in (coming next) ----------
+// ---------- Bungie sign-in ----------
 
 const SIGN_IN = {
   "tab-inventory": "Your characters' gear and your vault, with quick moves between them. For deeper work (loadouts, sorting, tags), DIM can sit beside it as a module.",
-  "tab-seasonal": "This season at a glance: your bounties, the reward track, alerts and what's on this week.",
+  "tab-seasonal": "This season at a glance: your rank, bounties, the artifact and Bungie's alerts.",
   "tab-quests": "Every quest a character has picked up. Starts on the character you played last; switch any time.",
 };
+const SHIELD = ["M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z", "M9 12l2 2 4-4"];
 
 function signIn(ctx, id) {
-  const { el, svg, state } = ctx;
+  const { el, svg, state, hub } = ctx;
   const tab = state.tabCatalogue.find((t) => t.id === id);
+  const account = state.account ?? {};
+  const note = !account.available
+    ? "This copy of Mida was built without a Bungie key, so it can't sign in."
+    : account.busy
+      ? "Finish signing in in your browser, then come back here. (Closed the tab? Wait a moment and try again.)"
+      : "Sign in with Bungie in your browser. Mida keeps the sign-in on this computer only, encrypted by Windows, and can sign out any time from Settings.";
   return el(
     "div",
     { class: "tab tab--signin" },
     el(
       "div",
       { class: "signin" },
-      el("div", { class: "signin__icon" }, svg(["M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z", "M9 12l2 2 4-4"])),
+      el("div", { class: "signin__icon" }, svg(SHIELD)),
       el("h1", { class: "tab__title", text: tab?.name ?? "" }),
       el("p", { class: "tab__lede", text: SIGN_IN[id] ?? tab?.blurb ?? "" }),
-      el("p", { class: "tab__note", text: "This tab reads your characters from Bungie, so it needs you to sign in with Bungie. Sign-in is coming in the next update." }),
-      el("button", { class: "btn btn--primary", type: "button", disabled: true, text: "Sign in with Bungie" }),
+      el("p", { class: "tab__note", text: note }),
+      account.error ? el("p", { class: "tab__error", text: account.error }) : null,
+      el("button", {
+        class: "btn btn--primary",
+        type: "button",
+        disabled: !account.available || account.busy || null,
+        text: account.busy ? "Waiting for Bungie…" : "Sign in with Bungie",
+        onclick: () => hub.signIn(),
+      }),
     ),
   );
+}
+
+// Data read from Bungie, shared by the tabs and kept for a minute.
+const cache = { inventory: null, activity: null };
+async function read(ctx, which, fresh) {
+  const entry = cache[which];
+  if (!fresh && entry && Date.now() - entry.at < 60_000) return entry.result;
+  const result = await (which === "inventory" ? ctx.hub.d2Inventory() : ctx.hub.d2Activity());
+  cache[which] = { at: Date.now(), result };
+  return result;
+}
+
+function loadingView(ctx, text) {
+  return ctx.el("div", { class: "tab tab--signin" }, ctx.el("div", { class: "signin" }, ctx.el("div", { class: "spinner", "aria-hidden": "true" }), ctx.el("p", { class: "tab__lede", text })));
+}
+
+function problemView(ctx, error, retry) {
+  const { el } = ctx;
+  return el(
+    "div",
+    { class: "tab tab--signin" },
+    el(
+      "div",
+      { class: "signin" },
+      el("h1", { class: "tab__title", text: "Couldn't load that" }),
+      el("p", { class: "tab__error", text: error }),
+      el("button", { class: "btn btn--primary", type: "button", text: "Try again", onclick: retry }),
+    ),
+  );
+}
+
+// A row of character buttons (most recently played first).
+function characterPicker(ctx, characters, chosen, pick) {
+  const { el } = ctx;
+  return el(
+    "div",
+    { class: "segmented", role: "group", "aria-label": "Character" },
+    ...characters.map((c) =>
+      el("button", { type: "button", "aria-pressed": String(c.id === chosen), text: `${c.className} · ${c.light ?? ""}`, onclick: () => pick(c.id) }),
+    ),
+  );
+}
+
+function progress(ctx, value, goal) {
+  const pct = goal > 0 ? Math.min(100, Math.round((value / goal) * 100)) : 0;
+  const bar = ctx.el("span", { class: "meter__fill" });
+  bar.style.width = `${pct}%`;
+  return ctx.el("span", { class: "meter", role: "progressbar", "aria-valuenow": String(pct), "aria-valuemin": "0", "aria-valuemax": "100" }, bar);
+}
+
+function objectiveList(ctx, objectives) {
+  const { el } = ctx;
+  return el(
+    "div",
+    { class: "objectives" },
+    ...objectives.map((o) =>
+      el(
+        "div",
+        { class: `objective${o.complete ? " is-done" : ""}` },
+        el("div", { class: "objective__row" }, el("span", { text: o.text || "Progress" }), el("span", { class: "objective__count", text: o.goal > 1 ? `${o.progress} / ${o.goal}` : o.complete ? "Done" : "" })),
+        o.goal > 1 ? progress(ctx, o.progress, o.goal) : null,
+      ),
+    ),
+  );
+}
+
+function questCard(ctx, q) {
+  const { el } = ctx;
+  return el(
+    "div",
+    { class: `card quest${q.complete ? " quest--done" : ""}` },
+    el(
+      "div",
+      { class: "quest__head" },
+      q.icon ? el("img", { class: "quest__icon", src: q.icon, alt: "", loading: "lazy" }) : null,
+      el("div", { class: "quest__text" }, el("div", { class: "card__kicker", text: q.typeName || "Quest" }), el("div", { class: "card__name", text: q.name })),
+    ),
+    q.description ? el("div", { class: "card__detail quest__description", text: q.description }) : null,
+    q.objectives.length ? objectiveList(ctx, q.objectives) : null,
+    q.expires ? el("div", { class: "card__meta" }, ctx.svg(CLOCK), until(ctx, q.expires, " left")) : null,
+    q.complete ? el("div", { class: "card__note", text: "Complete: turn it in in game." }) : null,
+  );
+}
+
+const lastCharacter = {};
+
+// ---------- Quests ----------
+
+function quests(ctx, container) {
+  const { el } = ctx;
+  const root = el("div", { class: "tab" });
+  const draw = (data) => {
+    const chosen = data.characters.some((c) => c.id === lastCharacter.quests) ? lastCharacter.quests : data.characters[0]?.id;
+    const list = data.quests[chosen] ?? [];
+    root.replaceChildren(
+      head(ctx, "Quests", `${list.length} picked up · ${ctx.state.account?.name ?? ""}`),
+      el(
+        "div",
+        { class: "tab__tools" },
+        characterPicker(ctx, data.characters, chosen, (id) => {
+          lastCharacter.quests = id;
+          draw(data);
+        }),
+        el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => load(true) }),
+      ),
+      list.length
+        ? el("div", { class: "cards cards--wide" }, ...list.map((q) => questCard(ctx, q)))
+        : el("p", { class: "tab__note", text: "No quests on this character." }),
+    );
+  };
+  const load = async (fresh) => {
+    container.replaceChildren(loadingView(ctx, "Reading your quests from Bungie…"));
+    const result = await read(ctx, "activity", fresh);
+    if (!result?.ok) return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
+    draw(result.data);
+    container.replaceChildren(root);
+  };
+  load(false);
+}
+
+// ---------- Seasonal hub ----------
+
+function seasonal(ctx, container) {
+  const { el } = ctx;
+  const root = el("div", { class: "tab" });
+  const draw = (data) => {
+    const season = data.season;
+    const chosen = data.characters.some((c) => c.id === lastCharacter.seasonal) ? lastCharacter.seasonal : data.characters[0]?.id;
+    const bounties = data.bounties[chosen] ?? [];
+    const rank = season?.rank;
+    root.replaceChildren(
+      head(ctx, season?.name ? `${season.name}` : "This season", season?.ends ? ["Ends in ", until(ctx, season.ends, "")] : null),
+      el(
+        "div",
+        { class: "cards" },
+        rank
+          ? el(
+              "div",
+              { class: "card" },
+              el("div", { class: "card__kicker", text: "Season rank" }),
+              el("div", { class: "card__name card__name--big", text: String(rank.level) }),
+              rank.next ? progress(ctx, rank.progress ?? 0, rank.next) : null,
+              rank.next ? el("div", { class: "card__meta", text: `${(rank.progress ?? 0).toLocaleString()} / ${rank.next.toLocaleString()} XP to the next rank` }) : null,
+            )
+          : null,
+        data.artifact
+          ? el(
+              "div",
+              { class: "card" },
+              el("div", { class: "card__kicker", text: "Seasonal artifact" }),
+              el("div", { class: "card__name card__name--big", text: `+${data.artifact.powerBonus ?? 0}` }),
+              el("div", { class: "card__meta", text: `${data.artifact.points ?? 0} points unlocked` }),
+            )
+          : null,
+        el(
+          "div",
+          { class: "card" },
+          el("div", { class: "card__kicker", text: "This week" }),
+          el("div", { class: "card__detail", text: "Raids, dungeons, the Distortion and every rotator." }),
+          el("button", { class: "btn btn--small", type: "button", text: "Open Featured", onclick: () => ctx.hub.select("tab-featured") }),
+        ),
+      ),
+      data.alerts?.length ? band(ctx, "Alerts from Bungie") : null,
+      data.alerts?.length ? el("div", { class: "alerts" }, ...data.alerts.map((a) => el("p", { class: "note", text: a.text }))) : null,
+      band(ctx, `Bounties (${bounties.length})`),
+      el(
+        "div",
+        { class: "tab__tools" },
+        characterPicker(ctx, data.characters, chosen, (id) => {
+          lastCharacter.seasonal = id;
+          draw(data);
+        }),
+        el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => load(true) }),
+      ),
+      bounties.length ? el("div", { class: "cards cards--wide" }, ...bounties.map((q) => questCard(ctx, q))) : el("p", { class: "tab__note", text: "No bounties on this character." }),
+    );
+  };
+  const load = async (fresh) => {
+    container.replaceChildren(loadingView(ctx, "Reading this season from Bungie…"));
+    const result = await read(ctx, "activity", fresh);
+    if (!result?.ok) return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
+    draw(result.data);
+    container.replaceChildren(root);
+  };
+  load(false);
+}
+
+// ---------- Inventory ----------
+
+const TIERS = { 6: "exotic", 5: "legendary", 4: "rare", 3: "common", 2: "basic" };
+let inventoryGroup = "weapons";
+
+function inventory(ctx, container) {
+  const { el } = ctx;
+  let data = null;
+  let search = "";
+  let resync = null;
+  const root = el("div", { class: "tab tab--inventory" });
+  const toast = el("div", { class: "toast", role: "status", hidden: true });
+  const say = (text) => {
+    toast.textContent = text;
+    toast.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => (toast.hidden = true), 5000);
+  };
+  const charName = (id) => (id === "vault" ? "the vault" : data.characters.find((c) => c.id === id)?.className ?? "character");
+  const fits = (item, character) => item.classType === 3 || item.classType === character.classType;
+
+  // Moves first on screen, then with Bungie; undone if Bungie says no.
+  async function act(item, to, equip) {
+    const before = { owner: item.owner, equipped: item.equipped };
+    const displaced = equip ? data.items.find((i) => i.owner === to && i.equipped && i.bucket === item.bucket && i !== item) : null;
+    item.moving = true;
+    item.owner = to;
+    if (equip) {
+      item.equipped = true;
+      if (displaced) displaced.equipped = false;
+    } else item.equipped = false;
+    draw();
+    const ref = { hash: item.hash, instance: item.instance, owner: before.owner, quantity: item.quantity };
+    const result = equip ? await ctx.hub.d2Equip(ref, to) : await ctx.hub.d2Transfer(ref, to);
+    item.moving = false;
+    if (!result?.ok) {
+      item.owner = before.owner;
+      item.equipped = before.equipped;
+      if (displaced) displaced.equipped = true;
+      say(result?.error ?? "That didn't work.");
+    } else {
+      cache.inventory = null;
+      clearTimeout(resync);
+      resync = setTimeout(() => load(true, true), 6000);
+    }
+    draw();
+  }
+
+  function itemMenu(item, anchor) {
+    const chars = data.characters;
+    const items = [{ heading: `${item.name}${item.power ? ` · ${item.power}` : ""}` }];
+    if (item.equipped) items.push({ label: "Equipped: equip something else first to move it", disabled: true, action: () => {} });
+    for (const c of chars) {
+      if (item.instance && fits(item, c) && !(item.owner === c.id && item.equipped)) {
+        items.push({ label: `Equip on ${c.className}`, icon: "star", disabled: (!item.transferable && item.owner !== c.id) || (item.equipped && item.owner !== c.id), action: () => act(item, c.id, true) });
+      }
+    }
+    for (const c of chars) {
+      if (c.id !== item.owner && fits(item, c)) {
+        items.push({ label: `Move to ${c.className}`, icon: "open", disabled: !item.transferable || item.equipped, action: () => act(item, c.id, false) });
+      }
+    }
+    if (item.owner !== "vault") items.push({ label: "Move to the vault", icon: "down", disabled: !item.transferable || item.equipped, action: () => act(item, "vault", false) });
+    ctx.openMenu(anchor, items);
+  }
+
+  function tile(item, big) {
+    const match = !search || item.name.toLowerCase().includes(search);
+    const node = el(
+      "button",
+      {
+        class: `item item--${TIERS[item.tier] ?? "basic"}${big ? " item--equipped" : ""}${item.moving ? " is-moving" : ""}${match ? "" : " is-dim"}`,
+        type: "button",
+        draggable: item.transferable && !item.equipped ? "true" : null,
+        title: `${item.name}${item.typeName ? ` · ${item.typeName}` : ""}${item.power ? ` · ${item.power}` : ""}`,
+        "aria-label": item.name,
+        "aria-haspopup": "menu",
+        onclick: (event) => itemMenu(item, event.currentTarget),
+        ondragstart: (event) => {
+          event.dataTransfer.setData("text/plain", item.id);
+          event.dataTransfer.effectAllowed = "move";
+        },
+      },
+      item.icon ? el("img", { src: item.icon, alt: "", loading: "lazy", draggable: "false" }) : null,
+      item.power ? el("span", { class: "item__power", text: String(item.power) }) : null,
+    );
+    return node;
+  }
+
+  // A drop area: a character's (or the vault's) part of one bucket's row.
+  function cell(owner, bucket, children, equipSlot) {
+    const node = el("div", { class: `inv__cell${owner === "vault" ? " inv__cell--vault" : ""}` }, ...children);
+    node.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      node.dataset.over = "true";
+    });
+    node.addEventListener("dragleave", () => delete node.dataset.over);
+    node.addEventListener("drop", (event) => {
+      event.preventDefault();
+      delete node.dataset.over;
+      const item = data.items.find((i) => i.id === event.dataTransfer.getData("text/plain"));
+      if (!item || item.bucket !== bucket) return say("Drop it in the same row it came from.");
+      const onEquip = equipSlot && event.target.closest(".item--equipped");
+      if (onEquip) return act(item, owner, true);
+      if (item.owner !== owner) {
+        const c = data.characters.find((x) => x.id === owner);
+        if (c && !fits(item, c)) return say(`${c.className}s can't use that.`);
+        act(item, owner, false);
+      }
+    });
+    return node;
+  }
+
+  function draw() {
+    const chars = data.characters;
+    const buckets = data.buckets.filter((b) => b.group === inventoryGroup);
+    const columns = `repeat(${chars.length}, minmax(150px, 200px)) minmax(220px, 1fr)`;
+    const header = el(
+      "div",
+      { class: "inv__grid inv__heads" },
+      ...chars.map((c) => {
+        const card = el("div", { class: "inv__char" }, el("span", { class: "inv__class", text: c.className }), el("span", { class: "inv__light", text: String(c.light ?? "") }));
+        if (c.banner) card.style.backgroundImage = `url("${c.banner}")`;
+        return card;
+      }),
+      el("div", { class: "inv__char inv__char--vault" }, el("span", { class: "inv__class", text: "Vault" }), el("span", { class: "inv__light", text: `${data.items.filter((i) => i.owner === "vault").length} items` })),
+    );
+    header.style.gridTemplateColumns = columns;
+    const rows = buckets.map((b) => {
+      const inBucket = data.items.filter((i) => i.bucket === b.hash);
+      const grid = el(
+        "div",
+        { class: "inv__grid" },
+        ...chars.map((c) => {
+          const mine = inBucket.filter((i) => i.owner === c.id);
+          const equipped = mine.find((i) => i.equipped);
+          return cell(c.id, b.hash, [equipped ? tile(equipped, true) : el("span", { class: "item item--empty" }), el("div", { class: "inv__rest" }, ...mine.filter((i) => !i.equipped).map((i) => tile(i, false)))], true);
+        }),
+        cell("vault", b.hash, inBucket.filter((i) => i.owner === "vault").map((i) => tile(i, false)), false),
+      );
+      grid.style.gridTemplateColumns = columns;
+      return el("section", { class: "inv__row" }, band(ctx, b.name), grid);
+    });
+    const searchBox = el("input", {
+      class: "field__input inv__search",
+      type: "search",
+      placeholder: "Find an item",
+      value: search,
+      "aria-label": "Find an item",
+      oninput: (event) => {
+        search = event.target.value.trim().toLowerCase();
+        draw();
+        root.querySelector(".inv__search")?.focus();
+      },
+    });
+    root.replaceChildren(
+      head(ctx, "Inventory", ctx.state.account?.name ?? ""),
+      el(
+        "div",
+        { class: "tab__tools" },
+        el(
+          "div",
+          { class: "segmented", role: "group", "aria-label": "Show" },
+          ...[["weapons", "Weapons"], ["armor", "Armor"], ["general", "Ghosts and vehicles"]].map(([id, label]) =>
+            el("button", { type: "button", "aria-pressed": String(inventoryGroup === id), text: label, onclick: () => ((inventoryGroup = id), draw()) }),
+          ),
+        ),
+        searchBox,
+        el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => load(true) }),
+      ),
+      el("p", { class: "tab__note", text: "Click an item for its moves, or drag it to another character or the vault. Drop it on an equipped item to equip it." }),
+      header,
+      ...rows,
+      toast,
+    );
+    const input = root.querySelector(".inv__search");
+    if (search && input) input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  async function load(fresh, quiet) {
+    if (!quiet) container.replaceChildren(loadingView(ctx, "Reading your gear from Bungie… (the first time also downloads Destiny's item list)"));
+    const result = await read(ctx, "inventory", fresh);
+    if (!result?.ok) {
+      if (quiet) return say(result?.error ?? "Couldn't refresh.");
+      return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
+    }
+    data = result.data;
+    draw();
+    if (!container.contains(root)) container.replaceChildren(root);
+  }
+  load(false);
 }
 
 // ---------- Mounting ----------
@@ -286,19 +678,43 @@ const BUILDERS = {
   "tab-featured": featured,
   "tab-rad": rad,
 };
+const SIGNED_IN = { "tab-inventory": inventory, "tab-quests": quests, "tab-seasonal": seasonal };
 
-function build(id, ctx) {
-  return (BUILDERS[id] ?? ((c) => signIn(c, id)))(ctx);
-}
+// What a sign-in tab depends on: remount when the account changes.
+const accountKey = (ctx) => {
+  const a = ctx.state.account ?? {};
+  return `${a.signedIn}|${a.busy}|${a.error ?? ""}|${a.name ?? ""}`;
+};
+
+// seals.report's rotator corrections (fetched once a run), applied over the built-in defaults.
+let savedRotators = {};
+let rotatorsAsked = false;
 
 window.midaTabs = {
   mount(id, container, ctx) {
-    container.replaceChildren(build(id, ctx));
     container.dataset.tab = id;
     container.midaCtx = ctx;
+    container.dataset.account = accountKey(ctx);
+    if (SIGNED_IN[id]) {
+      if (ctx.state.account?.signedIn) SIGNED_IN[id](ctx, container);
+      else container.replaceChildren(signIn(ctx, id));
+      return;
+    }
+    container.replaceChildren((BUILDERS[id] ?? ((c) => signIn(c, id)))(ctx));
+    if (id === "tab-featured" && !rotatorsAsked) {
+      rotatorsAsked = true;
+      ctx.hub.d2Rotators().then((saved) => {
+        savedRotators = saved && typeof saved === "object" ? saved : {};
+        if (Object.keys(savedRotators).length && container.dataset.tab === id) this.mount(id, container, ctx);
+      });
+    }
   },
-  // Nothing in these tabs depends on the app's changing state yet.
-  update() {},
+  update(id, container, ctx) {
+    if (SIGNED_IN[id] && container.dataset.account !== accountKey(ctx)) {
+      cache.inventory = cache.activity = null;
+      this.mount(id, container, ctx);
+    }
+  },
 };
 
 // Countdowns tick every second; when one runs out (a reset, the next Distortion), its tab is

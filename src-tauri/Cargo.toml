@@ -21,19 +21,22 @@ tauri-plugin-updater = "2.13"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "sync"] }
 # Already part of the app through the updater; also used to fetch each site's icon once.
 reqwest = { version = "0.13", default-features = false }
 base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
-# For src/win.rs (shortcuts inside pages, load errors, page pictures); the same versions Tauri
+# For src/win.rs (shortcuts inside pages, load errors, page pictures) and src/auth.rs (random
+# numbers, and Windows' own encryption for the saved Bungie sign-in); the same versions Tauri
 # itself already uses.
 webview2-com = "0.39"
 windows = { version = "0.62", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
     "Win32_System_Com",
+    "Win32_Security_Cryptography",
+    "Win32_Foundation",
 ] }
 
 [profile.release]
