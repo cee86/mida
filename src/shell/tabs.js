@@ -9,6 +9,7 @@
 import { featuredRotation, dreamingCityWeek, distortionSchedule, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 import { ROTATORS, withSaved, rotatorNow } from "./d2/rotators.js";
 import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
+import { inventory as inventoryScreen } from "./inventory.js";
 
 const CLOCK = ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"];
 const PIN = ["M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z", "M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"];
@@ -479,197 +480,10 @@ function seasonal(ctx, container) {
   load(false);
 }
 
-// ---------- Inventory ----------
+// ---------- Inventory (inventory.js) ----------
 
-const TIERS = { 6: "exotic", 5: "legendary", 4: "rare", 3: "common", 2: "basic" };
-let inventoryGroup = "weapons";
-
-function inventory(ctx, container) {
-  const { el } = ctx;
-  let data = null;
-  let search = "";
-  let resync = null;
-  const root = el("div", { class: "tab tab--inventory" });
-  const toast = el("div", { class: "toast", role: "status", hidden: true });
-  const say = (text) => {
-    toast.textContent = text;
-    toast.hidden = false;
-    clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => (toast.hidden = true), 5000);
-  };
-  const charName = (id) => (id === "vault" ? "the vault" : data.characters.find((c) => c.id === id)?.className ?? "character");
-  const fits = (item, character) => item.classType === 3 || item.classType === character.classType;
-
-  // Moves first on screen, then with Bungie; undone if Bungie says no.
-  async function act(item, to, equip) {
-    const before = { owner: item.owner, equipped: item.equipped };
-    const displaced = equip ? data.items.find((i) => i.owner === to && i.equipped && i.bucket === item.bucket && i !== item) : null;
-    item.moving = true;
-    item.owner = to;
-    if (equip) {
-      item.equipped = true;
-      if (displaced) displaced.equipped = false;
-    } else item.equipped = false;
-    draw();
-    const ref = { hash: item.hash, instance: item.instance, owner: before.owner, quantity: item.quantity };
-    const result = equip ? await ctx.hub.d2Equip(ref, to) : await ctx.hub.d2Transfer(ref, to);
-    item.moving = false;
-    if (!result?.ok) {
-      item.owner = before.owner;
-      item.equipped = before.equipped;
-      if (displaced) displaced.equipped = true;
-      say(result?.error ?? "That didn't work.");
-    } else {
-      cache.inventory = null;
-      clearTimeout(resync);
-      resync = setTimeout(() => load(true, true), 6000);
-    }
-    draw();
-  }
-
-  function itemMenu(item, anchor) {
-    const chars = data.characters;
-    const items = [{ heading: `${item.name}${item.power ? ` · ${item.power}` : ""}` }];
-    if (item.equipped) items.push({ label: "Equipped: equip something else first to move it", disabled: true, action: () => {} });
-    for (const c of chars) {
-      if (item.instance && fits(item, c) && !(item.owner === c.id && item.equipped)) {
-        items.push({ label: `Equip on ${c.className}`, icon: "star", disabled: (!item.transferable && item.owner !== c.id) || (item.equipped && item.owner !== c.id), action: () => act(item, c.id, true) });
-      }
-    }
-    for (const c of chars) {
-      if (c.id !== item.owner && fits(item, c)) {
-        items.push({ label: `Move to ${c.className}`, icon: "open", disabled: !item.transferable || item.equipped, action: () => act(item, c.id, false) });
-      }
-    }
-    if (item.owner !== "vault") items.push({ label: "Move to the vault", icon: "down", disabled: !item.transferable || item.equipped, action: () => act(item, "vault", false) });
-    ctx.openMenu(anchor, items);
-  }
-
-  function tile(item, big) {
-    const match = !search || item.name.toLowerCase().includes(search);
-    const node = el(
-      "button",
-      {
-        class: `item item--${TIERS[item.tier] ?? "basic"}${big ? " item--equipped" : ""}${item.moving ? " is-moving" : ""}${match ? "" : " is-dim"}`,
-        type: "button",
-        draggable: item.transferable && !item.equipped ? "true" : null,
-        title: `${item.name}${item.typeName ? ` · ${item.typeName}` : ""}${item.power ? ` · ${item.power}` : ""}`,
-        "aria-label": item.name,
-        "aria-haspopup": "menu",
-        onclick: (event) => itemMenu(item, event.currentTarget),
-        ondragstart: (event) => {
-          event.dataTransfer.setData("text/plain", item.id);
-          event.dataTransfer.effectAllowed = "move";
-        },
-      },
-      item.icon ? el("img", { src: item.icon, alt: "", loading: "lazy", draggable: "false" }) : null,
-      item.power ? el("span", { class: "item__power", text: String(item.power) }) : null,
-    );
-    return node;
-  }
-
-  // A drop area: a character's (or the vault's) part of one bucket's row.
-  function cell(owner, bucket, children, equipSlot) {
-    const node = el("div", { class: `inv__cell${owner === "vault" ? " inv__cell--vault" : ""}` }, ...children);
-    node.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      node.dataset.over = "true";
-    });
-    node.addEventListener("dragleave", () => delete node.dataset.over);
-    node.addEventListener("drop", (event) => {
-      event.preventDefault();
-      delete node.dataset.over;
-      const item = data.items.find((i) => i.id === event.dataTransfer.getData("text/plain"));
-      if (!item || item.bucket !== bucket) return say("Drop it in the same row it came from.");
-      const onEquip = equipSlot && event.target.closest(".item--equipped");
-      if (onEquip) return act(item, owner, true);
-      if (item.owner !== owner) {
-        const c = data.characters.find((x) => x.id === owner);
-        if (c && !fits(item, c)) return say(`${c.className}s can't use that.`);
-        act(item, owner, false);
-      }
-    });
-    return node;
-  }
-
-  function draw() {
-    const chars = data.characters;
-    const buckets = data.buckets.filter((b) => b.group === inventoryGroup);
-    const columns = `repeat(${chars.length}, minmax(150px, 200px)) minmax(220px, 1fr)`;
-    const header = el(
-      "div",
-      { class: "inv__grid inv__heads" },
-      ...chars.map((c) => {
-        const card = el("div", { class: "inv__char" }, el("span", { class: "inv__class", text: c.className }), el("span", { class: "inv__light", text: String(c.light ?? "") }));
-        if (c.banner) card.style.backgroundImage = `url("${c.banner}")`;
-        return card;
-      }),
-      el("div", { class: "inv__char inv__char--vault" }, el("span", { class: "inv__class", text: "Vault" }), el("span", { class: "inv__light", text: `${data.items.filter((i) => i.owner === "vault").length} items` })),
-    );
-    header.style.gridTemplateColumns = columns;
-    const rows = buckets.map((b) => {
-      const inBucket = data.items.filter((i) => i.bucket === b.hash);
-      const grid = el(
-        "div",
-        { class: "inv__grid" },
-        ...chars.map((c) => {
-          const mine = inBucket.filter((i) => i.owner === c.id);
-          const equipped = mine.find((i) => i.equipped);
-          return cell(c.id, b.hash, [equipped ? tile(equipped, true) : el("span", { class: "item item--empty" }), el("div", { class: "inv__rest" }, ...mine.filter((i) => !i.equipped).map((i) => tile(i, false)))], true);
-        }),
-        cell("vault", b.hash, inBucket.filter((i) => i.owner === "vault").map((i) => tile(i, false)), false),
-      );
-      grid.style.gridTemplateColumns = columns;
-      return el("section", { class: "inv__row" }, band(ctx, b.name), grid);
-    });
-    const searchBox = el("input", {
-      class: "field__input inv__search",
-      type: "search",
-      placeholder: "Find an item",
-      value: search,
-      "aria-label": "Find an item",
-      oninput: (event) => {
-        search = event.target.value.trim().toLowerCase();
-        draw();
-        root.querySelector(".inv__search")?.focus();
-      },
-    });
-    root.replaceChildren(
-      head(ctx, "Inventory", ctx.state.account?.name ?? ""),
-      el(
-        "div",
-        { class: "tab__tools" },
-        el(
-          "div",
-          { class: "segmented", role: "group", "aria-label": "Show" },
-          ...[["weapons", "Weapons"], ["armor", "Armor"], ["general", "Ghosts and vehicles"]].map(([id, label]) =>
-            el("button", { type: "button", "aria-pressed": String(inventoryGroup === id), text: label, onclick: () => ((inventoryGroup = id), draw()) }),
-          ),
-        ),
-        searchBox,
-        el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => load(true) }),
-      ),
-      el("p", { class: "tab__note", text: "Click an item for its moves, or drag it to another character or the vault. Drop it on an equipped item to equip it." }),
-      header,
-      ...rows,
-      toast,
-    );
-    const input = root.querySelector(".inv__search");
-    if (search && input) input.setSelectionRange(input.value.length, input.value.length);
-  }
-
-  async function load(fresh, quiet) {
-    if (!quiet) container.replaceChildren(loadingView(ctx, "Reading your gear from Bungie… (the first time also downloads Destiny's item list)"));
-    const result = await read(ctx, "inventory", fresh);
-    if (!result?.ok) {
-      if (quiet) return say(result?.error ?? "Couldn't refresh.");
-      return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
-    }
-    data = result.data;
-    draw();
-    if (!container.contains(root)) container.replaceChildren(root);
-  }
-  load(false);
+function inventoryTab(ctx, container) {
+  inventoryScreen(ctx, container, { read, invalidate: () => (cache.inventory = null), loadingView, problemView });
 }
 
 // ---------- Mounting ----------
@@ -678,7 +492,7 @@ const BUILDERS = {
   "tab-featured": featured,
   "tab-rad": rad,
 };
-const SIGNED_IN = { "tab-inventory": inventory, "tab-quests": quests, "tab-seasonal": seasonal };
+const SIGNED_IN = { "tab-inventory": inventoryTab, "tab-quests": quests, "tab-seasonal": seasonal };
 
 // What a sign-in tab depends on: remount when the account changes.
 const accountKey = (ctx) => {

@@ -23,6 +23,8 @@
     d2Activity: () => invoke("d2_activity"),
     d2Transfer: (item, to) => invoke("d2_transfer", { item, to }),
     d2Equip: (item, character) => invoke("d2_equip", { item, character }),
+    d2Character: (character) => invoke("d2_character", { character }),
+    d2Pull: (item) => invoke("d2_pull", { item }),
     d2Rotators: () => invoke("d2_rotators"),
     select: (id) => invoke("select", { id }),
     nav: (action) => invoke("nav", { action }),

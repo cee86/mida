@@ -1056,8 +1056,10 @@ async fn d2_inventory(webview: Webview, app: AppHandle) -> Value {
         async {
             let a = account(&app).await?;
             let m = manifest(&app).await?;
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,200,201,205,300").await?;
-            Ok(bungie::shape_inventory(&profile, &m))
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,103,200,201,205,300").await?;
+            let mut data = bungie::shape_inventory(&profile, &m);
+            bungie::decorate_inventory(&mut data).await;
+            Ok(data)
         }
         .await,
     )
@@ -1092,6 +1094,39 @@ async fn d2_transfer(webview: Webview, app: AppHandle, item: ItemRef, to: String
         async {
             let a = account(&app).await?;
             bungie::transfer(a.membership_type, &a.access, &mv, &to).await?;
+            Ok(Value::Null)
+        }
+        .await,
+    )
+}
+
+/// The Inventory side panel: a character's stats and armor set bonuses.
+#[tauri::command]
+async fn d2_character(webview: Webview, app: AppHandle, character: String) -> Value {
+    if !from_shell(&webview) || !is_id(&character) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,205").await?;
+            Ok(bungie::character_details(&profile, &character).await)
+        }
+        .await,
+    )
+}
+
+/// Take an item out of a character's postmaster (it goes to that character).
+#[tauri::command]
+async fn d2_pull(webview: Webview, app: AppHandle, item: ItemRef) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    let Some(mv) = checked_move(item).filter(|m| m.owner != "vault") else { return fail("That can't be pulled.") };
+    answer(
+        async {
+            let a = account(&app).await?;
+            bungie::pull_from_postmaster(a.membership_type, &a.access, &mv).await?;
             Ok(Value::Null)
         }
         .await,
@@ -1632,6 +1667,8 @@ pub fn run() {
             d2_activity,
             d2_transfer,
             d2_equip,
+            d2_character,
+            d2_pull,
             d2_rotators,
             split,
             close_pane,

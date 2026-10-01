@@ -173,5 +173,8 @@ html[data-theme="retro"] .tab__title { text-transform: uppercase; letter-spacing
 
 /* Bungie tabs. */
 html[data-theme="retro"] .meter__fill { background: #f2f4f6; }
-html[data-theme="retro"] .item--equipped { box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 3px #fff; }
-html[data-theme="retro"] .inv__class { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.82rem; }
+
+/* Inventory. */
+html[data-theme="retro"] .inv-label { border-bottom-color: rgba(255, 255, 255, 0.45); color: #dfe4ea; }
+html[data-theme="retro"] .inv-vault__title,
+html[data-theme="retro"] .inv-top__title { letter-spacing: 0.18em; font-weight: 600; }

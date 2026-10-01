@@ -59,8 +59,8 @@ status or use other sites' artwork as our own.
 * **Releasing an update (do this for every change the owner should get):** raise `version` in `package.json` and `package-lock.json` (Tauri
   reads it: `"version": "../package.json"`; semver: fixes 0.1.1, features 0.2.0) and push to `main`. Leave
   `src-tauri/Cargo.toml`'s version at 0.0.0: changing it invalidates the Rust build cache (v0.4.2). CI speed (v0.4.2):
-  separate release/test caches, test builds without LTO (CARGO_PROFILE_RELEASE_LTO=false, 16 codegen units), no
-  screenshot run on releases (the test build of the same code had one), no build for .md/art-only pushes. A build-time
+  separate release/test caches, test builds without LTO (CARGO_PROFILE_RELEASE_LTO=false, 16 codegen units), the screenshot run
+  only when started by hand (Actions > Build > Run workflow, "screenshots" ticked; the owner chose speed, v0.5), no build for .md/art-only pushes. A build-time
   check reports whether MIDA_BUNGIE_API_KEY is 32 hex characters and Bungie accepts it (never printing it); the
   secret belongs in the mida repo (it was once added to seals.report by mistake, giving builds an empty key). The workflow sees
   no `v<version>` release, builds signed (`createUpdaterArtifacts`), writes `latest.json` (version, signature, installer
@@ -174,9 +174,23 @@ character and the vault bucket 138197802), `shape_activity` + `season` + `alerts
 Quests bucket split into quests and bounties, season rank from the season pass's reward/prestige progressions, the
 artifact, Bungie's global alerts as plain text). `transfer` goes character -> vault -> character; `equip` brings the item
 over first. All unverified against live data (no Bungie access from the build workspace): field names follow Bungie's
-docs. The shell tabs (tabs.js): Inventory (DIM-like rows per bucket: each character's equipped + other items, then the
-vault; click for moves, drag between cells, drop on the equipped item to equip; moves show at once and undo on error,
-then a quiet re-read 6 s later), Quests and Seasonal hub (character picker, last played first; objective bars; bounty
+docs. **Inventory** (v0.5, `src/shell/inventory.js` + `inventory.css`, from the owner's mock-up and in-game references):
+a title band on the current character's wide emblem (`secondarySpecial`) with search; a toolbar (Weapons / Armor /
+General / Inventory tabs, Filters menu (tier, element, masterworked, locked, usable by this character), S/M/L item
+size, Postmaster menu (pull an item: `PullFromPostmaster`), Refresh, All characters / Current only, side panel toggle);
+DIM-style character emblems (emblemBackgroundPath art, class, equipped title via the title record or race, power, a
+menu) and a Vault "emblem" with count / max (the vault bucket definition's itemCount); currencies (component 103)
+under the characters; one row per bucket: each character's equipped item + a 3x3 of slots (empty ones drawn as corner
+brackets like the game; engrams 10, no equipped), the account's consumables/mods in one wide cell (owner "account";
+moved via the first character, which Bungie accepts for account buckets), then the vault. Tiles: tier colour, icon
+(the ornament's when applied, `overrideStyleItemHash`), season watermark, a bottom bar with element, lock and power
+(or stack count), gold edge when masterworked. Side panel (current character = click an emblem; `d2_character`):
+loadout (weapons + ghost | armor), stats (component 200 `stats`, named via DestinyStatDefinition, bars out of 200),
+armor set bonuses (equipped armor's `equippingBlock.equipableItemSetHash` -> DestinyEquipableItemSetDefinition
+`setPerks` -> DestinySandboxPerkDefinition; field names from Bungie's docs, unverified). Single definitions come from
+`bungie::entity` (memory-cached per run). View choices are kept in localStorage (`mida-inv-*`). Moves show at once
+and undo on error, then a quiet re-read 6 s later. The slimmed manifest file is now `<version>-2.json` (gained
+`watermark`). Quests and Seasonal hub (tabs.js: character picker, last played first; objective bars; bounty
 expiry countdowns). CSP allows images from https://www.bungie.net (item icons, emblems).
 
 **Profiles:** first run is a two-step wizard: name, optional picture (cropped to 128px WebP in the page), game (Destiny 2

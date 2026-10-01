@@ -31,8 +31,14 @@ pub const BUCKETS: &[(u32, &str, &str)] = &[
     (4023194814, "Ghost", "general"),
     (2025709351, "Sparrow", "general"),
     (284967655, "Ship", "general"),
+    (375726501, "Engrams", "inventory"),
+    (1469714392, "Consumables", "inventory"),
+    (3313201758, "Modifications", "inventory"),
 ];
 const VAULT_BUCKET: u32 = 138197802;
+const POSTMASTER_BUCKET: u32 = 215593132;
+/// Buckets that belong to the whole account rather than a character.
+const ACCOUNT_BUCKETS: &[u32] = &[1469714392, 3313201758];
 const QUESTS_BUCKET: u32 = 1345459588;
 
 // ---------- Talking to Bungie ----------
@@ -103,6 +109,8 @@ async fn download(path: &str) -> Result<Vec<u8>, String> {
 pub struct Item {
     pub name: String,
     pub icon: String,
+    #[serde(default)]
+    pub watermark: String, // the season's mark drawn over the icon
     pub description: String,
     pub kind: i64,       // itemType: 2 armor, 3 weapon, 12/13 quest step, 15 quest, 26 bounty...
     pub type_name: String,
@@ -143,6 +151,7 @@ struct RawInventory {
 #[serde(default, rename_all = "camelCase")]
 struct RawItem {
     display_properties: RawDisplay,
+    icon_watermark: String,
     item_type: i64,
     item_type_display_name: String,
     inventory: RawInventory,
@@ -168,6 +177,7 @@ fn slim_items(bytes: &[u8]) -> Result<HashMap<u32, Item>, String> {
                 Item {
                     name: r.display_properties.name,
                     icon: r.display_properties.icon,
+                    watermark: r.icon_watermark,
                     description: r.display_properties.description,
                     kind: r.item_type,
                     type_name: r.item_type_display_name,
@@ -195,7 +205,8 @@ pub async fn load_manifest(dir: &Path) -> Result<Manifest, String> {
     let version = info["version"].as_str().unwrap_or("").to_string();
     let safe: String = version.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-').collect();
     let folder = dir.join("manifest");
-    let file = folder.join(format!("{safe}.json"));
+    // "-2": the slimmed format gained fields (v0.5), so files saved by older Midas are read again.
+    let file = folder.join(format!("{safe}-2.json"));
     if !safe.is_empty() {
         if let Ok(bytes) = std::fs::read(&file) {
             if let Ok(m) = serde_json::from_slice::<Manifest>(&bytes) {
@@ -250,6 +261,11 @@ fn characters(profile: &Value) -> Vec<Value> {
                         "emblem": icon_url(c["emblemPath"].as_str().unwrap_or("")),
                         "banner": icon_url(c["emblemBackgroundPath"].as_str().unwrap_or("")),
                         "lastPlayed": c["dateLastPlayed"],
+                        "raceType": c["raceType"],
+                        "genderType": c["genderType"],
+                        "titleRecordHash": c["titleRecordHash"],
+                        "emblemHash": c["emblemHash"],
+                        "stats": c["stats"],
                     })
                 })
                 .collect()
@@ -263,27 +279,37 @@ fn items_of(section: &Value) -> impl Iterator<Item = &Value> {
     section["items"].as_array().into_iter().flatten()
 }
 
-/// Everything the Inventory tab shows: weapons, armor, ghosts, sparrows and ships on each
-/// character (equipped or not) and in the vault.
+/// Everything the Inventory tab shows: weapons, armor, ghosts, vehicles, engrams, consumables
+/// and mods on each character (equipped or not), the account and the vault; the postmaster;
+/// currencies; how full the vault is.
 pub fn shape_inventory(profile: &Value, m: &Manifest) -> Value {
     let instances = &profile["itemComponents"]["instances"]["data"];
     let mut out: Vec<Value> = Vec::new();
-    let mut add = |item: &Value, owner: &str, equipped: bool, vault: bool| {
+    let mut postmaster: Vec<Value> = Vec::new();
+    let mut vault_count = 0;
+    let add = |item: &Value, owner: &str, equipped: bool, vault: bool, list: &mut Vec<Value>| {
         let Some(hash) = item["itemHash"].as_u64().map(|h| h as u32) else { return };
         let Some(def) = m.items.get(&hash) else { return };
-        let bucket = if vault { def.bucket } else { item["bucketHash"].as_u64().unwrap_or(0) as u32 };
-        if !BUCKETS.iter().any(|(b, _, _)| *b == bucket) {
+        let mut bucket = if vault { def.bucket } else { item["bucketHash"].as_u64().unwrap_or(0) as u32 };
+        let in_postmaster = bucket == POSTMASTER_BUCKET;
+        if in_postmaster {
+            bucket = def.bucket;
+        } else if !BUCKETS.iter().any(|(b, _, _)| *b == bucket) {
             return;
         }
         let instance = item["itemInstanceId"].as_str().unwrap_or("").to_string();
         let info = &instances[&instance];
-        let index = out.len();
-        out.push(json!({
-            "id": if instance.is_empty() { format!("{hash}-{index}") } else { instance.clone() },
+        let state = item["state"].as_i64().unwrap_or(0);
+        // An applied ornament replaces the icon (as in the game and DIM).
+        let style = item["overrideStyleItemHash"].as_u64().and_then(|h| m.items.get(&(h as u32)));
+        let id = if instance.is_empty() { format!("{hash}-{owner}-{}", list.len()) } else { instance.clone() };
+        list.push(json!({
+            "id": id,
             "instance": if instance.is_empty() { Value::Null } else { json!(instance) },
             "hash": hash,
             "name": def.name,
-            "icon": icon_url(&def.icon),
+            "icon": icon_url(style.map(|s| s.icon.as_str()).filter(|i| !i.is_empty()).unwrap_or(&def.icon)),
+            "watermark": icon_url(if def.watermark.is_empty() { style.map(|s| s.watermark.as_str()).unwrap_or("") } else { &def.watermark }),
             "typeName": def.type_name,
             "tier": def.tier,
             "classType": def.class,
@@ -291,33 +317,176 @@ pub fn shape_inventory(profile: &Value, m: &Manifest) -> Value {
             "owner": owner,
             "equipped": equipped,
             "power": info["primaryStat"]["value"],
+            "damage": info["damageType"],
             "quantity": item["quantity"].as_i64().unwrap_or(1),
             // transferStatus 2: can't be moved at all.
             "transferable": item["transferStatus"].as_i64().unwrap_or(0) & 2 == 0,
-            "locked": item["state"].as_i64().unwrap_or(0) & 1 == 1,
+            "locked": state & 1 == 1,
+            "masterwork": state & 4 == 4,
+            "crafted": state & 8 == 8,
         }));
     };
     if let Some(chars) = profile["characterEquipment"]["data"].as_object() {
         for (id, section) in chars {
             for item in items_of(section) {
-                add(item, id, true, false);
+                add(item, id, true, false, &mut out);
             }
         }
     }
     if let Some(chars) = profile["characterInventories"]["data"].as_object() {
         for (id, section) in chars {
             for item in items_of(section) {
-                add(item, id, false, false);
+                if item["bucketHash"].as_u64() == Some(POSTMASTER_BUCKET as u64) {
+                    add(item, id, false, false, &mut postmaster);
+                } else {
+                    add(item, id, false, false, &mut out);
+                }
             }
         }
     }
     for item in items_of(&profile["profileInventory"]["data"]) {
-        if item["bucketHash"].as_u64() == Some(VAULT_BUCKET as u64) {
-            add(item, "vault", false, true);
+        let bucket = item["bucketHash"].as_u64().unwrap_or(0) as u32;
+        if bucket == VAULT_BUCKET {
+            vault_count += 1;
+            add(item, "vault", false, true, &mut out);
+        } else if ACCOUNT_BUCKETS.contains(&bucket) {
+            add(item, "account", false, false, &mut out);
         }
     }
-    let buckets: Vec<Value> = BUCKETS.iter().map(|(hash, name, group)| json!({ "hash": hash, "name": name, "group": group })).collect();
-    json!({ "characters": characters(profile), "items": out, "buckets": buckets })
+    let currencies: Vec<Value> = items_of(&profile["profileCurrencies"]["data"])
+        .filter_map(|c| {
+            let hash = c["itemHash"].as_u64()? as u32;
+            let def = m.items.get(&hash)?;
+            Some(json!({ "hash": hash, "name": def.name, "icon": icon_url(&def.icon), "quantity": c["quantity"] }))
+        })
+        .collect();
+    let buckets: Vec<Value> = BUCKETS
+        .iter()
+        .map(|(hash, name, group)| json!({ "hash": hash, "name": name, "group": group, "account": ACCOUNT_BUCKETS.contains(hash) }))
+        .collect();
+    json!({
+        "characters": characters(profile),
+        "items": out,
+        "postmaster": postmaster,
+        "buckets": buckets,
+        "currencies": currencies,
+        "vault": { "count": vault_count, "max": Value::Null },
+    })
+}
+
+// ---------- Single definitions (titles, emblems, stats, sets), remembered per run ----------
+
+fn entity_cache() -> &'static std::sync::Mutex<HashMap<String, Value>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, Value>>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+/// One definition from Bungie's manifest (small tables aren't worth downloading whole).
+pub async fn entity(table: &str, hash: u64) -> Option<Value> {
+    let key = format!("{table}/{hash}");
+    if let Some(v) = entity_cache().lock().unwrap().get(&key) {
+        return Some(v.clone());
+    }
+    let v = get(&format!("/Destiny2/Manifest/{table}/{hash}/"), None).await.ok()?;
+    entity_cache().lock().unwrap().insert(key, v.clone());
+    Some(v)
+}
+
+fn race_name(race: i64) -> &'static str {
+    match race {
+        0 => "Human",
+        1 => "Awoken",
+        2 => "Exo",
+        _ => "",
+    }
+}
+
+/// Adds each character's equipped title (or race) and wide emblem art, and the vault's size.
+pub async fn decorate_inventory(data: &mut Value) {
+    if let Some(chars) = data["characters"].as_array_mut() {
+        for c in chars.iter_mut() {
+            let mut subtitle = race_name(c["raceType"].as_i64().unwrap_or(-1)).to_string();
+            if let Some(hash) = c["titleRecordHash"].as_u64() {
+                if let Some(record) = entity("DestinyRecordDefinition", hash).await {
+                    let gender = if c["genderType"].as_i64() == Some(1) { "Female" } else { "Male" };
+                    if let Some(title) = record["titleInfo"]["titlesByGender"][gender].as_str().filter(|t| !t.is_empty()) {
+                        subtitle = title.to_string();
+                    }
+                }
+            }
+            c["subtitle"] = json!(subtitle);
+            if let Some(hash) = c["emblemHash"].as_u64() {
+                if let Some(emblem) = entity("DestinyInventoryItemDefinition", hash).await {
+                    c["wide"] = icon_url(emblem["secondarySpecial"].as_str().unwrap_or(""));
+                    c["color"] = emblem["backgroundColor"].clone();
+                }
+            }
+        }
+    }
+    if let Some(bucket) = entity("DestinyInventoryBucketDefinition", VAULT_BUCKET as u64).await {
+        data["vault"]["max"] = bucket["itemCount"].clone();
+    }
+}
+
+/// A character's stats (named) and the armor set bonuses its equipped armor gives, for the
+/// Inventory tab's side panel.
+pub async fn character_details(profile: &Value, character: &str) -> Value {
+    let c = &profile["characters"]["data"][character];
+    let mut stats = Vec::new();
+    if let Some(map) = c["stats"].as_object() {
+        for (hash, value) in map {
+            let Ok(hash) = hash.parse::<u64>() else { continue };
+            if hash == 1935470627 {
+                continue; // power, shown on its own
+            }
+            let Some(def) = entity("DestinyStatDefinition", hash).await else { continue };
+            let name = def["displayProperties"]["name"].as_str().unwrap_or("");
+            if name.is_empty() {
+                continue;
+            }
+            stats.push(json!({
+                "name": name,
+                "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
+                "value": value,
+                "order": def["index"],
+            }));
+        }
+    }
+    stats.sort_by_key(|s| s["order"].as_i64().unwrap_or(0));
+    // Armor sets: count the equipped pieces of each set, then list its bonuses.
+    let mut sets: Vec<(u64, i64)> = Vec::new();
+    for item in items_of(&profile["characterEquipment"]["data"][character]) {
+        let bucket = item["bucketHash"].as_u64().unwrap_or(0) as u32;
+        if !BUCKETS.iter().any(|(b, _, g)| *b == bucket && *g == "armor") {
+            continue;
+        }
+        let Some(hash) = item["itemHash"].as_u64() else { continue };
+        let Some(def) = entity("DestinyInventoryItemDefinition", hash).await else { continue };
+        if let Some(set) = def["equippingBlock"]["equipableItemSetHash"].as_u64().filter(|h| *h != 0) {
+            match sets.iter_mut().find(|(h, _)| *h == set) {
+                Some(entry) => entry.1 += 1,
+                None => sets.push((set, 1)),
+            }
+        }
+    }
+    let mut bonuses = Vec::new();
+    for (hash, count) in sets {
+        let Some(set) = entity("DestinyEquipableItemSetDefinition", hash).await else { continue };
+        let mut perks = Vec::new();
+        for perk in set["setPerks"].as_array().into_iter().flatten() {
+            let need = perk["requiredSetCount"].as_i64().unwrap_or(0);
+            let Some(p) = perk["sandboxPerkHash"].as_u64() else { continue };
+            let def = entity("DestinySandboxPerkDefinition", p).await.unwrap_or(Value::Null);
+            perks.push(json!({
+                "need": need,
+                "active": count >= need,
+                "name": def["displayProperties"]["name"],
+                "description": def["displayProperties"]["description"],
+            }));
+        }
+        bonuses.push(json!({ "name": set["displayProperties"]["name"], "count": count, "perks": perks }));
+    }
+    json!({ "stats": stats, "sets": bonuses, "light": c["light"] })
 }
 
 fn objectives(list: &Value, m: &Manifest) -> Vec<Value> {
@@ -502,6 +671,22 @@ pub async fn transfer(kind: i64, token: &str, mv: &Move, to: &str) -> Result<(),
     Ok(())
 }
 
+pub async fn pull_from_postmaster(kind: i64, token: &str, mv: &Move) -> Result<(), String> {
+    post(
+        "/Destiny2/Actions/Items/PullFromPostmaster/",
+        token,
+        json!({
+            "itemReferenceHash": mv.hash,
+            "stackSize": mv.quantity,
+            "itemId": mv.instance.clone().unwrap_or_else(|| "0".into()),
+            "characterId": mv.owner,
+            "membershipType": kind,
+        }),
+    )
+    .await
+    .map(|_| ())
+}
+
 pub async fn equip(kind: i64, token: &str, instance: &str, character: &str) -> Result<(), String> {
     post("/Destiny2/Actions/Items/EquipItem/", token, json!({ "itemId": instance, "characterId": character, "membershipType": kind }))
         .await
@@ -532,7 +717,11 @@ mod tests {
                 "200": { "characterId": "200", "classType": 1, "light": 2000, "dateLastPlayed": "2026-09-30T00:00:00Z" }
             } },
             "characterEquipment": { "data": { "100": { "items": [ { "itemHash": 1, "itemInstanceId": "11", "bucketHash": 1498876634 } ] } } },
-            "characterInventories": { "data": { "100": { "items": [ { "itemHash": 3, "itemInstanceId": "33", "bucketHash": 2973005342u64 } ] } } },
+            "characterInventories": { "data": { "100": { "items": [
+                { "itemHash": 3, "itemInstanceId": "33", "bucketHash": 2973005342u64 },
+                { "itemHash": 1, "itemInstanceId": "12", "bucketHash": 215593132 }
+            ] } } },
+            "profileCurrencies": { "data": { "items": [ { "itemHash": 1, "quantity": 250000 } ] } },
             "profileInventory": { "data": { "items": [
                 { "itemHash": 2, "itemInstanceId": "22", "bucketHash": 138197802, "transferStatus": 0 },
                 { "itemHash": 2, "itemInstanceId": "23", "bucketHash": 3313201758u64 }
@@ -542,9 +731,13 @@ mod tests {
         let out = shape_inventory(&profile, &manifest());
         assert_eq!(out["characters"][0]["id"], "200", "last played first");
         let items = out["items"].as_array().unwrap();
-        assert_eq!(items.len(), 2, "the shader and the non-vault profile item are left out");
+        assert_eq!(items.len(), 3, "the shader is left out; the account's mods are in");
+        assert_eq!((items[2]["owner"].as_str(), items[2]["bucket"].as_u64()), (Some("account"), Some(3313201758)));
+        assert_eq!(out["vault"]["count"], 1);
         assert_eq!((items[0]["owner"].as_str(), items[0]["equipped"].as_bool(), items[0]["power"].as_i64()), (Some("100"), Some(true), Some(2010)));
         assert_eq!((items[1]["owner"].as_str(), items[1]["bucket"].as_u64()), (Some("vault"), Some(3448274439)));
+        assert_eq!((out["postmaster"][0]["bucket"].as_u64(), out["postmaster"][0]["owner"].as_str()), (Some(1498876634), Some("100")));
+        assert_eq!(out["currencies"][0]["quantity"], 250000);
     }
 
     #[test]

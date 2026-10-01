@@ -15,6 +15,11 @@ on:
     # Text-only changes (README, notes, artwork sources) don't need a build.
     paths-ignore: ["**.md", "art/**", "LICENSE"]
   workflow_dispatch:
+    inputs:
+      screenshots:
+        description: "Also run the Windows screenshot test (about 3.5 minutes)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write # needed to create releases; the token is GitHub's own, per run
@@ -101,10 +106,10 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
 
-      # Releases are the same code as the test build just checked plus a version number, so they
-      # skip the screenshot run.
+      # Only when asked for (Actions tab > Build > Run workflow): the owner chose speed over
+      # screenshots on every push (v0.5).
       - name: Try it on Windows with real sites
-        if: steps.version.outputs.release != 'true'
+        if: github.event_name == 'workflow_dispatch' && inputs.screenshots && steps.version.outputs.release != 'true'
         shell: pwsh
         run: ./scripts/smoke-test.ps1
 
