@@ -18,17 +18,20 @@ export const MAX_TEXT = 80;
 export const ROTATORS = [
   {
     id: "grandmaster",
-    title: "Grandmaster Nightfall",
+    title: "Grandmaster Vanguard Alert",
     kicker: "Grandmaster",
     period: "weekly",
-    place: "Vanguard Ops",
+    place: "Vanguard",
     keywords: ["grandmaster"],
     art: "current",
-    // Only one week was confirmed (22 Sep 2026); the season's full list goes in through the admin page. Until then
-    // (`knownOnce`) other weeks say it isn't set rather than repeating the one known strike.
+    // Known weeks only (the owner's screenshots: The Sunless Cell 22 Sep, Exodus Crash 29 Sep 2026). Other weeks say
+    // it isn't set (`knownOnce`) until Bungie's list names it or the season's list goes in through the admin page.
     knownOnce: true,
-    entries: [{ name: "The Sunless Cell", detail: "Adored (Sniper Rifle)" }],
-    anchor: { index: 0, at: Date.UTC(2026, 8, 22, 17) },
+    entries: [
+      { name: "The Sunless Cell", detail: "Adored (Sniper Rifle)" },
+      { name: "Exodus Crash", detail: "The Slammer" },
+    ],
+    anchor: { index: 1, at: Date.UTC(2026, 8, 29, 17) },
   },
   {
     id: "exotic-mission",
@@ -59,14 +62,11 @@ export const ROTATORS = [
     place: "Monument of Triumph",
     keywords: ["pantheon"],
     art: "Pantheon",
-    // Two featured bosses a week, one reprised and one encore. Argos + Warpriest was confirmed for 1 Sep 2026;
-    // the order after that is a guess until set on the admin page.
-    entries: [
-      { name: "Argos and Warpriest", detail: "Alone as a God, Zaouli's Bane" },
-      { name: "Gahlran and the Consecrated Mind", detail: "Bane of Sorrow, Reckless Oracle" },
-      { name: "Calus and Morgeth", detail: "Alone as a God, Chattering Bone" },
-    ],
-    anchor: { index: 0, at: Date.UTC(2026, 8, 1, 17) },
+    // Each week features one reprise and one encore boss. Bungie's list names them ("Featured Reprise: Gahlran",
+    // "Featured Encore: Warpriest"), which is read automatically; this is only the fallback (owner, 29 Sep 2026).
+    knownOnce: true,
+    entries: [{ name: "Reprise: Gahlran · Encore: Warpriest" }],
+    anchor: { index: 0, at: Date.UTC(2026, 8, 29, 17) },
   },
   {
     id: "ascendant",
@@ -140,6 +140,97 @@ export const ROTATORS = [
     ],
     anchor: { index: 2, at: Date.UTC(2026, 8, 28, 17) },
   },
+  // v0.48, from the owner's list of weekly activities seal triumphs depend on. These loops are from memory and guide
+  // sites and where each one is this week isn't known (`unset`), so they read "Not set this week" until Bungie's
+  // list names the current one or the admin picks it; after that they count forward by themselves.
+  {
+    id: "wandering-nightmares",
+    title: "Wandering Nightmares",
+    kicker: "Wandering Nightmare",
+    period: "weekly",
+    place: "The Moon",
+    keywords: ["wandering nightmare"],
+    art: null,
+    unset: true,
+    entries: [
+      { name: "Nightmare of Horkis, Fear of Mithrax" },
+      { name: "Nightmare of Jaxx, Claw of Xivu Arath" },
+      { name: "Nightmare of Xortal, Sworn of Crota" },
+      { name: "Nightmare of Hashladûn, Daughter of Crota" },
+    ],
+    anchor: { index: 0, at: RESET },
+  },
+  {
+    id: "empire-hunt",
+    title: "Empire Hunt",
+    kicker: "Empire Hunt",
+    period: "weekly",
+    place: "Europa",
+    keywords: ["empire hunt", "master hunt"],
+    art: null,
+    unset: true,
+    entries: [{ name: "Phylaks, the Warrior" }, { name: "Praksis, the Technocrat" }, { name: "Kridis, the Dark Priestess" }],
+    anchor: { index: 0, at: RESET },
+  },
+  {
+    id: "exo-challenge",
+    title: "Exo Challenge",
+    kicker: "Exo Challenge",
+    period: "weekly",
+    place: "Europa",
+    keywords: ["exo challenge", "exo simulation"],
+    art: null,
+    unset: true,
+    entries: [{ name: "Simulation: Agility" }, { name: "Simulation: Endurance" }, { name: "Simulation: Safeguard" }],
+    anchor: { index: 0, at: RESET },
+  },
+  {
+    id: "eclipsed-zone",
+    title: "Eclipsed Zone",
+    kicker: "Eclipsed Zone",
+    period: "weekly",
+    place: "Europa",
+    keywords: ["eclipsed zone"],
+    art: null,
+    unset: true,
+    detailIsPlace: false,
+    entries: [{ name: "Cadmus Ridge" }, { name: "Asterion Abyss" }, { name: "Eventide Ruins" }],
+    anchor: { index: 0, at: RESET },
+  },
+  {
+    id: "partition",
+    title: "Partition",
+    kicker: "Partition",
+    period: "weekly",
+    place: "Neomuna",
+    keywords: ["partition"],
+    art: null,
+    unset: true,
+    entries: [{ name: "Partition: Backdoor" }, { name: "Partition: Ordnance" }, { name: "Partition: Hard Reset" }],
+    anchor: { index: 0, at: RESET },
+  },
+  // Weekly lockouts with nothing to pick (`reminder`): they reset every week, and the seal triumphs tied to them are
+  // listed, so they go in Featured's weekly checklist rather than the rotations.
+  ...[
+    { id: "vex-incursion", title: "Vex Incursion Zone", place: "Neomuna", detail: "The zone moves every week", keywords: ["vex incursion", "incursion zone"] },
+    { id: "action-figures", title: "Neomuna action figures", place: "Neomuna", detail: "A new set of puzzles every week", keywords: ["action figure"] },
+    { id: "vespers-puzzles", title: "Vesper's Host puzzles", place: "Vesper's Host", detail: "Code declassification and puzzles, weekly", keywords: ["declassif"] },
+    { id: "campaign", title: "Campaign replays", place: "Weekly lockout", detail: "Legendary campaign missions reset weekly", keywords: ["legendary campaign", "campaign mission"] },
+    { id: "dares", title: "Dares of Eternity", place: "Eternity", detail: "Enemy lineup cycles every three weeks", keywords: ["dares of eternity"] },
+  ].map((r) => ({
+    id: r.id,
+    title: r.title,
+    kicker: "Weekly",
+    period: "weekly",
+    place: r.place,
+    keywords: r.keywords,
+    art: null,
+    reminder: true,
+    fixed: true,
+    confirmed: true,
+    entries: [{ name: r.title, detail: r.detail }],
+    anchor: { index: 0, at: RESET },
+  })),
 ];
 
 export const ROTATOR_IDS = ROTATORS.map((r) => r.id);
@@ -168,6 +259,16 @@ export function rotatorNow(rotator, now = Date.now(), upcoming = 3) {
   const n = rotator.entries.length;
   const index = mod(rotator.anchor.index + steps, n);
   const start = rotator.anchor.at + steps * size;
+  // Never set (v0.48): which entry is up isn't known yet.
+  if (rotator.unset && !rotator.custom) {
+    return {
+      index,
+      unknown: true,
+      current: { name: "Not set this week", detail: `Rotates through ${n}: ${rotator.entries.map((e) => e.name.split(",")[0]).join(", ")}` },
+      ends: new Date(start + size).toISOString(),
+      next: [],
+    };
+  }
   if (rotator.knownOnce && !rotator.custom && steps !== 0) {
     const last = rotator.entries[rotator.anchor.index];
     return {
@@ -181,7 +282,8 @@ export function rotatorNow(rotator, now = Date.now(), upcoming = 3) {
   return {
     index,
     current: rotator.entries[index],
-    ends: new Date(start + size).toISOString(),
+    // Events read from Bungie (v0.47) end on their own date, not at a reset.
+    ends: rotator.endsAt ?? new Date(start + size).toISOString(),
     next: n > 1
       ? Array.from({ length: Math.min(upcoming, n - 1) }, (_, k) => ({
           entry: rotator.entries[mod(index + k + 1, n)],

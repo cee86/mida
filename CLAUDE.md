@@ -298,8 +298,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
-* v0.4 (part 3, not released yet): Bungie sign-in, Inventory, Quests, Seasonal hub; seals.report gained
-  `/api/mida/login|callback|token|rotators` (on its branch claude/wizardly-meitner-y4xwui until merged to main).
+* v0.4.0 (part 3, released 1 Oct 2026): Bungie sign-in, Inventory, Quests, Seasonal hub; seals.report gained
+  `/api/mida/login|callback|token|rotators` (live on main).
 * Sign-in plan the owner agreed to: a separate Bungie app for Mida (Confidential), its client secret kept on the
   seals.report server, which exchanges and refreshes tokens for Mida and stores nothing; Mida keeps the tokens on the
   PC encrypted by Windows. Needs the owner to register the app and add two Vercel env vars (steps to come).
