@@ -264,7 +264,7 @@ contents (`data-fit`).
   screen); 503 isn't treated as an error; profiles share sign-ins. The `tauri` branch was to be removed (the owner
   deletes it on GitHub; the session's git access can't delete branches).
 
-* v0.3 (not released yet): **Foundry theme**, at the owner's request ("mida is an advanced weapons foundry in world
+* v0.3.0 (released 1 Oct 2026): **Foundry theme**, at the owner's request ("mida is an advanced weapons foundry in world
   lore"), with four reference pictures (Deep Stone Crypt interior, a Clovis Bray marking card, white weapon concepts,
   Europa concept art). Owner feedback on the first version: "a great start"; drop the wiry pattern on the settings
   rail, add a dark mode and colour choices incl. the accents ("don't want to force someone to look at white"), add

@@ -1,6 +1,6 @@
 [package]
 name = "mida"
-version = "0.2.0"
+version = "0.3.0"
 description = "Destiny 2 companion sites in one desktop window. Not affiliated with Bungie."
 edition = "2021"
 publish = false
