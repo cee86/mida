@@ -29,6 +29,8 @@
     d2Lock: (instance, character, locked) => invoke("d2_lock", { instance, character, locked }),
     d2Plug: (instance, character, socket, plug) => invoke("d2_plug", { instance, character, socket, plug }),
     d2Loadout: (character, index) => invoke("d2_loadout", { character, index }),
+    d2Seasonal: (character) => invoke("d2_seasonal", { character }),
+    d2Pass: (character, pass) => invoke("d2_pass", { character, pass }),
     d2Rotators: () => invoke("d2_rotators"),
     select: (id) => invoke("select", { id }),
     nav: (action) => invoke("nav", { action }),

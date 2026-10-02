@@ -1854,9 +1854,9 @@ function tabsPanel() {
   const account = setting(
     "Bungie account",
     a.signedIn
-      ? `Signed in as ${a.name}. Inventory, Quests and Seasonal hub read this account. The sign-in is kept on this computer only, encrypted by Windows.`
+      ? `Signed in as ${a.name}. Inventory, Quests and Seasonal Hub read this account. The sign-in is kept on this computer only, encrypted by Windows.`
       : a.available
-        ? "Sign in for Inventory, Quests and Seasonal hub. Signing in happens in your browser, on bungie.net."
+        ? "Sign in for Inventory, Quests and Seasonal Hub. Signing in happens in your browser, on bungie.net."
         : "This copy of Mida was built without a Bungie key, so it can't sign in.",
     a.signedIn
       ? el("button", { class: "btn btn--small", type: "button", text: "Sign out", onclick: () => hub.signOut() })

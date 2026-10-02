@@ -1215,6 +1215,40 @@ async fn d2_equip(webview: Webview, app: AppHandle, item: ItemRef, character: St
     )
 }
 
+/// The Seasonal Hub for a character: pass track, past passes, objectives, other reward tracks.
+#[tauri::command]
+async fn d2_seasonal(webview: Webview, app: AppHandle, character: String) -> Value {
+    if !from_shell(&webview) || !is_id(&character) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let m = manifest(&app).await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,202,900").await?;
+            Ok(bungie::seasonal(&profile, &character, &m).await)
+        }
+        .await,
+    )
+}
+
+/// A past (or current) season pass's track, for the Seasonal Hub's dropdown.
+#[tauri::command]
+async fn d2_pass(webview: Webview, app: AppHandle, character: String, pass: u64) -> Value {
+    if !from_shell(&webview) || !is_id(&character) || pass == 0 || pass > u32::MAX as u64 {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let m = manifest(&app).await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "202").await?;
+            Ok(bungie::pass_track(pass, &profile["characterProgressions"]["data"][character.as_str()]["progressions"], &m).await)
+        }
+        .await,
+    )
+}
+
 /// Equips one of a character's in-game loadouts.
 #[tauri::command]
 async fn d2_loadout(webview: Webview, app: AppHandle, character: String, index: u32) -> Value {
@@ -1754,6 +1788,8 @@ pub fn run() {
             d2_lock,
             d2_plug,
             d2_loadout,
+            d2_seasonal,
+            d2_pass,
             d2_rotators,
             split,
             close_pane,

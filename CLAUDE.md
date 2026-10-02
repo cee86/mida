@@ -239,7 +239,20 @@ figure stays in the Inventory tab's side panel.
 **Class figures are now the owner's silhouettes** (`src/shell/figures/{titan,hunter,warlock}.png`, trimmed to 640 px
 tall, transparent) by **u/HaiGeorge** (Reddit): free to use with credit to the author, which the README's Credits
 section gives (keep it). Our drawn SVG silhouettes were removed; a picture picked in Settings -> Loadout figures still
-replaces them. **Filters** = a screen like the game's vault filters (categories left, a grid of
+replaces them.
+**Seasonal Hub** (renamed from "Seasonal hub"; `src/shell/seasonal.js` + `seasonal.css`, from the owner's mock-up of the
+game's hub): header with the season name, character picker and Refresh; **Active orders** (quests/bounties whose type
+or name says "order") and **Order upgrade chance** (a reward-track progression named "order", if any); **Daily** and
+**Weekly objectives** (records under every `*PresentationNodeHash` the season definition and the active event card
+name, grouped by node names containing "daily" / "week"), each with a reset countdown (daily 17:00 UTC, weekly
+Tuesday 17:00 UTC); **Weekly rewards** (a reward-track progression named "week"); the **pass**: rank ring, pass name,
+a dropdown of past passes (the account's `seasonHashes`, last 12; `d2_pass` reads one), **Season pass bonuses** (pass
+owned, from earned premium rewards' claim state; ranks past the track; artifact; season end); the **rewards track**
+(`pass_track`: the reward progression's `rewardItems` grouped by rank, free over premium by `uiDisplayStyle`,
+earned/claimed from `rewardItemStates`; scrolls to the current rank). Bounties, Bungie's alerts and a **Data check**
+(objective node groups, reward tracks found, quest kinds) fold away at the bottom. `d2_seasonal` reads components
+100,202,900. Orders, objectives, weekly rewards, order chance and the pass bonuses are **educated guesses** about
+Bungie's 2025-26 hub data; the data check is there so the owner can screenshot it for tuning. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

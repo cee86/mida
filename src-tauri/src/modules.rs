@@ -38,7 +38,7 @@ pub struct BuiltInTab {
 
 pub const TABS: &[BuiltInTab] = &[
     BuiltInTab { game: "destiny2", id: "tab-inventory", name: "Inventory", blurb: "Move gear between your characters and the vault.", sign_in: true },
-    BuiltInTab { game: "destiny2", id: "tab-seasonal", name: "Seasonal hub", blurb: "Bounties, the reward track and what's on this season.", sign_in: true },
+    BuiltInTab { game: "destiny2", id: "tab-seasonal", name: "Seasonal Hub", blurb: "Orders, daily and weekly objectives, and your season pass track.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-quests", name: "Quests", blurb: "Every quest a character has picked up.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-rad", name: "RAD assistant", blurb: "Raids and dungeons: encounters, loot, tips and maps.", sign_in: false },
     BuiltInTab { game: "destiny2", id: "tab-featured", name: "Featured", blurb: "This week's raids and dungeons, rotators and timers.", sign_in: false },

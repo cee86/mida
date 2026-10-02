@@ -1,4 +1,4 @@
-//! Destiny 2 data for the built-in tabs (Inventory, Quests, Seasonal hub), read with the player's
+//! Destiny 2 data for the built-in tabs (Inventory, Quests, Seasonal Hub), read with the player's
 //! own Bungie sign-in (src/auth.rs). Only the player's own account, and only what the tabs show.
 //!
 //! - `Manifest`: the few item, objective and bucket facts the tabs need, slimmed from Bungie's
@@ -672,6 +672,295 @@ pub async fn season(profile: &Value, token: &str) -> Value {
     })
 }
 
+// ---------- Seasonal Hub ----------
+//
+// The season pass track (rank, every reward with its free / premium row and earned / claimed
+// state), the account's past passes for the dropdown, the season's daily and weekly objectives
+// (records under the presentation nodes the season and the active event card name), and reward
+// tracks that look like the weekly rewards. Much of this layout is Bungie's 2025-26 seasonal hub,
+// which couldn't be checked from the build workspace, so `check` lists what was found for tuning.
+
+/// A season pass's reward track for one character.
+pub async fn pass_track(pass_hash: u64, progressions: &Value, m: &Manifest) -> Value {
+    let Some(pass) = entity("DestinySeasonPassDefinition", pass_hash).await else { return Value::Null };
+    let reward_hash = pass["rewardProgressionHash"].as_u64().unwrap_or(0);
+    let prestige_hash = pass["prestigeProgressionHash"].as_u64().unwrap_or(0);
+    let reward = &progressions[reward_hash.to_string()];
+    let prestige = &progressions[prestige_hash.to_string()];
+    let states = reward["rewardItemStates"].as_array().cloned().unwrap_or_default();
+    let def = entity("DestinyProgressionDefinition", reward_hash).await.unwrap_or(Value::Null);
+    let mut ranks: Vec<Value> = Vec::new();
+    let mut premium_owned: Option<bool> = None;
+    for (i, r) in def["rewardItems"].as_array().into_iter().flatten().enumerate() {
+        let level = r["rewardedAtProgressionLevel"].as_i64().unwrap_or(0);
+        let Some(hash) = r["itemHash"].as_u64() else { continue };
+        if hash == 0 {
+            continue;
+        }
+        let state = states.get(i).and_then(|v| v.as_u64()).unwrap_or(0);
+        if state & 1 != 0 {
+            continue; // invisible
+        }
+        let premium = r["uiDisplayStyle"].as_str() == Some("premium");
+        // Earned premium rewards that can be claimed mean the pass is owned.
+        if premium && state & 2 != 0 {
+            let can = state & (4 | 8) != 0;
+            premium_owned = Some(premium_owned.unwrap_or(false) || can);
+        }
+        let item = m.items.get(&(hash as u32)).cloned().unwrap_or_default();
+        let entry = json!({
+            "hash": hash,
+            "name": item.name,
+            "icon": icon_url(&item.icon),
+            "tier": item.tier,
+            "quantity": r["quantity"],
+            "earned": state & 2 != 0,
+            "claimed": state & 4 != 0,
+        });
+        let row = if premium { "premium" } else { "free" };
+        match ranks.iter_mut().find(|x| x["rank"].as_i64() == Some(level)) {
+            Some(x) => x[row].as_array_mut().unwrap().push(entry),
+            None => {
+                let mut x = json!({ "rank": level, "free": [], "premium": [] });
+                x[row].as_array_mut().unwrap().push(entry);
+                ranks.push(x);
+            }
+        }
+    }
+    ranks.sort_by_key(|x| x["rank"].as_i64().unwrap_or(0));
+    let past = prestige["level"].as_i64().unwrap_or(0);
+    let on_prestige = past > 0 || (reward.is_object() && reward["level"].as_i64() == reward["levelCap"].as_i64());
+    let current = if on_prestige && prestige.is_object() { prestige } else { reward };
+    json!({
+        "hash": pass_hash,
+        "name": pass["displayProperties"]["name"],
+        "icon": icon_url(pass["displayProperties"]["icon"].as_str().unwrap_or("")),
+        "tracked": reward.is_object(),
+        "rank": reward["level"].as_i64().unwrap_or(0) + past,
+        "trackRank": reward["level"],
+        "progress": current["progressToNextLevel"],
+        "next": current["nextLevelAt"],
+        "premium": premium_owned,
+        "ranks": ranks,
+    })
+}
+
+/// Records under a presentation node, a few levels down, with the node names on the way.
+async fn node_records(root: u64, depth: u32, path: String, out: &mut Vec<(String, u64)>) {
+    if depth > 3 || out.len() > 120 {
+        return;
+    }
+    let Some(node) = entity("DestinyPresentationNodeDefinition", root).await else { return };
+    let name = node["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+    let here = if path.is_empty() { name } else { format!("{path} / {name}") };
+    for r in node["children"]["records"].as_array().into_iter().flatten() {
+        if let Some(h) = r["recordHash"].as_u64() {
+            out.push((here.clone(), h));
+        }
+    }
+    for c in node["children"]["presentationNodes"].as_array().into_iter().flatten() {
+        if let Some(h) = c["presentationNodeHash"].as_u64() {
+            Box::pin(node_records(h, depth + 1, here.clone(), out)).await;
+        }
+    }
+}
+
+pub async fn seasonal(profile: &Value, character: &str, m: &Manifest) -> Value {
+    let progressions = &profile["characterProgressions"]["data"][character]["progressions"];
+    let season_hash = profile["profile"]["data"]["currentSeasonHash"].as_u64().unwrap_or(0);
+    let season = entity("DestinySeasonDefinition", season_hash).await.unwrap_or(Value::Null);
+    let now = chrono_now();
+
+    // The current pass: the latest one in the season's list that has started.
+    let list = season["seasonPassList"].as_array().cloned().unwrap_or_default();
+    let current_pass = list
+        .iter()
+        .filter(|p| p["seasonPassStartDate"].as_str().map(|d| d <= now.as_str()).unwrap_or(true))
+        .last()
+        .or(list.last())
+        .and_then(|p| p["seasonPassHash"].as_u64())
+        .or(season["seasonPassHash"].as_u64());
+    let pass = match current_pass {
+        Some(h) => pass_track(h, progressions, m).await,
+        None => Value::Null,
+    };
+
+    // Past passes (newest first) for the dropdown: the account's seasons, last 12.
+    let mut passes = Vec::new();
+    let mut seasons: Vec<u64> = profile["profile"]["data"]["seasonHashes"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()).collect();
+    if !seasons.contains(&season_hash) && season_hash != 0 {
+        seasons.push(season_hash);
+    }
+    for h in seasons.iter().rev().take(12) {
+        let Some(def) = entity("DestinySeasonDefinition", *h).await else { continue };
+        let season_name = def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+        let number = def["seasonNumber"].clone();
+        let mut hashes: Vec<u64> = def["seasonPassList"].as_array().into_iter().flatten().filter_map(|p| p["seasonPassHash"].as_u64()).collect();
+        if hashes.is_empty() {
+            hashes.extend(def["seasonPassHash"].as_u64());
+        }
+        for (i, ph) in hashes.iter().enumerate().rev() {
+            let label = if hashes.len() > 1 { format!("{season_name} (pass {})", i + 1) } else { season_name.clone() };
+            passes.push(json!({ "hash": ph, "season": label, "number": number, "current": Some(*ph) == current_pass }));
+        }
+    }
+
+    // Objectives: records under every presentation node the season or the active event card names.
+    let mut roots: Vec<(String, u64)> = Vec::new();
+    let mut collect_roots = |def: &Value, from: &str| {
+        if let Some(obj) = def.as_object() {
+            for (k, v) in obj {
+                if k.ends_with("PresentationNodeHash") {
+                    if let Some(h) = v.as_u64().filter(|h| *h != 0) {
+                        roots.push((format!("{from}.{k}"), h));
+                    }
+                }
+            }
+        }
+    };
+    collect_roots(&season, "season");
+    let card_hash = profile["profile"]["data"]["activeEventCardHash"].as_u64().unwrap_or(0);
+    let card = if card_hash != 0 { entity("DestinyEventCardDefinition", card_hash).await.unwrap_or(Value::Null) } else { Value::Null };
+    collect_roots(&card, "eventCard");
+    let mut found: Vec<(String, u64)> = Vec::new();
+    for (_, h) in &roots {
+        node_records(*h, 0, String::new(), &mut found).await;
+    }
+    let record_state = |h: u64| -> Value {
+        let key = h.to_string();
+        let c = &profile["characterRecords"]["data"][character]["records"][&key];
+        if c.is_object() {
+            return c.clone();
+        }
+        profile["profileRecords"]["data"]["records"][&key].clone()
+    };
+    let (mut daily, mut weekly) = (Vec::new(), Vec::new());
+    let mut groups: Vec<Value> = Vec::new();
+    for (path, h) in found.iter().take(120) {
+        let lower = path.to_lowercase();
+        let group = if lower.contains("daily") { "daily" } else if lower.contains("week") { "weekly" } else { "other" };
+        match groups.iter_mut().find(|g| g["path"].as_str() == Some(path.as_str())) {
+            Some(g) => g["records"] = json!(g["records"].as_i64().unwrap_or(0) + 1),
+            None => groups.push(json!({ "path": path, "group": group, "records": 1 })),
+        }
+        if group == "other" {
+            continue;
+        }
+        let state = record_state(*h);
+        let flags = state["state"].as_u64().unwrap_or(0);
+        if flags & 16 != 0 || (state.is_null()) {
+            continue; // invisible, or not this account's
+        }
+        let Some(def) = entity("DestinyRecordDefinition", *h).await else { continue };
+        let rewards: Vec<Value> = def["rewardItems"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|r| {
+                let item = m.items.get(&(r["itemHash"].as_u64()? as u32))?;
+                Some(json!({ "name": item.name, "icon": icon_url(&item.icon), "quantity": r["quantity"] }))
+            })
+            .collect();
+        let entry = json!({
+            "hash": h,
+            "name": def["displayProperties"]["name"],
+            "description": def["displayProperties"]["description"],
+            "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
+            "complete": flags & 4 == 0,
+            "redeemed": flags & 1 != 0,
+            "objectives": objectives(&state["objectives"], m),
+            "rewards": rewards,
+        });
+        if group == "daily" { daily.push(entry) } else { weekly.push(entry) }
+    }
+
+    // Reward tracks other than the pass (the weekly rewards look like one): progressions that
+    // carry reward states, with their definitions.
+    let mut tracks = Vec::new();
+    if let Some(map) = progressions.as_object() {
+        for (key, p) in map {
+            let steps = p["rewardItemStates"].as_array().map(|a| a.len()).unwrap_or(0);
+            if !(3..=24).contains(&steps) || tracks.len() >= 25 {
+                continue;
+            }
+            let Ok(hash) = key.parse::<u64>() else { continue };
+            let Some(def) = entity("DestinyProgressionDefinition", hash).await else { continue };
+            let states = p["rewardItemStates"].as_array().cloned().unwrap_or_default();
+            let rewards: Vec<Value> = def["rewardItems"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .filter_map(|(i, r)| {
+                    let item = m.items.get(&(r["itemHash"].as_u64()? as u32))?;
+                    let st = states.get(i).and_then(|v| v.as_u64()).unwrap_or(0);
+                    Some(json!({ "step": r["rewardedAtProgressionLevel"], "name": item.name, "icon": icon_url(&item.icon), "tier": item.tier, "quantity": r["quantity"], "earned": st & 2 != 0, "claimed": st & 4 != 0 }))
+                })
+                .collect();
+            tracks.push(json!({
+                "hash": hash,
+                "name": def["displayProperties"]["name"],
+                "level": p["level"],
+                "levelCap": p["levelCap"],
+                "progress": p["progressToNextLevel"],
+                "next": p["nextLevelAt"],
+                "weeklyProgress": p["weeklyProgress"],
+                "rewards": rewards,
+            }));
+        }
+    }
+    let weekly_rewards = tracks
+        .iter()
+        .find(|t| t["name"].as_str().map(|n| n.to_lowercase().contains("week")).unwrap_or(false))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let order_chance = tracks
+        .iter()
+        .find(|t| t["name"].as_str().map(|n| n.to_lowercase().contains("order")).unwrap_or(false))
+        .cloned()
+        .unwrap_or(Value::Null);
+
+    json!({
+        "season": {
+            "hash": season_hash,
+            "name": season["displayProperties"]["name"],
+            "number": season["seasonNumber"],
+            "ends": season["endDate"],
+        },
+        "eventCard": card["displayProperties"]["name"],
+        "pass": pass,
+        "passes": passes,
+        "daily": daily,
+        "weekly": weekly,
+        "weeklyRewards": weekly_rewards,
+        "orderChance": order_chance,
+        "check": {
+            "roots": roots.iter().map(|(k, h)| json!({ "from": k, "hash": h })).collect::<Vec<_>>(),
+            "groups": groups,
+            "tracks": tracks.iter().map(|t| json!({ "name": t["name"], "steps": t["rewards"].as_array().map(|a| a.len()), "level": t["level"], "levelCap": t["levelCap"] })).collect::<Vec<_>>(),
+        },
+    })
+}
+
+/// Now as an ISO 8601 string (UTC), comparable with Bungie's dates.
+fn chrono_now() -> String {
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    // Civil date from days since 1970 (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let mo = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if mo <= 2 { y + 1 } else { y };
+    format!("{y:04}-{mo:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
+}
+
 /// Bungie's site-wide alerts, as plain text.
 pub async fn alerts() -> Vec<Value> {
     let Ok(list) = get("/GlobalAlerts/", None).await else { return Vec::new() };
@@ -1035,6 +1324,13 @@ mod tests {
         assert_eq!(socket_kind("ARMOR MODS"), "mods");
         assert_eq!(socket_kind("WEAPON COSMETICS"), "cosmetics");
         assert_eq!(socket_kind("ARMOR TIER"), "other");
+    }
+
+    #[test]
+    fn now_is_an_iso_date() {
+        let now = chrono_now();
+        assert_eq!(now.len(), 20);
+        assert!(now.starts_with("20") && now.ends_with('Z') && &now[10..11] == "T");
     }
 
     #[test]

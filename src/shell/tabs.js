@@ -10,6 +10,7 @@ import { featuredRotation, dreamingCityWeek, distortionSchedule, RAID_NAMES, DUN
 import { ROTATORS, withSaved, rotatorNow } from "./d2/rotators.js";
 import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
 import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
+import { seasonalHub } from "./seasonal.js";
 
 const CLOCK = ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"];
 const PIN = ["M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z", "M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"];
@@ -259,7 +260,7 @@ function rad(ctx) {
 
 const SIGN_IN = {
   "tab-inventory": "Your characters' gear and your vault, with quick moves between them. For deeper work (loadouts, sorting, tags), DIM can sit beside it as a module.",
-  "tab-seasonal": "This season at a glance: your rank, bounties, the artifact and Bungie's alerts.",
+  "tab-seasonal": "The season in one place: orders, daily and weekly objectives, weekly rewards and your season pass track (past passes too).",
   "tab-quests": "Every quest a character has picked up. Starts on the character you played last; switch any time.",
 };
 const SHIELD = ["M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z", "M9 12l2 2 4-4"];
@@ -413,71 +414,10 @@ function quests(ctx, container) {
   load(false);
 }
 
-// ---------- Seasonal hub ----------
+// ---------- Seasonal Hub ----------
 
 function seasonal(ctx, container) {
-  const { el } = ctx;
-  const root = el("div", { class: "tab" });
-  const draw = (data) => {
-    const season = data.season;
-    const chosen = data.characters.some((c) => c.id === lastCharacter.seasonal) ? lastCharacter.seasonal : data.characters[0]?.id;
-    const bounties = data.bounties[chosen] ?? [];
-    const rank = season?.rank;
-    root.replaceChildren(
-      head(ctx, season?.name ? `${season.name}` : "This season", season?.ends ? ["Ends in ", until(ctx, season.ends, "")] : null),
-      el(
-        "div",
-        { class: "cards" },
-        rank
-          ? el(
-              "div",
-              { class: "card" },
-              el("div", { class: "card__kicker", text: "Season rank" }),
-              el("div", { class: "card__name card__name--big", text: String(rank.level) }),
-              rank.next ? progress(ctx, rank.progress ?? 0, rank.next) : null,
-              rank.next ? el("div", { class: "card__meta", text: `${(rank.progress ?? 0).toLocaleString()} / ${rank.next.toLocaleString()} XP to the next rank` }) : null,
-            )
-          : null,
-        data.artifact
-          ? el(
-              "div",
-              { class: "card" },
-              el("div", { class: "card__kicker", text: "Seasonal artifact" }),
-              el("div", { class: "card__name card__name--big", text: `+${data.artifact.powerBonus ?? 0}` }),
-              el("div", { class: "card__meta", text: `${data.artifact.points ?? 0} points unlocked` }),
-            )
-          : null,
-        el(
-          "div",
-          { class: "card" },
-          el("div", { class: "card__kicker", text: "This week" }),
-          el("div", { class: "card__detail", text: "Raids, dungeons, the Distortion and every rotator." }),
-          el("button", { class: "btn btn--small", type: "button", text: "Open Featured", onclick: () => ctx.hub.select("tab-featured") }),
-        ),
-      ),
-      data.alerts?.length ? band(ctx, "Alerts from Bungie") : null,
-      data.alerts?.length ? el("div", { class: "alerts" }, ...data.alerts.map((a) => el("p", { class: "note", text: a.text }))) : null,
-      band(ctx, `Bounties (${bounties.length})`),
-      el(
-        "div",
-        { class: "tab__tools" },
-        characterPicker(ctx, data.characters, chosen, (id) => {
-          lastCharacter.seasonal = id;
-          draw(data);
-        }),
-        el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => load(true) }),
-      ),
-      bounties.length ? el("div", { class: "cards cards--wide" }, ...bounties.map((q) => questCard(ctx, q))) : el("p", { class: "tab__note", text: "No bounties on this character." }),
-    );
-  };
-  const load = async (fresh) => {
-    container.replaceChildren(loadingView(ctx, "Reading this season from Bungie…"));
-    const result = await read(ctx, "activity", fresh);
-    if (!result?.ok) return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
-    draw(result.data);
-    container.replaceChildren(root);
-  };
-  load(false);
+  seasonalHub(ctx, container, { read, loadingView, problemView, until, characterPicker, questCard, lastCharacter });
 }
 
 // ---------- Inventory (inventory.js) ----------

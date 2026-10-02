@@ -1257,7 +1257,7 @@ html[data-motion="reduce"] .toolbar__progress::before { left: 0; width: 100%; }
   .rad__list { max-height: 170px; border-right: 0; border-bottom: 1px solid var(--rule); }
 }
 
-/* Tabs that read Bungie (Inventory, Quests, Seasonal hub). */
+/* Tabs that read Bungie (Inventory, Quests, Seasonal Hub). */
 .tab__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }
 .tab__error { margin: 4px 0 0; color: var(--danger); }
 .spinner {
