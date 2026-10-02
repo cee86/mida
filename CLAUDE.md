@@ -194,7 +194,12 @@ and undo on error, then a quiet re-read 6 s later.
 Current only" only appears on Weapons and Armor). The emblems + vault + currencies are a fixed bar across the whole
 width (`.inv-headbar`, over the side panel it shows the current character); only the rows under it scroll
 (`scrollbar-gutter: stable` on both so columns line up; the bar follows sideways scrolls). Toolbar buttons are 42 px
-like the segmented controls. **Filters** = a screen like the game's vault filters (categories left, a grid of
+like the segmented controls. v0.6.1 (owner): no white frame on the current character (a 3 px accent bar along the
+bottom instead); the vault gets a DIM-style emblem (our own vault-door mark, "Vault", count / max where power would be,
+red near full) with a **currencies box** at the far right of the vault column showing Glimmer, Chronologs and Bright
+Dust (matched by name, else the first three); clicking it lists every profile currency plus materials summed from the
+consumables (`MATERIALS` name pattern in inventory.js; names unverified). The box wraps under the vault emblem when the
+column is narrow. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

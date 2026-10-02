@@ -38,6 +38,11 @@ const PANEL = ["M4 5h16v14H4z", "M15 5v14"];
 const MAIL = ["M4 6h16v12H4z", "M4 7l8 6 8-6"];
 const FILTER = ["M4 5h16l-6 8v5l-4 2v-7z"];
 const RELOAD = ["M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4"];
+// Our own vault-door mark (circle, hub and bolts), not Bungie's art.
+const VAULT = ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z", "M12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"];
+const MAIN_CURRENCIES = [/^glimmer$/i, /chronolog/i, /^bright dust$/i];
+// Materials shown with the currencies (names as Bungie spells them; anything else stays in Consumables).
+const MATERIALS = /enhancement (core|prism)|ascendant (shard|alloy)|upgrade module|spoils of conquest|strange coin|exotic cipher|chronolog|raid banner|phantasmal|harmonic|synthweave|kell's|engram tracker/i;
 
 // Remembered between visits (only conveniences, so the browser's storage is fine).
 const remember = (key, fallback) => {
@@ -77,7 +82,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   let data = null;
   let search = "";
   let resync = null;
-  let overlay = null; // "filters" | "postmaster" | null
+  let overlay = null; // "filters" | "postmaster" | "wallet" | null
   let filterCategory = null;
   let card = null; // { item, tile, pinned, picking }
   let hoverTimer = null;
@@ -577,22 +582,71 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     return node;
   }
 
+  // The vault's own emblem, like DIM's: a vault-door mark, its name, and how full it is where a
+  // character shows power.
   function vaultCard() {
     const v = data.vault ?? {};
+    const count = v.count ?? data.items.filter((i) => i.owner === "vault").length;
     return el(
       "div",
-      { class: "inv-vault" },
-      el("span", { class: "inv-vault__title", text: "Vault" }),
-      el("span", { class: "inv-vault__count" }, el("strong", { text: String(v.count ?? data.items.filter((i) => i.owner === "vault").length) }), document.createTextNode(v.max ? ` / ${v.max}` : "")),
+      { class: "inv-emblem inv-emblem--vault", title: v.max ? `${count} of ${v.max} vault spaces used` : "Vault" },
+      el("span", { class: "inv-vault__mark" }, svg(VAULT)),
+      el("span", { class: "inv-emblem__text" }, el("span", { class: "inv-emblem__class", text: "Vault" })),
+      el("span", { class: `inv-vault__count${v.max && count >= v.max - 20 ? " is-full" : ""}` }, el("strong", { text: count.toLocaleString() }), document.createTextNode(v.max ? ` / ${v.max.toLocaleString()}` : "")),
     );
   }
 
+  // Currencies: Bungie's profile currencies plus the materials worth tracking (summed from the
+  // consumables, wherever they sit). Glimmer, Chronologs and Bright Dust lead; the rest open on click.
+  function wallet() {
+    const list = (data.currencies ?? []).map((c) => ({ ...c }));
+    const seen = new Set(list.map((c) => c.hash));
+    const extra = new Map();
+    for (const i of data.items) {
+      if (seen.has(i.hash) || i.instance || !MATERIALS.test(i.name ?? "")) continue;
+      const entry = extra.get(i.hash) ?? { hash: i.hash, name: i.name, icon: i.icon, quantity: 0 };
+      entry.quantity += Number(i.quantity ?? 0);
+      extra.set(i.hash, entry);
+    }
+    list.push(...[...extra.values()].sort((a, b) => a.name.localeCompare(b.name)));
+    const main = MAIN_CURRENCIES.map((re) => list.find((c) => re.test(c.name ?? ""))).filter(Boolean);
+    for (const c of list) if (main.length < 3 && !main.includes(c)) main.push(c);
+    return { main, all: list };
+  }
+  const coin = (c) => el("span", { class: "inv-currency", title: c.name }, c.icon ? el("img", { src: c.icon, alt: "", loading: "lazy" }) : null, el("span", { text: Number(c.quantity ?? 0).toLocaleString() }));
+
   function currencies() {
+    const { main, all } = wallet();
     return el(
-      "div",
-      { class: "inv-currencies" },
-      ...(data.currencies ?? []).map((c) => el("span", { class: "inv-currency", title: c.name }, c.icon ? el("img", { src: c.icon, alt: "", loading: "lazy" }) : null, el("span", { text: Number(c.quantity ?? 0).toLocaleString() }))),
+      "button",
+      {
+        class: `inv-wallet${overlay === "wallet" ? " is-open" : ""}`,
+        type: "button",
+        title: "All currencies",
+        "aria-expanded": String(overlay === "wallet"),
+        disabled: !all.length || null,
+        onclick: (event) => {
+          event.stopPropagation();
+          overlay = overlay === "wallet" ? null : "wallet";
+          closeCard();
+          draw();
+        },
+      },
+      ...main.map(coin),
+      all.length > main.length ? el("span", { class: "inv-wallet__more", "aria-hidden": "true", text: "▾" }) : null,
     );
+  }
+
+  function walletPanel() {
+    const { all } = wallet();
+    const close = () => ((overlay = null), draw());
+    const panel = el(
+      "div",
+      { class: "inv-wallet-list", role: "dialog", "aria-label": "Currencies", onclick: (e) => e.stopPropagation() },
+      el("div", { class: "inv-label" }, el("span", { text: "Currencies" }), el("span", { class: "inv-label__count", text: String(all.length) })),
+      ...all.map((c) => el("div", { class: "inv-wallet-list__row" }, c.icon ? el("img", { src: c.icon, alt: "" }) : el("span"), el("span", { class: "inv-wallet-list__name", text: c.name }), el("strong", { text: Number(c.quantity ?? 0).toLocaleString() }))),
+    );
+    return el("div", { class: "inv-overlay inv-overlay--clear", onclick: close }, panel);
   }
 
   function toggleCharacters() {
@@ -854,11 +908,10 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     );
     if (c.wide || c.banner) top.style.backgroundImage = `linear-gradient(90deg, rgba(8, 10, 12, 0.82), rgba(8, 10, 12, 0.35) 60%, rgba(8, 10, 12, 0.6)), url("${c.wide || c.banner}")`;
 
-    const heads = grid([...shown().map(emblem), vaultCard()]);
-    const money = grid([currencies()]);
-    money.firstChild.style.gridColumn = `1 / span ${shown().length}`;
+    // Characters, then the vault's emblem with the currencies box at the far right of its column.
+    const heads = grid([...shown().map(emblem), el("div", { class: "inv-heads__vault" }, vaultCard(), currencies())]);
     // The bar runs the whole width (over the side panel too); only the rows under it scroll.
-    const headScroll = el("div", { class: "inv-headbar__scroll" }, el("div", { class: "inv-headbar__inner" }, heads, money));
+    const headScroll = el("div", { class: "inv-headbar__scroll" }, el("div", { class: "inv-headbar__inner" }, heads));
     const headbar = el(
       "div",
       { class: "inv-headbar" },
@@ -876,6 +929,17 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const main = el("div", { class: "inv-main" }, body, view.panel ? panel() : null);
     root.replaceChildren(backdrop, top, toolbar(), headbar, main, toast);
     if (overlay === "filters") root.append(filterScreen());
+    if (overlay === "wallet") {
+      // Opens under the currencies box (the bar clips anything inside it, so it lives on the tab).
+      const layer = walletPanel();
+      root.append(layer);
+      const box = root.querySelector(".inv-wallet")?.getBoundingClientRect();
+      const tab = root.getBoundingClientRect();
+      if (box) {
+        layer.style.paddingTop = `${box.bottom - tab.top + 6}px`;
+        layer.style.paddingRight = `${Math.max(8, tab.right - box.right)}px`;
+      }
+    }
     if (overlay === "postmaster") {
       // The drop-down hangs just under the toolbar, whatever its height.
       const drop = postmasterPanel();

@@ -92,9 +92,9 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
    reserves the scroll bar's room like the rows do, so the columns line up, and follows sideways
    scrolls. Over the side panel it shows the current character. */
 .inv-headbar { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--rule); background: rgba(0, 0, 0, 0.55); }
-.inv-headbar__scroll { flex: 1; min-width: 0; overflow: hidden; scrollbar-gutter: stable; padding: 10px clamp(14px, 3cqi, 28px) 2px; }
+.inv-headbar__scroll { flex: 1; min-width: 0; overflow: hidden; scrollbar-gutter: stable; padding: 10px clamp(14px, 3cqi, 28px); }
 .inv-headbar__side { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 300px; flex-shrink: 0; padding: 0 18px; border-left: 1px solid var(--rule); }
-.inv-headbar__inner { width: max-content; min-width: 100%; }
+.inv-headbar__inner { width: 100%; }
 .inv-scroll { flex: 1; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: 0 clamp(14px, 3cqi, 28px) 40px; scrollbar-width: thin; }
 
 .inv__grid { display: grid; gap: 10px; align-items: start; }
@@ -110,9 +110,9 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
   background: #1a1d22 left center / cover no-repeat;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-  outline: 1px solid rgba(255, 255, 255, 0.12);
 }
-.inv-emblem.is-current { outline: 2px solid #fff; outline-offset: 1px; }
+/* The current character: a short bar along the bottom instead of a frame. */
+.inv-emblem.is-current { box-shadow: inset 0 -3px 0 var(--accent); }
 .inv-emblem__hit { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
 .inv-emblem__text { display: flex; flex-direction: column; flex: 1; min-width: 0; pointer-events: none; }
 .inv-emblem__class { font-size: 1.15rem; font-weight: 600; line-height: 1.1; }
@@ -122,21 +122,46 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 .inv-emblem__more { position: relative; width: 22px; height: 100%; border: 0; background: transparent; color: #fff; font-size: 1.1rem; cursor: pointer; }
 .inv-emblem__more:hover { background: rgba(255, 255, 255, 0.12); }
 
-/* The vault's own "emblem": its name, big, and how full it is. */
-.inv-vault {
+/* The vault's own emblem, like DIM's: a dark plate with a vault-door mark and count / max where
+   a character shows power. The currencies box sits at the far right of the vault's column. */
+.inv-heads__vault { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }
+.inv-emblem--vault { flex: 0 1 var(--cw); min-width: 190px; padding-left: 0; background: linear-gradient(90deg, #23272e, #16191d); }
+.inv-vault__mark { display: grid; place-items: center; align-self: stretch; aspect-ratio: 1; margin-right: 10px; background: rgba(255, 255, 255, 0.06); }
+.inv-vault__mark svg { width: 62%; height: 62%; stroke: #e9e6df; stroke-width: 1.4; fill: none; }
+.inv-vault__count { padding-right: 8px; font-family: var(--font-display); font-size: 1.05rem; color: rgba(255, 255, 255, 0.7); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.inv-vault__count strong { color: #f3df8b; font-size: 1.25rem; font-weight: 500; }
+.inv-vault__count.is-full strong { color: #ff8a6b; }
+.inv-wallet {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 46px;
-  height: calc(var(--cw) * 96 / 474);
-  padding: 0 12px 6px;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  min-height: 40px;
+  margin-left: auto;
+  padding: 0 12px;
+  border: 1px solid var(--rule);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--cream);
+  cursor: pointer;
 }
-.inv-vault__title { font-family: var(--font-display); font-weight: 800; font-size: 1.9rem; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
-.inv-vault__count { color: var(--mist); font-variant-numeric: tabular-nums; }
-.inv-vault__count strong { color: var(--cream); font-weight: 600; }
-
-.inv-currencies { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 2px 2px 6px; }
+.inv-wallet:hover, .inv-wallet.is-open { border-color: rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.06); }
+.inv-wallet__more { color: var(--mist); font-size: 0.8rem; }
+.inv-wallet-list {
+  width: 300px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 2px 14px 12px;
+  background: rgba(14, 16, 19, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow);
+  scrollbar-width: thin;
+}
+.inv-wallet-list__row { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 10px; min-height: 32px; font-size: 0.9rem; }
+.inv-wallet-list__row img { width: 24px; height: 24px; }
+.inv-wallet-list__name { color: var(--mist); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-wallet-list__row strong { font-weight: 600; font-variant-numeric: tabular-nums; }
 .inv-currency { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
 .inv-currency img { width: 20px; height: 20px; }
 
