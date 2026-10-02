@@ -130,7 +130,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
               el(
                 "div",
                 { class: "sh-order__text" },
-                el("div", { class: "sh-order__name", text: q.name }),
+                el("div", { class: "sh-order__name" }, el("span", { text: q.name }), q.typeName ? el("span", { class: `sh-order__kind sh-order__kind--t${q.tier ?? 0}`, text: q.typeName }) : null),
                 ...(q.objectives ?? []).map((o) =>
                   el(
                     "div",
@@ -191,6 +191,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
     return section(
       "Weekly rewards",
       track.levelCap ? `${level} / ${track.levelCap}` : null,
+      track.guess ? note("Taken from the weekly objectives' own reward list; one step per completed objective is a guess.") : null,
       el(
         "div",
         { class: "sh-steps" },
@@ -422,9 +423,12 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
               k.vendorsRead ? "None of them." : "Couldn't read vendors.",
             ),
             el("h3", { text: "Reward tracks (weekly rewards, order chance)" }),
-            list(k.tracks.map((t) => `${t.name || "(no name)"} · ${t.steps} steps · level ${t.level ?? 0}${t.levelCap ? ` of ${t.levelCap}` : ""}${t.firstReward ? ` · first reward: ${t.firstReward}` : ""}`), "None found."),
+            list(k.tracks.map((t) => `${t.name || "(no name)"} [${t.hash}] · ${t.steps} steps · level ${t.level ?? 0}${t.levelCap ? ` of ${t.levelCap}` : ""}${t.firstReward ? ` · first reward: ${t.firstReward}` : ""}`), "None found."),
             el("h3", { text: "Milestones on this character" }),
             list(k.milestones ?? [], "None."),
+            el("h3", { text: `Orders found in the inventories: ${k.inventoryOrders ?? 0}` }),
+            el("h3", { text: "Objective holders (daily / weekly objectives)" }),
+            list((k.holders ?? []).map((h) => `${h.name} · ${h.done} of ${h.objectives} done${h.value?.length ? ` · rewards: ${h.value.join(", ")}` : ""}`), "None."),
             el("h3", { text: "Pursuits with objectives kept apart (orders may be these)" }),
             list(k.uninstanced ?? [], "None."),
             el("h3", { text: "Kinds of things in this character's inventory and the account's" }),

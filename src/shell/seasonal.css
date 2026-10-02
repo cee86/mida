@@ -101,7 +101,11 @@
 .sh-order { display: grid; grid-template-columns: 48px 1fr; gap: 10px; }
 .sh-order__icon { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--rule); background: var(--hover); }
 .sh-order__icon img { width: 80%; height: 80%; object-fit: contain; }
-.sh-order__name { font-weight: 600; margin-bottom: 4px; }
+.sh-order__name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-weight: 600; margin-bottom: 4px; }
+.sh-order__kind { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mist); }
+.sh-order__kind--t5 { color: #b48ad6; }
+.sh-order__kind--t6 { color: #e2c45a; }
+.sh-order__kind--t4 { color: #7fa6d6; }
 .sh-order.is-done { opacity: 0.6; }
 .sh-obj { position: relative; display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 8px; min-height: 26px; padding: 0 8px; margin-top: 3px; background: rgba(0, 0, 0, 0.28); font-size: 0.86rem; overflow: hidden; }
 .sh-obj__box { width: 14px; height: 14px; border: 1px solid var(--mist); position: relative; z-index: 1; }
@@ -133,7 +137,7 @@
 
 /* Weekly rewards. */
 .sh-steps { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
-.sh-step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1 0 64px; }
+.sh-step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1 0 70px; }
 .sh-step__n { align-self: flex-end; color: var(--mist-dim); font-size: 0.78rem; }
 .sh-step__bar { align-self: stretch; height: 3px; background: rgba(255, 255, 255, 0.15); }
 .sh-step.is-earned .sh-step__bar { background: var(--cream); }

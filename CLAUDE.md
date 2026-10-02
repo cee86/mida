@@ -274,7 +274,16 @@ pass and season definitions have **no bonus fields** (pass: displayProperties, c
 progression; season: artifact, seasonPassList, seasonPassProgression/Unlock, seasonalChallenges node, dates), so the
 pass's XP bonus etc. aren't available and the bonuses box now says so. Next round reads vendors ranked by how many sale
 items carry objectives (30 max, so the hub vendor isn't cut off), and the data check adds the character's
-`uninstancedItemObjectives` items and the kinds of things in the inventories (components 102, 201) to find the orders. **Filters** = a screen like the game's vault filters (categories left, a grid of
+`uninstancedItemObjectives` items and the kinds of things in the inventories (components 102, 201) to find the orders.
+**Third live data check (2 Oct 2026):** the hub has no vendor of its own (the 30 vendors were all classic ones). Found:
+**orders are inventory items** of kind "Foundry Order" (4) and "Duality Order" (1) = the 5 active orders; and a hidden
+item **"Personal Weekly Objectives"** in the character's uninstanced objectives. So: orders = items in the character's
+or account's inventory whose kind contains "order" (objectives from component 301 or the uninstanced ones); daily /
+weekly objectives = each objective of an uninstanced item named "...Daily/Weekly Objectives..." (character or profile,
+component 104), one card each, named from DestinyObjectiveDefinition; **weekly rewards = the unnamed 20-step track whose
+first reward is a Strange Coin** (owner identified it; found by that first reward, else a track with 18+ levels and a
+reward per level), else the weekly item's own `value` list (marked as a guess). `d2_seasonal` reads 100,102,104,201,202,
+300,301,900. The data check adds "Orders found", the objective holders (done counts, reward lists) and track hashes. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

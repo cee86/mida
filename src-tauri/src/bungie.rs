@@ -989,9 +989,105 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
         if group == "daily" { daily.push(entry) } else { weekly.push(entry) }
     }
 
+    // Orders are items in the inventories whose kind ends in "Order" (Foundry Order, Duality
+    // Order...); their objectives are with the item (instanced) or kept apart (uninstanced).
+    let instanced = &profile["itemComponents"]["objectives"]["data"];
+    let char_apart = &profile["characterProgressions"]["data"][character]["uninstancedItemObjectives"];
+    let profile_apart = &profile["profileProgression"]["data"]["uninstancedItemObjectives"];
+    let objectives_of = |item: &Value, hash: u32| -> Value {
+        let instance = item["itemInstanceId"].as_str().unwrap_or("");
+        if !instance.is_empty() && instanced[instance]["objectives"].is_array() {
+            return instanced[instance]["objectives"].clone();
+        }
+        let key = hash.to_string();
+        if char_apart[&key].is_array() { char_apart[&key].clone() } else { profile_apart[&key].clone() }
+    };
+    let mut inventory_orders = Vec::new();
+    for section in [&profile["characterInventories"]["data"][character], &profile["profileInventory"]["data"]] {
+        for item in items_of(section) {
+            let Some(hash) = item["itemHash"].as_u64().map(|h| h as u32) else { continue };
+            let Some(d) = m.items.get(&hash) else { continue };
+            if !d.type_name.to_lowercase().contains("order") || matches!(d.kind, 2 | 3) {
+                continue;
+            }
+            let objs = objectives(&objectives_of(item, hash), m);
+            inventory_orders.push(json!({
+                "name": d.name,
+                "icon": icon_url(&d.icon),
+                "typeName": d.type_name,
+                "tier": d.tier,
+                "description": d.description,
+                "complete": !objs.is_empty() && objs.iter().all(|o| o["complete"].as_bool() == Some(true)),
+                "objectives": objs,
+            }));
+        }
+    }
+
+    // Daily / weekly objectives live on hidden items such as "Personal Weekly Objectives": each
+    // of its objectives is one card, named from the objective's own definition.
+    let mut holders = Vec::new();
+    let mut held_daily = Vec::new();
+    let mut held_weekly = Vec::new();
+    let mut weekly_holder: Option<(Value, usize)> = None;
+    for apart in [char_apart, profile_apart] {
+        let Some(map) = apart.as_object() else { continue };
+        for (key, entry) in map {
+            let Ok(hash) = key.parse::<u32>() else { continue };
+            let Some(d) = m.items.get(&hash) else { continue };
+            let lower = d.name.to_lowercase();
+            if !lower.contains("objective") {
+                continue;
+            }
+            let daily_kind = lower.contains("daily");
+            let list = entry.as_array().cloned().unwrap_or_default();
+            let mut cards = Vec::new();
+            for o in &list {
+                let Some(oh) = o["objectiveHash"].as_u64() else { continue };
+                let def = entity("DestinyObjectiveDefinition", oh).await.unwrap_or(Value::Null);
+                let progress_text = def["progressDescription"].as_str().unwrap_or("").to_string();
+                let name = def["displayProperties"]["name"].as_str().filter(|n| !n.is_empty()).map(str::to_string).unwrap_or_else(|| progress_text.clone());
+                let objs = objectives(&Value::Array(vec![o.clone()]), m);
+                cards.push(json!({
+                    "name": name,
+                    "description": def["displayProperties"]["description"].as_str().filter(|t| !t.is_empty()).unwrap_or(&progress_text),
+                    "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
+                    "complete": o["complete"].as_bool().unwrap_or(false),
+                    "objectives": objs,
+                    "rewards": [],
+                }));
+            }
+            let full = entity("DestinyInventoryItemDefinition", hash as u64).await.unwrap_or(Value::Null);
+            let value: Vec<Value> = full["value"]["itemValue"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| {
+                    let item = m.items.get(&(v["itemHash"].as_u64().filter(|h| *h != 0)? as u32))?;
+                    Some(json!({ "name": item.name, "icon": icon_url(&item.icon), "tier": item.tier, "typeName": item.type_name, "description": item.description, "quantity": v["quantity"] }))
+                })
+                .collect();
+            let done = cards.iter().filter(|c| c["complete"].as_bool() == Some(true)).count();
+            holders.push(json!({ "name": d.name, "objectives": cards.len(), "done": done, "value": value.iter().map(|v| v["name"].clone()).collect::<Vec<_>>() }));
+            if daily_kind {
+                held_daily.extend(cards);
+            } else if lower.contains("week") {
+                if !value.is_empty() && weekly_holder.is_none() {
+                    weekly_holder = Some((Value::Array(value), done));
+                }
+                held_weekly.extend(cards);
+            }
+        }
+    }
+    if daily.is_empty() {
+        daily = held_daily;
+    }
+    if weekly.is_empty() {
+        weekly = held_weekly;
+    }
+
     // Vendors with objectives or bounties: their categories fill in what the records didn't.
     let hub = hub_vendors(vendors, m).await;
-    let mut orders = Vec::new();
+    let mut orders = inventory_orders;
     let mut weekly_rewards_items = Vec::new();
     for v in &hub {
         for c in v["categories"].as_array().into_iter().flatten() {
@@ -1047,9 +1143,33 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
         }
     }
     let named = |word: &str| tracks.iter().find(|t| t["name"].as_str().map(|n| n.to_lowercase().contains(word)).unwrap_or(false)).cloned();
-    let weekly_rewards = named("week").unwrap_or_else(|| {
+    // The weekly rewards: a track named "week", else the one the owner identified (unnamed, 20
+    // steps, first reward a Strange Coin), else one whose every level gives a reward and that
+    // isn't a 15-rank vendor reputation.
+    let strange = tracks
+        .iter()
+        .find(|t| t["firstReward"].as_str().map(|n| n.to_lowercase().contains("strange coin")).unwrap_or(false))
+        .or_else(|| {
+            tracks.iter().find(|t| {
+                let steps = t["rewards"].as_array().map(|a| a.len()).unwrap_or(0) as i64;
+                let cap = t["levelCap"].as_i64().unwrap_or(0);
+                cap >= 18 && steps >= cap
+            })
+        })
+        .cloned();
+    let weekly_rewards = named("week").or(strange).unwrap_or_else(|| {
         if weekly_rewards_items.is_empty() {
-            Value::Null
+            // The weekly objectives item's own reward list, one step per completed objective (a guess).
+            match &weekly_holder {
+                Some((value, done)) => json!({
+                    "name": "Weekly rewards",
+                    "level": done,
+                    "levelCap": value.as_array().map(|a| a.len()),
+                    "guess": true,
+                    "rewards": value.as_array().into_iter().flatten().enumerate().map(|(i, v)| { let mut w = v.clone(); w["step"] = json!(i + 1); w["earned"] = json!(i < *done); w }).collect::<Vec<_>>(),
+                }),
+                None => Value::Null,
+            }
         } else {
             json!({ "name": "Weekly rewards", "level": Value::Null, "rewards": weekly_rewards_items.iter().enumerate().map(|(i, it)| { let mut w = it.clone(); w["step"] = json!(i + 1); w }).collect::<Vec<_>>() })
         }
@@ -1111,11 +1231,13 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
             "roots": roots.iter().map(|(k, h)| json!({ "from": k, "hash": h })).collect::<Vec<_>>(),
             "nodes": nodes_seen,
             "groups": groups,
-            "tracks": tracks.iter().map(|t| json!({ "name": t["name"], "firstReward": t["firstReward"], "steps": t["rewards"].as_array().map(|a| a.len()), "level": t["level"], "levelCap": t["levelCap"] })).collect::<Vec<_>>(),
+            "tracks": tracks.iter().map(|t| json!({ "hash": t["hash"], "name": t["name"], "firstReward": t["firstReward"], "steps": t["rewards"].as_array().map(|a| a.len()), "level": t["level"], "levelCap": t["levelCap"] })).collect::<Vec<_>>(),
             "vendors": hub.iter().map(|v| json!({ "name": v["name"], "refresh": v["refresh"], "categories": v["categories"].as_array().into_iter().flatten().map(|c| json!({ "name": c["name"], "count": c["items"].as_array().map(|a| a.len()), "first": c["items"].as_array().and_then(|a| a.first()).map(|i| i["name"].clone()) })).collect::<Vec<_>>() })).collect::<Vec<_>>(),
             "vendorsRead": vendors["sales"]["data"].as_object().map(|o| o.len()).unwrap_or(0),
             "milestones": milestones,
             "uninstanced": uninstanced,
+            "holders": holders,
+            "inventoryOrders": orders.len(),
             "kinds": kinds.iter().take(40).map(|(k, n)| json!(format!("{k} · {n}"))).collect::<Vec<_>>(),
             "passKeys": pass["keys"],
             "seasonKeys": season.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default(),
