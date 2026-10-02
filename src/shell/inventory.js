@@ -79,8 +79,8 @@ const backdropPicture = () => {
 };
 
 // Class figures for the loadout: a picture the player picked for that class (Settings ->
-// Personalization -> Loadout figures, kept on this PC), else the silhouettes in figures/ (shared by
-// their artist for this non-profit project; see CLAUDE.md), in front of a soft glow in the class's colour.
+// Personalization -> Loadout figures, kept on this PC), else the silhouettes in figures/ (by
+// u/HaiGeorge, credited in the README), in front of a soft glow in the class's colour.
 export const FIGURE_KEY = (classType) => `mida-inv-figure-${classType}`;
 const CLASS_SLUG = { 0: "titan", 1: "hunter", 2: "warlock" };
 export function classFigure(classType) {
