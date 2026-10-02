@@ -38,3 +38,9 @@ npm run dist       # builds the Windows installer (on Windows)
 Ctrl+B sidebar, Ctrl+1-9 module 1-9, Ctrl+Tab / Ctrl+Shift+Tab next / previous module,
 Alt+Left / Alt+Right (or mouse side buttons) back / forward, Ctrl+R or F5 reload,
 Ctrl+= / Ctrl+- / Ctrl+0 zoom the current site.
+
+## Credits
+
+The Titan, Hunter and Warlock silhouettes in `src/shell/figures/` are used with their artist's permission, for this
+non-profit project only. They are not covered by any licence of this repository and may not be reused elsewhere.
+Destiny 2 is a trademark of Bungie; Mida is not affiliated with Bungie.

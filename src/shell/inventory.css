@@ -303,8 +303,8 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 .inv-side__power i { font-style: normal; font-size: 0.55em; vertical-align: 0.6em; margin-right: 3px; }
 .inv-side__loadout { display: flex; justify-content: space-between; align-items: stretch; gap: 8px; }
 /* The class figure between weapons and armor: a silhouette on a glow in the class's colour (like
-   the posters the owner shared: Titan blue-grey, Hunter amber, Warlock lavender), or the player's
-   own picture, faded at the edges. */
+   the figures: Titan blue-grey, Hunter amber, Warlock lavender), or the player's own picture,
+   faded at the edges. */
 .inv-figure {
   --glow: 160, 190, 210;
   position: relative;
@@ -317,9 +317,7 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 }
 .inv-figure--hunter { --glow: 245, 190, 100; }
 .inv-figure--warlock { --glow: 175, 170, 225; }
-.inv-figure svg { position: absolute; left: 6%; top: 4%; width: 88%; height: 92%; fill: #0b0e12; filter: drop-shadow(0 0 6px rgba(var(--glow), 0.35)); }
-.inv-figure svg path { fill: #0b0e12; stroke: none; }
-.inv-figure .inv-figure__light { fill: #fff; stroke: none; filter: drop-shadow(0 0 5px #fff); }
+.inv-figure__art { position: absolute; left: 4%; top: 2%; width: 92%; height: 96%; object-fit: contain; object-position: center bottom; pointer-events: none; }
 .inv-figure.has-picture {
   background-position: center 40%;
   background-size: cover;
@@ -327,7 +325,6 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
   -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 55%, transparent 100%);
   mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 55%, transparent 100%);
 }
-html[data-theme="light"] .inv-figure svg path { fill: #2a2622; }
 .inv-side__col { display: flex; flex-direction: column; gap: 6px; }
 .inv-side .tile2 { --tile: 52px; }
 .inv-stats { display: flex; flex-direction: column; gap: 8px; }

@@ -79,46 +79,30 @@ const backdropPicture = () => {
 };
 
 // Class figures for the loadout: a picture the player picked for that class (Settings ->
-// Personalization -> Loadout figures, kept on this PC), else our own simple silhouette in front of
-// a soft glow in the class's colour.
+// Personalization -> Loadout figures, kept on this PC), else the silhouettes in figures/ (shared by
+// their artist for this non-profit project; see CLAUDE.md), in front of a soft glow in the class's colour.
 export const FIGURE_KEY = (classType) => `mida-inv-figure-${classType}`;
-const FIGURES = {
-  // Titan: broad shoulders, rifle raised.
-  0: ["M44 22a8 9 0 1 1 12 0v12H44z", "M29 44l16-6h10l16 6 4 16-6 36H31l-6-36z", "M22 44l15-5-2 19-14-2z", "M78 44l-15-5 2 19 14-2z", "M22 57l9 2-2 32-8-2z", "M68 57l8-1 6-28-7-2z", "M74 6h6l2 56h-6z", "M31 96h38l2 12H29z", "M30 108h18l-2 62 2 16H30l2-16z", "M52 108h18l-2 62 2 16H52l2-16z"],
-  // Hunter: hood, cloak, gun over the shoulder.
-  1: ["M42 24q8-12 16 0v14H42z", "M36 40h28l2 55H34z", "M60 42l12 8 8 120-10-10-4 15-4-75z", "M36 42l-6 2v-14l6-2z", "M20 36l44-17 2 5-44 17z", "M64 44l6 2v44h-6z", "M35 95h14l-1 74 2 17H35l2-17z", "M51 95h14l-2 74 2 17H51l2-17z"],
-  // Warlock: long coat, Light in an open hand, rifle at the side.
-  2: ["M43 24a7 8 0 1 1 14 0v12H43z", "M38 40h24l8 110-12 10-8-10-8 10-12-10z", "M62 44l18 26-4 4-16-18z", "M38 44l-6 46 5 2 5-42z", "M27 70h5l-1 60h-5z", "M42 150h7l-1 36h-8z", "M51 150h7l2 36h-8z"],
-};
+const CLASS_SLUG = { 0: "titan", 1: "hunter", 2: "warlock" };
 export function classFigure(classType) {
   let picture = null;
   try {
     picture = localStorage.getItem(FIGURE_KEY(classType));
   } catch {
-    // The drawn figure shows.
+    // The built-in figure shows.
   }
+  const slug = CLASS_SLUG[classType];
   const box = document.createElement("div");
-  box.className = `inv-figure inv-figure--${{ 0: "titan", 1: "hunter", 2: "warlock" }[classType] ?? "any"}`;
+  box.className = `inv-figure inv-figure--${slug ?? "any"}${picture ? " has-picture" : ""}`;
   box.setAttribute("aria-hidden", "true");
-  if (picture) {
-    box.classList.add("has-picture");
-    box.style.backgroundImage = `url("${picture}")`;
-    return box;
+  if (picture) box.style.backgroundImage = `url("${picture}")`;
+  else if (slug) {
+    const img = document.createElement("img");
+    img.className = "inv-figure__art";
+    img.src = `figures/${slug}.png`;
+    img.alt = "";
+    img.draggable = false;
+    box.append(img);
   }
-  const ns = "http://www.w3.org/2000/svg";
-  const art = document.createElementNS(ns, "svg");
-  art.setAttribute("viewBox", "0 0 100 190");
-  for (const d of FIGURES[classType] ?? FIGURES[0]) {
-    const path = document.createElementNS(ns, "path");
-    path.setAttribute("d", d);
-    art.append(path);
-  }
-  if (classType === 2) {
-    const orb = document.createElementNS(ns, "circle");
-    Object.entries({ cx: 82, cy: 68, r: 5, class: "inv-figure__light" }).forEach(([k, v]) => orb.setAttribute(k, v));
-    art.append(orb);
-  }
-  box.append(art);
   return box;
 }
 

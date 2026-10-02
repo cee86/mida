@@ -235,7 +235,11 @@ the active bonuses as icons (DestinySandboxPerkDefinition icon, the pieces neede
 **Loadouts** lists the character's in-game loadouts (component 206, now read by `d2_character`; name/icon/colour from
 DestinyLoadoutName/Icon/ColorDefinition via `entity`; empty slots skipped) and equips one on click (`d2_loadout` ->
 `/Destiny2/Actions/Loadouts/EquipLoadout/`, index 0-20). Field names from Bungie's docs, unverified live. The class
-figure stays in the Inventory tab's side panel. **Filters** = a screen like the game's vault filters (categories left, a grid of
+figure stays in the Inventory tab's side panel.
+**Class figures are now the owner's silhouettes** (`src/shell/figures/{titan,hunter,warlock}.png`, trimmed to 640 px
+tall, transparent): the owner has the artist's permission to use them **as long as Mida stays non-profit** (credited in
+README). Never use them in anything paid or commercial. Our drawn SVG silhouettes were removed; a picture picked in
+Settings -> Loadout figures still replaces them. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,
