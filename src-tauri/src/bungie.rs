@@ -881,8 +881,10 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     let started: Vec<&Value> = list.iter().filter(|p| p["seasonPassStartDate"].as_str().map(|d| d <= now.as_str()).unwrap_or(true)).collect();
     let current_ref = started.last().copied().or(list.last());
     let current_pass = current_ref.and_then(|p| p["seasonPassHash"].as_u64()).or(season["seasonPassHash"].as_u64());
-    let next_start = list.iter().filter_map(|p| p["seasonPassStartDate"].as_str()).find(|d| *d > now.as_str()).map(str::to_string);
-    let season_end = season["endDate"].as_str().filter(|d| d > &now.as_str() && &d[..4] < "2100").map(str::to_string);
+    let horizon = years_later(&now, 2);
+    let soon = |d: &str| d > now.as_str() && d < horizon.as_str();
+    let next_start = list.iter().filter_map(|p| p["seasonPassStartDate"].as_str()).find(|d| soon(d)).map(str::to_string);
+    let season_end = season["endDate"].as_str().filter(|d| soon(d)).map(str::to_string);
     let pass_ends = next_start.or(season_end.clone());
     let pass = match current_pass {
         Some(h) => pass_track(h, season_hash, progressions, m).await,
@@ -937,6 +939,26 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     let card_hash = profile["profile"]["data"]["activeEventCardHash"].as_u64().unwrap_or(0);
     let card = if card_hash != 0 { entity("DestinyEventCardDefinition", card_hash).await.unwrap_or(Value::Null) } else { Value::Null };
     collect_roots(&card, "eventCard");
+    // Bungie's core settings name the root of each record tree; list them all (for the data
+    // check) and look inside the ones whose names suggest the hub's objectives.
+    let mut core_nodes: Vec<Value> = Vec::new();
+    if let Ok(settings) = get("/Settings/", None).await {
+        if let Some(core) = settings["destiny2CoreSettings"].as_object() {
+            for (k, v) in core {
+                if !k.to_lowercase().contains("node") {
+                    continue;
+                }
+                let Some(h) = v.as_u64().filter(|h| *h != 0) else { continue };
+                let node = entity("DestinyPresentationNodeDefinition", h).await.unwrap_or(Value::Null);
+                let name = node["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+                let lower = format!("{k} {name}").to_lowercase();
+                if ["season", "hub", "objective", "daily", "weekly", "pathfinder", "portal"].iter().any(|w| lower.contains(w)) && !lower.contains("seal") {
+                    roots.push((format!("core.{k}"), h));
+                }
+                core_nodes.push(json!(format!("{k}: {} · {} sub-nodes · {} records", if name.is_empty() { "(no name)" } else { &name }, node["children"]["presentationNodes"].as_array().map(|a| a.len()).unwrap_or(0), node["children"]["records"].as_array().map(|a| a.len()).unwrap_or(0))));
+            }
+        }
+    }
     let mut found: Vec<(String, u64)> = Vec::new();
     let mut nodes_seen: Vec<Value> = Vec::new();
     for (_, h) in &roots {
@@ -1036,6 +1058,14 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
             let Some(d) = m.items.get(&hash) else { continue };
             let lower = d.name.to_lowercase();
             if !lower.contains("objective") {
+                continue;
+            }
+            // "Personal Weekly Objectives" is the clan's weekly XP objective, not the hub's.
+            let clan = entry.as_array().into_iter().flatten().any(|o| {
+                o["objectiveHash"].as_u64().and_then(|h| m.objectives.get(&(h as u32))).map(|d| d.text.to_lowercase().contains("clan")).unwrap_or(false)
+            });
+            if clan {
+                holders.push(json!({ "name": format!("{} (clan, skipped)", d.name), "objectives": 0, "done": 0, "value": [] }));
                 continue;
             }
             let daily_kind = lower.contains("daily");
@@ -1235,6 +1265,7 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
             "milestones": milestones,
             "uninstanced": uninstanced,
             "holders": holders,
+            "coreNodes": core_nodes,
             "inventoryOrders": orders.len(),
             "kinds": kinds.iter().take(40).map(|(k, n)| json!(format!("{k} · {n}"))).collect::<Vec<_>>(),
             "passKeys": pass["keys"],
@@ -1253,6 +1284,12 @@ pub async fn claim_reward(kind: i64, token: &str, character: &str, season: u64, 
     post("/Destiny2/Actions/Seasons/ClaimReward/", token, json!({ "rewardIndex": index, "seasonHash": season, "characterId": character, "membershipType": kind }))
         .await
         .map(|_| ())
+}
+
+/// `iso` moved `years` years later (only for rough "is this date in the next year or two" checks).
+fn years_later(iso: &str, years: i64) -> String {
+    let year: i64 = iso.get(..4).and_then(|y| y.parse().ok()).unwrap_or(2026);
+    format!("{:04}{}", year + years, iso.get(4..).unwrap_or(""))
 }
 
 /// Now as an ISO 8601 string (UTC), comparable with Bungie's dates.

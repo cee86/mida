@@ -33,6 +33,10 @@ function nextWeekly(now = Date.now()) {
   return new Date(t).toISOString();
 }
 
+// Bungie writes icons into text as [Void], [Headshot], [Stasis]...: plain text drops them; rich
+// text draws the elements as small coloured diamonds (like the item tiles) and drops the rest.
+const clean = (text) => String(text ?? "").replace(/\[[^\]]*\]\s*/g, "").trim();
+const ELEMENT_TOKENS = ["arc", "solar", "void", "stasis", "strand", "kinetic"];
 const percent = (o) => (o.goal > 0 ? Math.min(100, Math.round((o.progress / o.goal) * 100)) : o.complete ? 100 : 0);
 const TIER_NAMES = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Uncommon", 2: "Common" };
 
@@ -65,6 +69,19 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
     return el("span", { class: "sh-meter", role: "progressbar", "aria-valuenow": String(pct), "aria-valuemin": "0", "aria-valuemax": "100" }, fill);
   }
   const note = (text) => el("p", { class: "tab__note", text });
+  function rich(text, cls) {
+    const node = el("span", { class: cls, title: clean(text) });
+    for (const part of String(text ?? "").split(/(\[[^\]]*\])/)) {
+      const token = part.match(/^\[([^\]]*)\]$/);
+      if (!token) {
+        if (part.trim()) node.append(document.createTextNode(part.replace(/^\s+/, node.childNodes.length ? " " : "")));
+        continue;
+      }
+      const word = token[1].trim().toLowerCase();
+      if (ELEMENT_TOKENS.includes(word)) node.append(el("i", { class: `sh-el sh-el--${word}`, title: token[1] }));
+    }
+    return node;
+  }
 
   // A reward tile; hovering (or focusing) shows its card.
   function rewardTile(w, context = "") {
@@ -136,8 +153,9 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
                     "div",
                     { class: `sh-obj${o.complete ? " is-done" : ""}` },
                     el("span", { class: "sh-obj__box", "aria-hidden": "true" }),
-                    el("span", { class: "sh-obj__text", text: o.text || "Progress" }),
-                    el("span", { class: "sh-obj__value", text: o.goal > 1 ? `${o.progress.toLocaleString()} / ${o.goal.toLocaleString()}` : `${percent(o)}%` }),
+                    rich(o.text || "Progress", "sh-obj__text"),
+                    // Orders show a percentage, like the game (their raw counts run into the hundreds of thousands).
+                    el("span", { class: "sh-obj__value", text: `${percent(o)}%` }),
                     meter(percent(o), "sh-obj__fill"),
                   ),
                 ),
@@ -160,9 +178,9 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
     const pct = r.objectives?.length ? Math.round(r.objectives.reduce((n, o) => n + percent(o), 0) / r.objectives.length) : r.complete ? 100 : 0;
     return el(
       "div",
-      { class: `sh-card${r.complete ? " is-done" : ""}`, title: r.description || r.name },
+      { class: `sh-card${r.complete ? " is-done" : ""}`, title: clean(r.description || r.name) },
       el("div", { class: "sh-card__head" }, r.icon ? el("img", { class: "sh-card__icon", src: r.icon, alt: "" }) : null, el("span", { class: "sh-card__name", text: r.name }), r.complete ? el("span", { class: "sh-card__done", text: "✓" }) : null),
-      el("div", { class: "sh-card__body" }, el("span", { class: "sh-card__desc", text: main?.text || r.description || "" }), el("span", { class: "sh-card__rewards" }, ...(r.rewards ?? []).slice(0, 3).map((w) => rewardTile(w, "Objective reward")))),
+      el("div", { class: "sh-card__body" }, rich(main?.text || r.description || "", "sh-card__desc"), el("span", { class: "sh-card__rewards" }, ...(r.rewards ?? []).slice(0, 3).map((w) => rewardTile(w, "Objective reward")))),
       meter(pct),
     );
   }
@@ -241,7 +259,8 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
       if (extra > 0) bonuses.push(bonus(`+${extra}`, "Ranks past the track", "Keep earning as you play"));
     }
     if (!shownPass && (activity.artifact?.powerBonus || activity.artifact?.points)) bonuses.push(bonus(`+${activity.artifact.powerBonus ?? 0}`, "Artifact power", `${activity.artifact.points ?? 0} points unlocked`));
-    if (!shownPass && hub?.season?.passEnds) bonuses.push(bonus("⏱", "Pass ends in", until(ctx, hub.season.passEnds, "")));
+    const endsSoon = hub?.season?.passEnds && new Date(hub.season.passEnds).getTime() - Date.now() < 400 * DAY;
+    if (!shownPass && endsSoon) bonuses.push(bonus("⏱", "Pass ends in", until(ctx, hub.season.passEnds, "")));
     return el(
       "div",
       { class: "sh-pass" },
@@ -381,7 +400,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
                   "div",
                   { class: "sh-bounty__text" },
                   el("div", { class: "sh-bounty__name" }, el("span", { text: b.name }), b.complete ? el("span", { class: "sh-card__done", text: "✓" }) : null),
-                  ...(b.objectives ?? []).slice(0, 3).map((o) => el("div", { class: "sh-bounty__obj" }, el("span", { text: o.text || "Progress" }), el("span", { text: o.goal > 1 ? `${o.progress}/${o.goal}` : `${percent(o)}%` }), meter(percent(o)))),
+                  ...(b.objectives ?? []).slice(0, 3).map((o) => el("div", { class: "sh-bounty__obj" }, el("span", { text: clean(o.text) || "Progress" }), el("span", { text: o.goal > 1 ? `${o.progress}/${o.goal}` : `${percent(o)}%` }), meter(percent(o)))),
                   b.expires ? el("div", { class: "sh-bounty__ends" }, el("span", { text: "Ends in " }), until(ctx, b.expires, "")) : null,
                 ),
               ),
@@ -421,6 +440,8 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
             el("h3", { text: "Milestones on this character" }),
             list(k.milestones ?? [], "None."),
             el("h3", { text: `Orders found in the inventories: ${k.inventoryOrders ?? 0}` }),
+            el("h3", { text: "Record trees Bungie's settings name (the hub's objectives may be under one)" }),
+            list(k.coreNodes ?? [], "None."),
             el("h3", { text: "Objective holders (daily / weekly objectives)" }),
             list((k.holders ?? []).map((h) => `${h.name} · ${h.done} of ${h.objectives} done${h.value?.length ? ` · rewards: ${h.value.join(", ")}` : ""}`), "None."),
             el("h3", { text: "Pursuits with objectives kept apart (orders may be these)" }),

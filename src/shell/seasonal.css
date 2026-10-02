@@ -246,3 +246,12 @@
 @container (max-width: 700px) {
   .sh-right { grid-template-columns: 1fr; }
 }
+
+/* Element marks drawn where Bungie's text has [Void], [Strand]... */
+.sh-el { display: inline-block; width: 0.62em; height: 0.62em; margin: 0 0.35em 0.08em 0.1em; transform: rotate(45deg); background: currentColor; vertical-align: middle; }
+.sh-el--arc { color: #7aecf3; }
+.sh-el--solar { color: #f2721b; }
+.sh-el--void { color: #b185df; }
+.sh-el--stasis { color: #4d88ff; }
+.sh-el--strand { color: #35e366; }
+.sh-el--kinetic { color: #d8d4cc; }
