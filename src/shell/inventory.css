@@ -111,8 +111,6 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
-/* The current character: a short bar along the bottom instead of a frame. */
-.inv-emblem.is-current { box-shadow: inset 0 -3px 0 var(--accent); }
 .inv-emblem__hit { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
 .inv-emblem__text { display: flex; flex-direction: column; flex: 1; min-width: 0; pointer-events: none; }
 .inv-emblem__class { font-size: 1.15rem; font-weight: 600; line-height: 1.1; }
