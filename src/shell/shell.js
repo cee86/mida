@@ -1124,62 +1124,6 @@ function backdropPicture(file, maxWidth = 1920) {
   });
 }
 
-// Loadout figures: a picture per class from the player's own PC (inventory.js reads the same keys).
-function figuresSetting() {
-  const rows = [
-    [0, "Titan"],
-    [1, "Hunter"],
-    [2, "Warlock"],
-  ].map(([cls, name]) => {
-    const key = `mida-inv-figure-${cls}`;
-    let saved = null;
-    try {
-      saved = localStorage.getItem(key);
-    } catch {
-      // Drawn figure.
-    }
-    const status = el("span", { class: "inline-status", text: saved ? "Your picture" : "Mida's silhouette" });
-    const changed = () => (window.dispatchEvent(new Event("mida-figures")), renderSettings());
-    const choose = el("button", {
-      class: "btn btn--small",
-      type: "button",
-      "data-key": `figure-${cls}`,
-      text: "Choose…",
-      onclick: () => {
-        const input = $("picture-input");
-        input.value = "";
-        input.onchange = async () => {
-          const file = input.files?.[0];
-          if (!file) return;
-          try {
-            localStorage.setItem(key, await backdropPicture(file, 900));
-            changed();
-          } catch (err) {
-            status.textContent = err?.name === "QuotaExceededError" ? "Too big to keep. Try a smaller picture." : err.message;
-          }
-        };
-        input.click();
-      },
-    });
-    const clear = el("button", {
-      class: "btn btn--small",
-      type: "button",
-      text: "Remove",
-      disabled: !saved || null,
-      onclick: () => {
-        try {
-          localStorage.removeItem(key);
-        } catch {
-          // Nothing kept.
-        }
-        changed();
-      },
-    });
-    return el("div", { class: "overlay-toggles__row" }, el("span", {}, el("strong", { text: name }), document.createTextNode(" "), status), el("span", { class: "picture__buttons" }, choose, clear));
-  });
-  return setting("Loadout figures", "The figure between weapons and armor in the Inventory's side panel. Pick your own picture for each class, or keep Mida's silhouettes. Pictures stay on this computer.", el("div", { class: "overlay-toggles" }, ...rows));
-}
-
 // What's drawn on inventory item icons; inventory.js reads the same key and defaults.
 const OVERLAYS_KEY = "mida-inv-overlays";
 const OVERLAY_OPTIONS = [
@@ -1775,7 +1719,6 @@ function personalizationPanel() {
         : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
     backdropSetting(),
     overlaysSetting(),
-    figuresSetting(),
     setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
     setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
     setting("Show the address bar", "The bar above the site with back, forward, reload and the page's address.", toggle("address", p.showAddressBar, (v) => updatePrefs({ showAddressBar: v }), "Show the address bar"), { row: true }),

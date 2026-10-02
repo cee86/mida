@@ -236,10 +236,10 @@ the active bonuses as icons (DestinySandboxPerkDefinition icon, the pieces neede
 DestinyLoadoutName/Icon/ColorDefinition via `entity`; empty slots skipped) and equips one on click (`d2_loadout` ->
 `/Destiny2/Actions/Loadouts/EquipLoadout/`, index 0-20). Field names from Bungie's docs, unverified live. The class
 figure stays in the Inventory tab's side panel.
-**Class figures are now the owner's silhouettes** (`src/shell/figures/{titan,hunter,warlock}.png`, trimmed to 640 px
-tall, transparent) by **u/HaiGeorge** (Reddit): free to use with credit to the author, which the README's Credits
-section gives (keep it). Our drawn SVG silhouettes were removed; a picture picked in Settings -> Loadout figures still
-replaces them.
+**Ghost mark instead of class figures** (owner, v0.8): the silhouettes (and the Loadout figures setting) were removed
+("don't think they look good"); between weapons and armor in the side panel there's now a small grey Ghost mark
+(`loadoutMark`, `src/shell/figures/ghost.png`: the owner's picture with its background trimmed, white, shown at 22%
+opacity; inverted on light themes).
 **Seasonal Hub** (renamed from "Seasonal hub"; `src/shell/seasonal.js` + `seasonal.css`, from the owner's mock-up of the
 game's hub): header with the season name, character picker and Refresh; **Active orders** (quests/bounties whose type
 or name says "order") and **Order upgrade chance** (a reward-track progression named "order", if any); **Daily** and

@@ -302,29 +302,11 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 .inv-side__power { font-family: var(--font-display); font-size: 2rem; color: #e6c75b; line-height: 1; }
 .inv-side__power i { font-style: normal; font-size: 0.55em; vertical-align: 0.6em; margin-right: 3px; }
 .inv-side__loadout { display: flex; justify-content: space-between; align-items: stretch; gap: 8px; }
-/* The class figure between weapons and armor: a silhouette on a glow in the class's colour (like
-   the figures: Titan blue-grey, Hunter amber, Warlock lavender), or the player's own picture,
-   faded at the edges. */
-.inv-figure {
-  --glow: 160, 190, 210;
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  min-height: 220px;
-  display: grid;
-  place-items: center;
-  background: radial-gradient(ellipse 60% 45% at 50% 42%, rgba(var(--glow), 0.4), rgba(var(--glow), 0.08) 60%, transparent 75%);
-}
-.inv-figure--hunter { --glow: 245, 190, 100; }
-.inv-figure--warlock { --glow: 175, 170, 225; }
-.inv-figure__art { position: absolute; left: 4%; top: 2%; width: 92%; height: 96%; object-fit: contain; object-position: center bottom; pointer-events: none; }
-.inv-figure.has-picture {
-  background-position: center 40%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 55%, transparent 100%);
-  mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 55%, transparent 100%);
-}
+/* Between weapons and armor: a small grey Ghost mark, centred. */
+.inv-mark { flex: 1; min-width: 0; display: grid; place-items: center; }
+.inv-mark img { width: min(70%, 96px); height: auto; opacity: 0.22; pointer-events: none; }
+html[data-theme="light"] .inv-mark img,
+html[data-theme="foundry"][data-foundry="light"] .inv-mark img { filter: invert(1); opacity: 0.18; }
 .inv-side__col { display: flex; flex-direction: column; gap: 6px; }
 .inv-side .tile2 { --tile: 52px; }
 .inv-stats { display: flex; flex-direction: column; gap: 8px; }

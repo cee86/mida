@@ -78,31 +78,17 @@ const backdropPicture = () => {
   }
 };
 
-// Class figures for the loadout: a picture the player picked for that class (Settings ->
-// Personalization -> Loadout figures, kept on this PC), else the silhouettes in figures/ (by
-// u/HaiGeorge, credited in the README), in front of a soft glow in the class's colour.
-export const FIGURE_KEY = (classType) => `mida-inv-figure-${classType}`;
-const CLASS_SLUG = { 0: "titan", 1: "hunter", 2: "warlock" };
-export function classFigure(classType) {
-  let picture = null;
-  try {
-    picture = localStorage.getItem(FIGURE_KEY(classType));
-  } catch {
-    // The built-in figure shows.
-  }
-  const slug = CLASS_SLUG[classType];
+// Between weapons and armor in the side panel: a small grey Ghost mark (figures/ghost.png, the
+// owner's picture with its background trimmed; white, tinted by CSS).
+export function loadoutMark() {
   const box = document.createElement("div");
-  box.className = `inv-figure inv-figure--${slug ?? "any"}${picture ? " has-picture" : ""}`;
+  box.className = "inv-mark";
   box.setAttribute("aria-hidden", "true");
-  if (picture) box.style.backgroundImage = `url("${picture}")`;
-  else if (slug) {
-    const img = document.createElement("img");
-    img.className = "inv-figure__art";
-    img.src = `figures/${slug}.png`;
-    img.alt = "";
-    img.draggable = false;
-    box.append(img);
-  }
+  const img = document.createElement("img");
+  img.src = "figures/ghost.png";
+  img.alt = "";
+  img.draggable = false;
+  box.append(img);
   return box;
 }
 
@@ -905,7 +891,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       "aside",
       { class: "inv-side" },
       el("div", { class: "inv-label" }, el("span", { text: "Loadout" })),
-      el("div", { class: "inv-side__loadout" }, el("div", { class: "inv-side__col" }, ...equipped("weapons")), classFigure(c.classType), el("div", { class: "inv-side__col" }, ...equipped("armor"))),
+      el("div", { class: "inv-side__loadout" }, el("div", { class: "inv-side__col" }, ...equipped("weapons")), loadoutMark(), el("div", { class: "inv-side__col" }, ...equipped("armor"))),
     );
     if (!d) side.append(el("p", { class: "tab__note", text: "Reading stats…" }));
     else if (d.error) side.append(el("p", { class: "tab__error", text: d.error }));
@@ -1052,7 +1038,6 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     for (const key of Object.keys(OVERLAY_DEFAULTS)) root.dataset[`ov${key[0].toUpperCase()}${key.slice(1)}`] = choices[key] ? "on" : "off";
   }
   window.addEventListener("mida-overlays", paintOverlays);
-  window.addEventListener("mida-figures", () => data && draw());
   // The loadout dock moved something: read again quietly (it already cleared the shared copy).
   window.addEventListener("mida-inventory-changed", (event) => {
     if (event.detail !== root && data && document.body.contains(root)) load(false, true);
@@ -1121,7 +1106,6 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
   };
   paint();
   window.addEventListener("mida-overlays", paint);
-  window.addEventListener("mida-figures", () => data && draw());
   window.addEventListener("mida-inventory-changed", (event) => {
     if (event.detail !== root && document.body.contains(root)) load(true);
   });

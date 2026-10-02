@@ -41,6 +41,4 @@ Ctrl+= / Ctrl+- / Ctrl+0 zoom the current site.
 
 ## Credits
 
-Titan, Hunter and Warlock silhouettes (`src/shell/figures/`) by [u/HaiGeorge](https://www.reddit.com/user/HaiGeorge/).
-
 Destiny 2 is a trademark of Bungie; Mida is not affiliated with Bungie.
