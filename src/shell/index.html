@@ -69,6 +69,13 @@
           </span>
           <span class="mod__name">Add a module</span>
         </button>
+        <button class="mod mod--add" id="notes-open" type="button" title="Notifications" aria-haspopup="dialog">
+          <span class="mod__icon mod__icon--add">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>
+            <span class="notes-count" id="notes-count" hidden></span>
+          </span>
+          <span class="mod__name">Notifications</span>
+        </button>
         <button class="mod mod--add" id="settings-open" type="button" title="Settings (Ctrl+,)">
           <span class="mod__icon mod__icon--add">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z"/></svg>
@@ -256,6 +263,18 @@
       <button class="btn" id="update-later" type="button">Later</button>
       <button class="btn btn--primary" id="update-now" type="button">Update now</button>
     </div>
+  </dialog>
+
+  <!-- Notifications: updates, sign-in problems and anything Bungie refused, newest first. -->
+  <dialog class="dialog dialog--small dialog--notes" id="notes-dialog" aria-labelledby="notes-title">
+    <div class="dialog__head dialog__head--row">
+      <h1 class="dialog__title" id="notes-title">Notifications</h1>
+      <div class="picture__buttons">
+        <button class="btn btn--small" id="notes-clear" type="button">Clear all</button>
+        <button class="btn btn--small" id="notes-close" type="button">Close</button>
+      </div>
+    </div>
+    <div class="notes" id="notes-list"></div>
   </dialog>
 
   <input type="file" id="picture-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>

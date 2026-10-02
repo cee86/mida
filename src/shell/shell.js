@@ -460,6 +460,7 @@ function tabContext() {
     hub,
     openMenu,
     openSettings,
+    notify,
     isFrozen: () => frozen,
     // Always the latest state (it's replaced on every update).
     get state() {
@@ -607,6 +608,132 @@ function buildHome() {
   );
 }
 
+// ---------- Notifications ----------
+//
+// A list kept on this computer (newest first, at most 60): updates, Bungie sign-in problems and
+// anything Bungie refused in the Inventory. The bell at the bottom of the sidebar shows how many
+// are unread and opens the list. Each note can carry a `key` so the same news is only added once.
+
+const NOTES_KEY = "mida-notifications";
+let notes = [];
+try {
+  const saved = JSON.parse(localStorage.getItem(NOTES_KEY) ?? "[]");
+  if (Array.isArray(saved)) notes = saved.filter((n) => n && typeof n.title === "string").slice(0, 60);
+} catch {
+  // Starts empty.
+}
+const saveNotes = () => {
+  try {
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  } catch {
+    // Only a convenience.
+  }
+};
+
+function notify({ key = null, kind = "info", title, detail = "", link = null }) {
+  if (!title) return;
+  if (key && notes.some((n) => n.key === key)) return;
+  notes.unshift({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, key, kind, title: String(title).slice(0, 200), detail: String(detail).slice(0, 600), link, at: Date.now(), read: false });
+  notes = notes.slice(0, 60);
+  saveNotes();
+  renderNotes();
+}
+
+const NOTE_ICONS = {
+  update: ["M12 4v11M7 10l5 5 5-5M5 20h14"],
+  error: ["M12 3l10 18H2z", "M12 10v5M12 18h0"],
+  info: ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 11v6M12 7.5h0"],
+};
+const ago = (at) => {
+  const m = Math.round((Date.now() - at) / 60000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+
+function renderNotes() {
+  const unread = notes.filter((n) => !n.read).length;
+  const count = $("notes-count");
+  count.hidden = unread === 0;
+  count.textContent = unread > 9 ? "9+" : String(unread);
+  $("notes-open").title = unread ? `Notifications (${unread} new)` : "Notifications";
+  if (!$("notes-dialog").open) return;
+  const list = $("notes-list");
+  if (!notes.length) return list.replaceChildren(el("p", { class: "notes__empty", text: "Nothing yet. Updates, sign-in problems and anything Bungie refuses show up here." }));
+  list.replaceChildren(
+    ...notes.map((n) => {
+      const actions = [];
+      const updateWaiting = n.kind === "update" && n.key === `update-${state?.update?.version}` && state?.update?.status === "available";
+      if (updateWaiting) actions.push(el("button", { class: "btn btn--small btn--primary", type: "button", text: "Update now", onclick: () => (hub.downloadUpdate(), $("notes-dialog").close()) }));
+      if (n.link === "releases") actions.push(el("button", { class: "btn btn--small", type: "button", text: "What's new", onclick: () => hub.openLink("releases") }));
+      return el(
+        "div",
+        { class: `note note--${n.kind}${!n.read || freshNotes.has(n.id) ? " is-new" : ""}` },
+        el("span", { class: "note__icon" }, svg(NOTE_ICONS[n.kind] ?? NOTE_ICONS.info)),
+        el(
+          "div",
+          { class: "note__text" },
+          el("div", { class: "note__title" }, el("strong", { text: n.title }), el("span", { class: "note__when", text: ago(n.at) })),
+          n.detail ? el("p", { class: "note__detail", text: n.detail }) : null,
+          actions.length ? el("div", { class: "picture__buttons" }, ...actions) : null,
+        ),
+        el("button", {
+          class: "icon-btn note__dismiss",
+          type: "button",
+          "aria-label": "Dismiss",
+          title: "Dismiss",
+          onclick: () => {
+            notes = notes.filter((x) => x.id !== n.id);
+            saveNotes();
+            renderNotes();
+          },
+        }, svg(["M6 6l12 12M18 6L6 18"])),
+      );
+    }),
+  );
+}
+
+// Seen once the list is open; their "new" marks stay until it's closed.
+const freshNotes = new Set();
+$("notes-open").addEventListener("click", async () => {
+  closeFlyout();
+  for (const n of notes) if (!n.read) freshNotes.add(n.id);
+  notes.forEach((n) => (n.read = true));
+  saveNotes();
+  await openDialog($("notes-dialog"));
+  renderNotes();
+});
+$("notes-dialog").addEventListener("close", () => {
+  freshNotes.clear();
+  renderNotes();
+});
+$("notes-close").addEventListener("click", () => $("notes-dialog").close());
+$("notes-clear").addEventListener("click", () => {
+  notes = [];
+  saveNotes();
+  renderNotes();
+});
+
+// News from the app's state: a new version, a failed download, having just updated, sign-in trouble.
+let lastAccountError = null;
+function noticeFromState() {
+  const u = state.update;
+  if (u?.status === "available") notify({ key: `update-${u.version}`, kind: "update", title: `Mida ${u.version} is available`, detail: `You're using ${state.version}. Update from here or the banner at the bottom of the sidebar.` });
+  if (u?.status === "error") notify({ key: `update-error-${u.version}-${new Date().toDateString()}`, kind: "error", title: "The update didn't download", detail: "Click the banner at the bottom of the sidebar to try again." });
+  try {
+    const seen = localStorage.getItem("mida-last-version");
+    if (seen && seen !== state.version) notify({ key: `updated-${state.version}`, kind: "update", title: `Updated to Mida ${state.version}`, detail: `From ${seen}.`, link: "releases" });
+    if (seen !== state.version) localStorage.setItem("mida-last-version", state.version);
+  } catch {
+    // Only a convenience.
+  }
+  const error = state.account?.error ?? null;
+  if (error && error !== lastAccountError) notify({ kind: "error", title: "Bungie sign-in", detail: error });
+  lastAccountError = error;
+}
+
 // ---------- Loadout dock ----------
 //
 // The current character's equipped gear in a column beside the pages (any tab or site), on
@@ -655,6 +782,8 @@ function render() {
   applyTheme(state.prefs);
   renderSidebar();
   renderDock();
+  noticeFromState();
+  renderNotes();
   renderActive();
   renderUpdate();
   if (!state.firstRunDone && !$("wizard").open) openWizard("first");

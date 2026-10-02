@@ -221,7 +221,14 @@ second grid column, 330 px; sidebar button "Loadout dock" on signed-in Destiny 2
 items for it (up to 9) inside the dock (sites cover anything outside our own layout), click equips. Pane sizes are
 measured from our layout, so sites shrink to make room. Dock and Inventory tab share the cached inventory and tell each
 other about moves (`mida-inventory-changed`). Esc closes the item card from anywhere; a quick click no longer un-pins it
-(the hover timer is cleared). **Filters** = a screen like the game's vault filters (categories left, a grid of
+(the hover timer is cleared).
+**Notifications** (v0.7, owner): a bell at the bottom of the sidebar (above Settings) with an unread count opens a list
+(`#notes-dialog`, frozen like other dialogs): a new version (with "Update now"), a failed download, "Updated to Mida X"
+after an update (with "What's new"; compares `mida-last-version`), Bungie sign-in errors, and anything Bungie refused in
+the Inventory or dock (`ctx.notify`, `fail()` in inventory.js). Kept in localStorage `mida-notifications` (newest
+first, at most 60); `key` stops the same news being added twice; marked read when the list opens (the "new" marks stay
+until it closes); dismiss one or Clear all. Asked about push notifications for releases: not possible without an
+always-on server (Vercel ends requests within a minute), so the owner chose to keep the launch + every-4-hours check. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

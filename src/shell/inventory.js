@@ -152,6 +152,11 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     clearTimeout(toast.timer);
     toast.timer = setTimeout(() => (toast.hidden = true), 5000);
   };
+  // Something Bungie refused: shown here and kept in the notifications (the bell in the sidebar).
+  const fail = (title, detail) => {
+    say(detail);
+    ctx.notify?.({ kind: "error", title, detail });
+  };
 
   const chars = () => data.characters;
   const current = () => chars().find((c) => c.id === view.current) ?? chars()[0];
@@ -248,7 +253,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       item.owner = before.owner;
       item.equipped = before.equipped;
       if (displaced) displaced.equipped = true;
-      say(result?.error ?? "That didn't work.");
+      fail(`Couldn't move ${item.name}`, result?.error ?? "That didn't work.");
     } else {
       invalidate();
       window.dispatchEvent(new CustomEvent("mida-inventory-changed", { detail: root }));
@@ -262,7 +267,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   async function pull(item) {
     closeCard();
     const result = await ctx.hub.d2Pull({ hash: item.hash, instance: item.instance, owner: item.owner, quantity: item.quantity });
-    if (!result?.ok) return say(result?.error ?? "Couldn't pull that.");
+    if (!result?.ok) return fail(`Couldn't pull ${item.name}`, result?.error ?? "Couldn't pull that.");
     say(`${item.name} is on its way to your ${charName(item.owner)}.`);
     invalidate();
     load(true, true);
@@ -275,7 +280,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const result = await ctx.hub.d2Lock(item.instance, actingCharacter(item), want);
     if (!result?.ok) {
       item.locked = !want;
-      say(result?.error ?? "Couldn't change the lock.");
+      fail(`Couldn't ${want ? "lock" : "unlock"} ${item.name}`, result?.error ?? "Couldn't change the lock.");
     } else {
       invalidate();
     }
@@ -300,7 +305,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     if (!result?.ok) {
       s.current = before.current;
       s.options.forEach((o, i) => (o.current = before.picks[i]));
-      say(result?.error ?? "Couldn't change that.");
+      fail(`Couldn't change ${plug.name} on ${item.name}`, result?.error ?? "Couldn't change that.");
     } else {
       invalidate();
       // Read the item again quietly (stats change with perks and mods).
@@ -1154,6 +1159,7 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
       item.equipped = false;
       if (was) was.equipped = true;
       note.textContent = result?.error ?? "Couldn't equip that.";
+      ctx.notify?.({ kind: "error", title: `Couldn't equip ${item.name}`, detail: note.textContent });
     } else {
       note.textContent = "";
       invalidate();
