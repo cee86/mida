@@ -680,8 +680,9 @@ pub async fn season(profile: &Value, token: &str) -> Value {
 // tracks that look like the weekly rewards. Much of this layout is Bungie's 2025-26 seasonal hub,
 // which couldn't be checked from the build workspace, so `check` lists what was found for tuning.
 
-/// A season pass's reward track for one character.
-pub async fn pass_track(pass_hash: u64, progressions: &Value, m: &Manifest) -> Value {
+/// A season pass's reward track for one character. `season` is the season the pass belongs to
+/// (Bungie's claim action wants it).
+pub async fn pass_track(pass_hash: u64, season: u64, progressions: &Value, m: &Manifest) -> Value {
     let Some(pass) = entity("DestinySeasonPassDefinition", pass_hash).await else { return Value::Null };
     let reward_hash = pass["rewardProgressionHash"].as_u64().unwrap_or(0);
     let prestige_hash = pass["prestigeProgressionHash"].as_u64().unwrap_or(0);
@@ -708,14 +709,22 @@ pub async fn pass_track(pass_hash: u64, progressions: &Value, m: &Manifest) -> V
             premium_owned = Some(premium_owned.unwrap_or(false) || can);
         }
         let item = m.items.get(&(hash as u32)).cloned().unwrap_or_default();
+        let earned = state & 2 != 0;
+        let claimed = state & 4 != 0;
         let entry = json!({
+            "index": i,
             "hash": hash,
             "name": item.name,
             "icon": icon_url(&item.icon),
             "tier": item.tier,
+            "typeName": item.type_name,
+            "description": item.description,
             "quantity": r["quantity"],
-            "earned": state & 2 != 0,
-            "claimed": state & 4 != 0,
+            "rank": level,
+            "premium": premium,
+            "earned": earned,
+            "claimed": claimed,
+            "claimable": earned && !claimed && state & 8 != 0,
         });
         let row = if premium { "premium" } else { "free" };
         match ranks.iter_mut().find(|x| x["rank"].as_i64() == Some(level)) {
@@ -733,6 +742,7 @@ pub async fn pass_track(pass_hash: u64, progressions: &Value, m: &Manifest) -> V
     let current = if on_prestige && prestige.is_object() { prestige } else { reward };
     json!({
         "hash": pass_hash,
+        "season": season,
         "name": pass["displayProperties"]["name"],
         "icon": icon_url(pass["displayProperties"]["icon"].as_str().unwrap_or("")),
         "tracked": reward.is_object(),
@@ -742,51 +752,134 @@ pub async fn pass_track(pass_hash: u64, progressions: &Value, m: &Manifest) -> V
         "next": current["nextLevelAt"],
         "premium": premium_owned,
         "ranks": ranks,
+        // Which fields Bungie gives a pass (to find the pass's bonuses; see the data check).
+        "keys": pass.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default(),
     })
 }
 
+/// Rewards earned but not claimed yet on a track.
+fn claimable(track: &Value) -> Vec<Value> {
+    track["ranks"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|r| r["free"].as_array().into_iter().flatten().chain(r["premium"].as_array().into_iter().flatten()))
+        .filter(|w| w["claimable"].as_bool() == Some(true))
+        .cloned()
+        .collect()
+}
+
 /// Records under a presentation node, a few levels down, with the node names on the way.
-async fn node_records(root: u64, depth: u32, path: String, out: &mut Vec<(String, u64)>) {
+async fn node_records(root: u64, depth: u32, path: String, out: &mut Vec<(String, u64)>, seen: &mut Vec<Value>) {
     if depth > 3 || out.len() > 120 {
         return;
     }
-    let Some(node) = entity("DestinyPresentationNodeDefinition", root).await else { return };
+    let Some(node) = entity("DestinyPresentationNodeDefinition", root).await else {
+        seen.push(json!({ "hash": root, "name": "(couldn't read)", "nodes": 0, "records": 0 }));
+        return;
+    };
     let name = node["displayProperties"]["name"].as_str().unwrap_or("").to_string();
-    let here = if path.is_empty() { name } else { format!("{path} / {name}") };
-    for r in node["children"]["records"].as_array().into_iter().flatten() {
+    let here = if path.is_empty() { name.clone() } else { format!("{path} / {name}") };
+    let records = node["children"]["records"].as_array().cloned().unwrap_or_default();
+    let nodes = node["children"]["presentationNodes"].as_array().cloned().unwrap_or_default();
+    if seen.len() < 40 {
+        seen.push(json!({ "hash": root, "name": here, "nodes": nodes.len(), "records": records.len() }));
+    }
+    for r in &records {
         if let Some(h) = r["recordHash"].as_u64() {
             out.push((here.clone(), h));
         }
     }
-    for c in node["children"]["presentationNodes"].as_array().into_iter().flatten() {
+    for c in &nodes {
         if let Some(h) = c["presentationNodeHash"].as_u64() {
-            Box::pin(node_records(h, depth + 1, here.clone(), out)).await;
+            Box::pin(node_records(h, depth + 1, here.clone(), out, seen)).await;
         }
     }
 }
 
-pub async fn seasonal(profile: &Value, character: &str, m: &Manifest) -> Value {
+/// Vendors that sell things with objectives or bounties (where the seasonal hub's orders, daily and
+/// weekly objectives probably live), read from the character's vendors (components 400,401,402,
+/// 301). Each comes back with its display categories and their items.
+async fn hub_vendors(vendors: &Value, m: &Manifest) -> Vec<Value> {
+    let mut out = Vec::new();
+    let Some(sales) = vendors["sales"]["data"].as_object() else { return out };
+    for (vkey, sale) in sales {
+        let Ok(vhash) = vkey.parse::<u64>() else { continue };
+        let item_objectives = &vendors["itemComponents"][vkey]["objectives"]["data"];
+        let items: Vec<(String, Value)> = sale["saleItems"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.clone())).collect()).unwrap_or_default();
+        // Worth a closer look: something with objectives, or a bounty / quest.
+        let interesting = items.iter().any(|(k, it)| {
+            item_objectives[k]["objectives"].as_array().map(|a| !a.is_empty()).unwrap_or(false)
+                || it["itemHash"].as_u64().and_then(|h| m.items.get(&(h as u32))).map(|d| matches!(d.kind, 26 | 12 | 15)).unwrap_or(false)
+        });
+        if !interesting || out.len() >= 12 {
+            continue;
+        }
+        let Some(def) = entity("DestinyVendorDefinition", vhash).await else { continue };
+        let display = def["displayCategories"].as_array().cloned().unwrap_or_default();
+        let mut categories = Vec::new();
+        for cat in vendors["categories"]["data"][vkey]["categories"].as_array().into_iter().flatten() {
+            let index = cat["displayCategoryIndex"].as_u64().unwrap_or(0) as usize;
+            let name = display.get(index).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or("").to_string();
+            let mut list = Vec::new();
+            for i in cat["itemIndexes"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()) {
+                let key = i.to_string();
+                let Some((_, it)) = items.iter().find(|(k, _)| *k == key) else { continue };
+                let Some(hash) = it["itemHash"].as_u64() else { continue };
+                let d = m.items.get(&(hash as u32)).cloned().unwrap_or_default();
+                if d.name.is_empty() {
+                    continue;
+                }
+                let objs = objectives(&item_objectives[&key]["objectives"], m);
+                list.push(json!({
+                    "hash": hash,
+                    "name": d.name,
+                    "icon": icon_url(&d.icon),
+                    "typeName": d.type_name,
+                    "description": d.description,
+                    "tier": d.tier,
+                    "quantity": it["quantity"],
+                    "complete": !objs.is_empty() && objs.iter().all(|o| o["complete"].as_bool() == Some(true)),
+                    "objectives": objs,
+                }));
+            }
+            if !list.is_empty() {
+                categories.push(json!({ "name": name, "items": list }));
+            }
+        }
+        out.push(json!({
+            "hash": vhash,
+            "name": def["displayProperties"]["name"],
+            "refresh": vendors["vendors"]["data"][vkey]["nextRefreshDate"],
+            "categories": categories,
+        }));
+    }
+    out
+}
+
+pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Manifest) -> Value {
     let progressions = &profile["characterProgressions"]["data"][character]["progressions"];
     let season_hash = profile["profile"]["data"]["currentSeasonHash"].as_u64().unwrap_or(0);
     let season = entity("DestinySeasonDefinition", season_hash).await.unwrap_or(Value::Null);
     let now = chrono_now();
 
-    // The current pass: the latest one in the season's list that has started.
+    // The current pass: the latest one in the season's list that has started; it ends when the
+    // next one starts, or with the season (when Bungie gives a real date).
     let list = season["seasonPassList"].as_array().cloned().unwrap_or_default();
-    let current_pass = list
-        .iter()
-        .filter(|p| p["seasonPassStartDate"].as_str().map(|d| d <= now.as_str()).unwrap_or(true))
-        .last()
-        .or(list.last())
-        .and_then(|p| p["seasonPassHash"].as_u64())
-        .or(season["seasonPassHash"].as_u64());
+    let started: Vec<&Value> = list.iter().filter(|p| p["seasonPassStartDate"].as_str().map(|d| d <= now.as_str()).unwrap_or(true)).collect();
+    let current_ref = started.last().copied().or(list.last());
+    let current_pass = current_ref.and_then(|p| p["seasonPassHash"].as_u64()).or(season["seasonPassHash"].as_u64());
+    let next_start = list.iter().filter_map(|p| p["seasonPassStartDate"].as_str()).find(|d| *d > now.as_str()).map(str::to_string);
+    let season_end = season["endDate"].as_str().filter(|d| d > &now.as_str() && &d[..4] < "2100").map(str::to_string);
+    let pass_ends = next_start.or(season_end.clone());
     let pass = match current_pass {
-        Some(h) => pass_track(h, progressions, m).await,
+        Some(h) => pass_track(h, season_hash, progressions, m).await,
         None => Value::Null,
     };
 
-    // Past passes (newest first) for the dropdown: the account's seasons, last 12.
+    // Past passes (newest first) for the dropdown, and rewards still waiting to be claimed on each.
     let mut passes = Vec::new();
+    let mut waiting = Vec::new();
     let mut seasons: Vec<u64> = profile["profile"]["data"]["seasonHashes"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()).collect();
     if !seasons.contains(&season_hash) && season_hash != 0 {
         seasons.push(season_hash);
@@ -801,7 +894,17 @@ pub async fn seasonal(profile: &Value, character: &str, m: &Manifest) -> Value {
         }
         for (i, ph) in hashes.iter().enumerate().rev() {
             let label = if hashes.len() > 1 { format!("{season_name} (pass {})", i + 1) } else { season_name.clone() };
-            passes.push(json!({ "hash": ph, "season": label, "number": number, "current": Some(*ph) == current_pass }));
+            let is_current = Some(*ph) == current_pass;
+            passes.push(json!({ "hash": ph, "seasonHash": h, "season": label, "number": number, "current": is_current }));
+            let track = if is_current { pass.clone() } else { pass_track(*ph, *h, progressions, m).await };
+            for mut w in claimable(&track) {
+                w["pass"] = track["name"].clone();
+                w["passHash"] = json!(ph);
+                w["seasonHash"] = json!(h);
+                w["seasonLabel"] = json!(label);
+                w["current"] = json!(is_current);
+                waiting.push(w);
+            }
         }
     }
 
@@ -823,8 +926,9 @@ pub async fn seasonal(profile: &Value, character: &str, m: &Manifest) -> Value {
     let card = if card_hash != 0 { entity("DestinyEventCardDefinition", card_hash).await.unwrap_or(Value::Null) } else { Value::Null };
     collect_roots(&card, "eventCard");
     let mut found: Vec<(String, u64)> = Vec::new();
+    let mut nodes_seen: Vec<Value> = Vec::new();
     for (_, h) in &roots {
-        node_records(*h, 0, String::new(), &mut found).await;
+        node_records(*h, 0, String::new(), &mut found, &mut nodes_seen).await;
     }
     let record_state = |h: u64| -> Value {
         let key = h.to_string();
@@ -848,7 +952,7 @@ pub async fn seasonal(profile: &Value, character: &str, m: &Manifest) -> Value {
         }
         let state = record_state(*h);
         let flags = state["state"].as_u64().unwrap_or(0);
-        if flags & 16 != 0 || (state.is_null()) {
+        if flags & 16 != 0 || state.is_null() {
             continue; // invisible, or not this account's
         }
         let Some(def) = entity("DestinyRecordDefinition", *h).await else { continue };
@@ -867,14 +971,34 @@ pub async fn seasonal(profile: &Value, character: &str, m: &Manifest) -> Value {
             "description": def["displayProperties"]["description"],
             "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
             "complete": flags & 4 == 0,
-            "redeemed": flags & 1 != 0,
             "objectives": objectives(&state["objectives"], m),
             "rewards": rewards,
         });
         if group == "daily" { daily.push(entry) } else { weekly.push(entry) }
     }
 
-    // Reward tracks other than the pass (the weekly rewards look like one): progressions that
+    // Vendors with objectives or bounties: their categories fill in what the records didn't.
+    let hub = hub_vendors(vendors, m).await;
+    let mut orders = Vec::new();
+    let mut weekly_rewards_items = Vec::new();
+    for v in &hub {
+        for c in v["categories"].as_array().into_iter().flatten() {
+            let name = c["name"].as_str().unwrap_or("").to_lowercase();
+            let items = c["items"].as_array().cloned().unwrap_or_default();
+            let as_objective = |it: &Value| json!({ "name": it["name"], "description": it["description"], "icon": it["icon"], "complete": it["complete"], "objectives": it["objectives"], "rewards": [] });
+            if name.contains("order") {
+                orders.extend(items.iter().map(as_objective));
+            } else if name.contains("daily") && daily.is_empty() {
+                daily.extend(items.iter().filter(|i| i["objectives"].as_array().map(|a| !a.is_empty()).unwrap_or(false)).map(as_objective));
+            } else if name.contains("week") && name.contains("reward") {
+                weekly_rewards_items.extend(items.clone());
+            } else if name.contains("week") && weekly.is_empty() {
+                weekly.extend(items.iter().filter(|i| i["objectives"].as_array().map(|a| !a.is_empty()).unwrap_or(false)).map(as_objective));
+            }
+        }
+    }
+
+    // Reward tracks other than the pass (the weekly rewards might be one): progressions that
     // carry reward states, with their definitions.
     let mut tracks = Vec::new();
     if let Some(map) = progressions.as_object() {
@@ -894,52 +1018,85 @@ pub async fn seasonal(profile: &Value, character: &str, m: &Manifest) -> Value {
                 .filter_map(|(i, r)| {
                     let item = m.items.get(&(r["itemHash"].as_u64()? as u32))?;
                     let st = states.get(i).and_then(|v| v.as_u64()).unwrap_or(0);
-                    Some(json!({ "step": r["rewardedAtProgressionLevel"], "name": item.name, "icon": icon_url(&item.icon), "tier": item.tier, "quantity": r["quantity"], "earned": st & 2 != 0, "claimed": st & 4 != 0 }))
+                    Some(json!({ "step": r["rewardedAtProgressionLevel"], "name": item.name, "icon": icon_url(&item.icon), "tier": item.tier, "typeName": item.type_name, "description": item.description, "quantity": r["quantity"], "earned": st & 2 != 0, "claimed": st & 4 != 0 }))
                 })
                 .collect();
+            let first = rewards.first().and_then(|r| r["name"].as_str()).unwrap_or("").to_string();
             tracks.push(json!({
                 "hash": hash,
                 "name": def["displayProperties"]["name"],
+                "firstReward": first,
                 "level": p["level"],
                 "levelCap": p["levelCap"],
                 "progress": p["progressToNextLevel"],
                 "next": p["nextLevelAt"],
-                "weeklyProgress": p["weeklyProgress"],
                 "rewards": rewards,
             }));
         }
     }
-    let weekly_rewards = tracks
-        .iter()
-        .find(|t| t["name"].as_str().map(|n| n.to_lowercase().contains("week")).unwrap_or(false))
-        .cloned()
-        .unwrap_or(Value::Null);
-    let order_chance = tracks
-        .iter()
-        .find(|t| t["name"].as_str().map(|n| n.to_lowercase().contains("order")).unwrap_or(false))
-        .cloned()
-        .unwrap_or(Value::Null);
+    let named = |word: &str| tracks.iter().find(|t| t["name"].as_str().map(|n| n.to_lowercase().contains(word)).unwrap_or(false)).cloned();
+    let weekly_rewards = named("week").unwrap_or_else(|| {
+        if weekly_rewards_items.is_empty() {
+            Value::Null
+        } else {
+            json!({ "name": "Weekly rewards", "level": Value::Null, "rewards": weekly_rewards_items.iter().enumerate().map(|(i, it)| { let mut w = it.clone(); w["step"] = json!(i + 1); w }).collect::<Vec<_>>() })
+        }
+    });
+    let order_chance = named("order").unwrap_or(Value::Null);
+
+    // Milestone names (Bungie also keeps weekly things there), for the data check.
+    let mut milestones = Vec::new();
+    if let Some(map) = profile["characterProgressions"]["data"][character]["milestones"].as_object() {
+        for key in map.keys().take(30) {
+            let Ok(h) = key.parse::<u64>() else { continue };
+            let name = entity("DestinyMilestoneDefinition", h).await.and_then(|d| d["displayProperties"]["name"].as_str().map(str::to_string)).unwrap_or_default();
+            if !name.is_empty() {
+                milestones.push(json!(name));
+            }
+        }
+    }
 
     json!({
         "season": {
             "hash": season_hash,
             "name": season["displayProperties"]["name"],
             "number": season["seasonNumber"],
-            "ends": season["endDate"],
+            "ends": season_end,
+            "passEnds": pass_ends,
         },
         "eventCard": card["displayProperties"]["name"],
         "pass": pass,
         "passes": passes,
+        "claimable": waiting,
         "daily": daily,
         "weekly": weekly,
+        "orders": orders,
         "weeklyRewards": weekly_rewards,
         "orderChance": order_chance,
         "check": {
             "roots": roots.iter().map(|(k, h)| json!({ "from": k, "hash": h })).collect::<Vec<_>>(),
+            "nodes": nodes_seen,
             "groups": groups,
-            "tracks": tracks.iter().map(|t| json!({ "name": t["name"], "steps": t["rewards"].as_array().map(|a| a.len()), "level": t["level"], "levelCap": t["levelCap"] })).collect::<Vec<_>>(),
+            "tracks": tracks.iter().map(|t| json!({ "name": t["name"], "firstReward": t["firstReward"], "steps": t["rewards"].as_array().map(|a| a.len()), "level": t["level"], "levelCap": t["levelCap"] })).collect::<Vec<_>>(),
+            "vendors": hub.iter().map(|v| json!({ "name": v["name"], "refresh": v["refresh"], "categories": v["categories"].as_array().into_iter().flatten().map(|c| json!({ "name": c["name"], "count": c["items"].as_array().map(|a| a.len()), "first": c["items"].as_array().and_then(|a| a.first()).map(|i| i["name"].clone()) })).collect::<Vec<_>>() })).collect::<Vec<_>>(),
+            "vendorsRead": vendors["sales"]["data"].as_object().map(|o| o.len()).unwrap_or(0),
+            "milestones": milestones,
+            "passKeys": pass["keys"],
+            "seasonKeys": season.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default(),
         },
     })
+}
+
+/// The character's vendors with their sales, display categories and item objectives.
+pub async fn character_vendors(kind: i64, id: &str, character: &str, token: &str) -> Result<Value, String> {
+    get(&format!("/Destiny2/{kind}/Profile/{id}/Character/{character}/Vendors/?components=400,401,402,301"), Some(token)).await
+}
+
+/// Claims a season pass reward (it goes to the character, or the postmaster when full).
+pub async fn claim_reward(kind: i64, token: &str, character: &str, season: u64, index: u32) -> Result<(), String> {
+    post("/Destiny2/Actions/Seasons/ClaimReward/", token, json!({ "rewardIndex": index, "seasonHash": season, "characterId": character, "membershipType": kind }))
+        .await
+        .map(|_| ())
 }
 
 /// Now as an ISO 8601 string (UTC), comparable with Bungie's dates.

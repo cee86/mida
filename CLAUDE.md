@@ -252,7 +252,20 @@ owned, from earned premium rewards' claim state; ranks past the track; artifact;
 earned/claimed from `rewardItemStates`; scrolls to the current rank). Bounties, Bungie's alerts and a **Data check**
 (objective node groups, reward tracks found, quest kinds) fold away at the bottom. `d2_seasonal` reads components
 100,202,900. Orders, objectives, weekly rewards, order chance and the pass bonuses are **educated guesses** about
-Bungie's 2025-26 hub data; the data check is there so the owner can screenshot it for tuning. **Filters** = a screen like the game's vault filters (categories left, a grid of
+Bungie's 2025-26 hub data; the data check is there so the owner can screenshot it for tuning.
+**Seasonal Hub round 2** (owner's first live data check, 2 Oct 2026: the season's `seasonalChallengesPresentationNodeHash`
+gave no records, no event card, six unnamed reward tracks of 15-23 steps, quests only "Quest Step", the pass track worked;
+season `endDate` was far future, artifact 0): styled like the Inventory (title band, `.inv-backdrop` with its own picture
+`mida-sh-backdrop`, else the Inventory's; boxes with corner brackets; `.sh-label` = diamond + rule bright at its start);
+**reward hover cards** (`.sh-tip`: name, type, tier, quantity, description, rank, free/pass, earned/claimed); **Rewards to
+claim** under the track (This pass / Every pass; `claimable` = earned, not claimed, ClaimAllowed flag 8; every pass in the
+dropdown is read for it) with Claim / Claim all (`d2_claim` -> `/Destiny2/Actions/Seasons/ClaimReward/` with rewardIndex,
+seasonHash, characterId, membershipType; body unverified live); **bounties** in a sticky column on the right; "Pass ends
+in" (next pass start, else a real season end) replaces the season end; artifact only when non-zero. `d2_seasonal` now
+also reads the character's **vendors** (400,401,402,301; a failure is ignored): vendors selling things with objectives or
+bounties give categories that fill orders ("order"), daily ("daily"), weekly ("week") and weekly rewards ("week" +
+"reward"). The data check adds the presentation nodes looked at, those vendors and categories, milestone names, each
+track's first reward, and the keys Bungie gives a pass and a season (to find the pass's XP bonus etc., not found yet). **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

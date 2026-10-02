@@ -1164,21 +1164,22 @@ function overlaysSetting() {
   );
 }
 
-function backdropSetting() {
+// A backdrop picture for a tab: `key` in this computer's storage, `title` and `help` for Settings.
+function backdropSetting(key = BACKDROP_KEY, title = "Inventory backdrop", help = "A picture from your computer behind the Inventory tab, darkened and blurred. It stays on this computer.", none = "Using Mida's own dark backdrop.") {
   let saved = null;
   try {
-    saved = localStorage.getItem(BACKDROP_KEY);
+    saved = localStorage.getItem(key);
   } catch {
     // Storage unavailable: the built-in backdrop shows.
   }
-  const status = el("span", { class: "inline-status", role: "status", text: saved ? "Using your picture." : "Using Mida's own dark backdrop." });
+  const status = el("span", { class: "inline-status", role: "status", text: saved ? "Using your picture." : none });
   const preview = el("span", { class: "backdrop-preview" });
   if (saved) preview.style.backgroundImage = `url("${saved}")`;
   const changed = () => window.dispatchEvent(new Event("mida-backdrop"));
   const choose = el("button", {
     class: "btn btn--small",
     type: "button",
-    "data-key": "backdrop",
+    "data-key": `backdrop-${key}`,
     text: "Choose picture…",
     onclick: () => {
       const input = $("picture-input");
@@ -1188,7 +1189,7 @@ function backdropSetting() {
         if (!file) return;
         try {
           const picture = await backdropPicture(file);
-          localStorage.setItem(BACKDROP_KEY, picture);
+          localStorage.setItem(key, picture);
           changed();
           renderSettings();
         } catch (err) {
@@ -1205,7 +1206,7 @@ function backdropSetting() {
     disabled: !saved || null,
     onclick: () => {
       try {
-        localStorage.removeItem(BACKDROP_KEY);
+        localStorage.removeItem(key);
       } catch {
         // Nothing to remove.
       }
@@ -1213,7 +1214,7 @@ function backdropSetting() {
       renderSettings();
     },
   });
-  return setting("Inventory backdrop", "A picture from your computer behind the Inventory tab, darkened and blurred. It stays on this computer.", el("div", { class: "picture" }, preview, el("div", {}, el("div", { class: "picture__buttons" }, choose, clear), status)));
+  return setting(title, help, el("div", { class: "picture" }, preview, el("div", {}, el("div", { class: "picture__buttons" }, choose, clear), status)));
 }
 
 function profileForm(initial = {}) {
@@ -1718,6 +1719,7 @@ function personalizationPanel() {
         ? [setting("Colorway", "Retro keeps Destiny 1's own colours. Pick another theme to use a colorway.", el("div", {}, swatches), { disabled: true })]
         : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
     backdropSetting(),
+    backdropSetting("mida-sh-backdrop", "Seasonal Hub backdrop", "A picture behind the Seasonal Hub, darkened and blurred. Without one it uses the Inventory's picture. It stays on this computer.", "Using the Inventory's backdrop."),
     overlaysSetting(),
     setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
     setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
