@@ -262,7 +262,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
         "Season pass bonuses",
         null,
         bonuses.length ? el("div", { class: "sh-bonuses" }, ...bonuses) : note("Reading…"),
-        hub ? el("p", { class: "tab__note sh-bonuses__note", text: "The pass's own boosts (like its XP bonus) aren't in Bungie's data that Mida has found yet; the data check lists what the pass carries." }) : null,
+        hub ? el("p", { class: "tab__note sh-bonuses__note", text: "Bungie doesn't share the pass's own boosts (like its XP bonus) with apps, so Mida can't show them." }) : null,
       ),
     );
   }
@@ -425,6 +425,10 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
             list(k.tracks.map((t) => `${t.name || "(no name)"} · ${t.steps} steps · level ${t.level ?? 0}${t.levelCap ? ` of ${t.levelCap}` : ""}${t.firstReward ? ` · first reward: ${t.firstReward}` : ""}`), "None found."),
             el("h3", { text: "Milestones on this character" }),
             list(k.milestones ?? [], "None."),
+            el("h3", { text: "Pursuits with objectives kept apart (orders may be these)" }),
+            list(k.uninstanced ?? [], "None."),
+            el("h3", { text: "Kinds of things in this character's inventory and the account's" }),
+            list(k.kinds ?? [], "None."),
             el("h3", { text: "Quest and bounty kinds on this character" }),
             list(types, "None."),
             el("h3", { text: "What Bungie gives a season pass / a season" }),

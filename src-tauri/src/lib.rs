@@ -1227,7 +1227,7 @@ async fn d2_seasonal(webview: Webview, app: AppHandle, character: String) -> Val
         async {
             let a = account(&app).await?;
             let m = manifest(&app).await?;
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,202,900").await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,201,202,900").await?;
             let vendors = bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access).await.unwrap_or(Value::Null);
             Ok(bungie::seasonal(&profile, &vendors, &character, &m).await)
         }

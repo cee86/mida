@@ -803,18 +803,30 @@ async fn node_records(root: u64, depth: u32, path: String, out: &mut Vec<(String
 async fn hub_vendors(vendors: &Value, m: &Manifest) -> Vec<Value> {
     let mut out = Vec::new();
     let Some(sales) = vendors["sales"]["data"].as_object() else { return out };
-    for (vkey, sale) in sales {
+    // Rank vendors by how many of their sale items carry objectives (then bounties / quests), so
+    // the likeliest hub vendors are read first; at most 30 definitions are fetched.
+    let mut ranked: Vec<(usize, &String, &Value)> = sales
+        .iter()
+        .map(|(vkey, sale)| {
+            let objs = &vendors["itemComponents"][vkey]["objectives"]["data"];
+            let score = sale["saleItems"].as_object().map(|o| {
+                o.iter()
+                    .map(|(k, it)| {
+                        let with_objectives = objs[k]["objectives"].as_array().map(|a| !a.is_empty()).unwrap_or(false);
+                        let pursuit = it["itemHash"].as_u64().and_then(|h| m.items.get(&(h as u32))).map(|d| matches!(d.kind, 26 | 12 | 15)).unwrap_or(false);
+                        usize::from(with_objectives) * 2 + usize::from(pursuit)
+                    })
+                    .sum::<usize>()
+            });
+            (score.unwrap_or(0), vkey, sale)
+        })
+        .filter(|(score, _, _)| *score > 0)
+        .collect();
+    ranked.sort_by(|a, b| b.0.cmp(&a.0));
+    for (_, vkey, sale) in ranked.into_iter().take(30) {
         let Ok(vhash) = vkey.parse::<u64>() else { continue };
         let item_objectives = &vendors["itemComponents"][vkey]["objectives"]["data"];
         let items: Vec<(String, Value)> = sale["saleItems"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.clone())).collect()).unwrap_or_default();
-        // Worth a closer look: something with objectives, or a bounty / quest.
-        let interesting = items.iter().any(|(k, it)| {
-            item_objectives[k]["objectives"].as_array().map(|a| !a.is_empty()).unwrap_or(false)
-                || it["itemHash"].as_u64().and_then(|h| m.items.get(&(h as u32))).map(|d| matches!(d.kind, 26 | 12 | 15)).unwrap_or(false)
-        });
-        if !interesting || out.len() >= 12 {
-            continue;
-        }
         let Some(def) = entity("DestinyVendorDefinition", vhash).await else { continue };
         let display = def["displayCategories"].as_array().cloned().unwrap_or_default();
         let mut categories = Vec::new();
@@ -1044,6 +1056,28 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     });
     let order_chance = named("order").unwrap_or(Value::Null);
 
+    // Pursuits the character holds whose objectives Bungie keeps apart from the item (orders may
+    // be these), and what kinds of things sit in the inventories, for the data check.
+    let uninstanced: Vec<Value> = profile["characterProgressions"]["data"][character]["uninstancedItemObjectives"]
+        .as_object()
+        .map(|o| o.keys().filter_map(|k| k.parse::<u32>().ok()).filter_map(|h| m.items.get(&h)).map(|d| json!(format!("{} ({})", d.name, d.type_name))).take(40).collect())
+        .unwrap_or_default();
+    let mut kinds: Vec<(String, usize)> = Vec::new();
+    let sections = [&profile["characterInventories"]["data"][character], &profile["profileInventory"]["data"]];
+    for section in sections {
+        for item in items_of(section) {
+            let Some(d) = item["itemHash"].as_u64().and_then(|h| m.items.get(&(h as u32))) else { continue };
+            if matches!(d.kind, 2 | 3) || d.type_name.is_empty() {
+                continue;
+            }
+            match kinds.iter_mut().find(|(k, _)| *k == d.type_name) {
+                Some(entry) => entry.1 += 1,
+                None => kinds.push((d.type_name.clone(), 1)),
+            }
+        }
+    }
+    kinds.sort_by(|a, b| b.1.cmp(&a.1));
+
     // Milestone names (Bungie also keeps weekly things there), for the data check.
     let mut milestones = Vec::new();
     if let Some(map) = profile["characterProgressions"]["data"][character]["milestones"].as_object() {
@@ -1081,6 +1115,8 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
             "vendors": hub.iter().map(|v| json!({ "name": v["name"], "refresh": v["refresh"], "categories": v["categories"].as_array().into_iter().flatten().map(|c| json!({ "name": c["name"], "count": c["items"].as_array().map(|a| a.len()), "first": c["items"].as_array().and_then(|a| a.first()).map(|i| i["name"].clone()) })).collect::<Vec<_>>() })).collect::<Vec<_>>(),
             "vendorsRead": vendors["sales"]["data"].as_object().map(|o| o.len()).unwrap_or(0),
             "milestones": milestones,
+            "uninstanced": uninstanced,
+            "kinds": kinds.iter().take(40).map(|(k, n)| json!(format!("{k} · {n}"))).collect::<Vec<_>>(),
             "passKeys": pass["keys"],
             "seasonKeys": season.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default(),
         },
