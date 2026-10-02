@@ -30,6 +30,17 @@ const SIZES = { s: 44, m: 56, l: 68 };
 const SLOTS = { 375726501: 10 };
 const ENGRAMS = 375726501;
 export const BACKDROP_KEY = "mida-inv-backdrop";
+// What's drawn on top of item icons (Settings -> Personalization -> Inventory item icons). Mirrored
+// in shell.js, which saves it; each shows through a data attribute on the tab (CSS does the rest).
+const OVERLAYS_KEY = "mida-inv-overlays";
+const OVERLAY_DEFAULTS = { power: true, lock: true, element: true, watermark: true, masterwork: true, tier: false, banner: false };
+const overlayChoices = () => {
+  try {
+    return { ...OVERLAY_DEFAULTS, ...JSON.parse(localStorage.getItem(OVERLAYS_KEY) ?? "{}") };
+  } catch {
+    return { ...OVERLAY_DEFAULTS };
+  }
+};
 
 const LOCK = ["M7 11V8a5 5 0 0 1 10 0v3", "M5 11h14v10H5z"];
 const UNLOCK = ["M7 11V8a5 5 0 0 1 9.6-2", "M5 11h14v10H5z"];
@@ -302,13 +313,14 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       },
       item.icon ? el("img", { class: "tile2__icon", src: item.icon, alt: "", loading: "lazy", draggable: "false" }) : null,
       item.watermark ? el("img", { class: "tile2__mark", src: item.watermark, alt: "", loading: "lazy", draggable: "false" }) : null,
+      item.locked ? el("span", { class: "tile2__lock", title: "Locked" }, svg(LOCK)) : null,
+      item.gearTier && item.instance ? el("span", { class: "tile2__tier", title: `Gear tier ${item.gearTier}` }, ...Array.from({ length: Math.min(5, item.gearTier) }, () => el("i"))) : null,
       value
         ? el(
             "span",
             { class: `tile2__bar${item.power ? "" : " tile2__bar--count"}` },
             element && element !== "kinetic" ? el("i", { class: `tile2__element tile2__element--${element}` }) : null,
-            item.locked ? svg(LOCK) : null,
-            el("span", { text: value }),
+            el("span", { class: item.power ? "tile2__power" : "tile2__count", text: value }),
           )
         : null,
     );
@@ -971,6 +983,12 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   });
   window.addEventListener("mida-backdrop", paintBackdrop);
   paintBackdrop();
+  function paintOverlays() {
+    const choices = overlayChoices();
+    for (const key of Object.keys(OVERLAY_DEFAULTS)) root.dataset[`ov${key[0].toUpperCase()}${key.slice(1)}`] = choices[key] ? "on" : "off";
+  }
+  window.addEventListener("mida-overlays", paintOverlays);
+  paintOverlays();
 
   async function load(fresh, quiet) {
     if (!quiet) container.replaceChildren(loadingView(ctx, "Reading your gear from Bungie… (the first time also downloads Destiny's item list)"));

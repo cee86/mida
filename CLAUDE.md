@@ -199,7 +199,13 @@ found the side panel's name enough); the vault gets a DIM-style emblem (our own 
 red near full) with a **currencies box** at the far right of the vault column showing Glimmer, Chronologs and Bright
 Dust (matched by name, else the first three); clicking it lists every profile currency plus materials summed from the
 consumables (`MATERIALS` name pattern in inventory.js; names unverified). The box wraps under the vault emblem when the
-column is narrow. **Filters** = a screen like the game's vault filters (categories left, a grid of
+column is narrow.
+**Item icon overlays** (owner): by default no strip; power (or stack count) sits bottom-right on the art with a shadow,
+the element diamond beside it, the lock as a small badge in the top-right corner. Settings -> Personalization ->
+"Inventory item icons" toggles Power level, Lock icon, Element, Gear tier (pips bottom-left, off by default), Season
+mark, Gold masterwork edge and the old dark strip (off by default). Saved in localStorage `mida-inv-overlays`
+(defaults in both shell.js and inventory.js); event `mida-overlays` repaints; each shows as `data-ov-*` on the tab and
+CSS does the rest. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

@@ -892,6 +892,8 @@ html[data-theme="light"] .app {
 .profile-form { display: grid; gap: 18px; }
 .picture { display: flex; align-items: center; gap: 16px; }
 .picture__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.overlay-toggles { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
+.overlay-toggles__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 0.92rem; }
 .backdrop-preview { width: 96px; height: 54px; flex-shrink: 0; border: 1px solid var(--rule); border-radius: 6px; background: linear-gradient(180deg, #14181d, #0a0c0f) center / cover no-repeat; filter: brightness(0.6); }
 .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .game {

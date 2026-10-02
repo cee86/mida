@@ -942,6 +942,46 @@ function backdropPicture(file) {
   });
 }
 
+// What's drawn on inventory item icons; inventory.js reads the same key and defaults.
+const OVERLAYS_KEY = "mida-inv-overlays";
+const OVERLAY_OPTIONS = [
+  ["power", "Power level", true],
+  ["lock", "Lock icon (top-right corner)", true],
+  ["element", "Element", true],
+  ["tier", "Gear tier", false],
+  ["watermark", "Season mark", true],
+  ["masterwork", "Gold edge when masterworked", true],
+  ["banner", "Dark strip behind power and element", false],
+];
+function overlaysSetting() {
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(OVERLAYS_KEY) ?? "{}") ?? {};
+  } catch {
+    // Defaults.
+  }
+  const save = (key, on) => {
+    saved = { ...saved, [key]: on };
+    try {
+      localStorage.setItem(OVERLAYS_KEY, JSON.stringify(saved));
+    } catch {
+      // Only a convenience.
+    }
+    window.dispatchEvent(new Event("mida-overlays"));
+  };
+  return setting(
+    "Inventory item icons",
+    "What's drawn on top of each item in the Inventory tab.",
+    el(
+      "div",
+      { class: "overlay-toggles" },
+      ...OVERLAY_OPTIONS.map(([key, label, fallback]) =>
+        el("div", { class: "overlay-toggles__row" }, el("span", { text: label }), toggle(`ov-${key}`, saved[key] ?? fallback, (v) => save(key, v), label)),
+      ),
+    ),
+  );
+}
+
 function backdropSetting() {
   let saved = null;
   try {
@@ -1496,6 +1536,7 @@ function personalizationPanel() {
         ? [setting("Colorway", "Retro keeps Destiny 1's own colours. Pick another theme to use a colorway.", el("div", {}, swatches), { disabled: true })]
         : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
     backdropSetting(),
+    overlaysSetting(),
     setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
     setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
     setting("Show the address bar", "The bar above the site with back, forward, reload and the page's address.", toggle("address", p.showAddressBar, (v) => updatePrefs({ showAddressBar: v }), "Show the address bar"), { row: true }),

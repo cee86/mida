@@ -208,29 +208,60 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 .tile2--common { --tier: #366f42; }
 .tile2--basic { --tier: #c3bcb4; }
 .tile2.is-mw { border-color: #eade8b; box-shadow: inset 0 0 0 1px #eade8b, 0 0 6px rgba(234, 222, 139, 0.45); }
+/* Power (or a stack count) sits on the art with a shadow; the lock is a small badge in the
+   top-right corner; gear tier is a row of pips at the bottom left. Each can be switched off, and
+   the old strip behind the numbers switched back on, in Settings (data-ov-* on the tab). */
 .tile2__bar {
   position: absolute;
+  right: 3px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #fff;
+  font-size: max(10px, calc(var(--tile) * 0.2));
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 3px #000, 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.8);
+}
+.tile2__lock {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: max(13px, calc(var(--tile) * 0.27));
+  height: max(13px, calc(var(--tile) * 0.27));
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+.tile2__lock svg { width: 72%; height: 72%; stroke-width: 2.4; }
+.tile2__element { width: 0.6em; height: 0.6em; transform: rotate(45deg); background: currentColor; box-shadow: 0 0 2px #000; }
+.tile2__tier { position: absolute; left: 3px; bottom: 3px; display: flex; gap: 2px; }
+.tile2__tier i { width: max(4px, calc(var(--tile) * 0.08)); height: max(4px, calc(var(--tile) * 0.08)); transform: rotate(45deg); background: #f3df8b; box-shadow: 0 0 2px #000; }
+/* The strip, when chosen: full width along the bottom, element at its left; tier pips sit above it. */
+.inv[data-ov-banner="on"] .tile2__bar:not(.tile2__bar--count) {
   left: 0;
   right: 0;
   bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
   height: max(14px, calc(var(--tile) * 0.26));
   padding: 0 3px;
+  justify-content: flex-end;
   background: rgba(0, 0, 0, 0.72);
-  color: #fff;
-  font-size: max(10px, calc(var(--tile) * 0.2));
   font-weight: 600;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
+  text-shadow: none;
 }
-.tile2.is-mw .tile2__bar { background: rgba(122, 101, 30, 0.88); }
-.tile2__bar--count { left: auto; background: transparent; text-shadow: 0 0 3px #000, 0 1px 2px #000; }
-.tile2__bar svg { width: 0.95em; height: 0.95em; stroke-width: 2.4; margin-right: auto; }
-.tile2__element { width: 0.7em; height: 0.7em; transform: rotate(45deg); margin-right: auto; background: currentColor; }
-.tile2__bar svg + .tile2__element { margin-right: 0; }
+.inv[data-ov-banner="on"] .tile2__bar:not(.tile2__bar--count) .tile2__element { margin-right: auto; box-shadow: none; }
+.inv[data-ov-banner="on"][data-ov-masterwork="on"] .tile2.is-mw .tile2__bar:not(.tile2__bar--count) { background: rgba(122, 101, 30, 0.88); }
+.inv[data-ov-banner="on"] .tile2__tier { bottom: calc(max(14px, var(--tile) * 0.26) + 2px); }
+.inv[data-ov-banner="on"][data-ov-power="off"][data-ov-element="off"] .tile2__bar:not(.tile2__bar--count) { display: none; }
+.inv[data-ov-power="off"] .tile2__power,
+.inv[data-ov-lock="off"] .tile2__lock,
+.inv[data-ov-element="off"] .tile2__element,
+.inv[data-ov-watermark="off"] .tile2__mark,
+.inv[data-ov-tier="off"] .tile2__tier { display: none; }
+.inv[data-ov-masterwork="off"] .tile2.is-mw { border-color: rgba(255, 255, 255, 0.28); box-shadow: none; }
 .tile2__element--arc { color: #7aecf3; }
 .tile2__element--solar { color: #f2721b; }
 .tile2__element--void { color: #b185df; }
