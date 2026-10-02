@@ -420,6 +420,14 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.8.3 (owner): updates install silently (`plugins.updater.windows.installMode` "quiet" = NSIS `/S /R`, per-user so no
+  admin prompt; the installer relaunches Mida) after an in-app "Updating Mida" window (`#updating-dialog`, can't be
+  dismissed) shows the download percentage and then "Installing"; the Rust side now downloads, shows "ready" for 1.5 s,
+  then installs (`download` + `install` instead of `download_and_install`). The first update *to* this version still
+  shows the old installer window (the installed app's config decides). Memory: WebView2 runs pages in its own
+  msedgewebview2 processes, which Resource Monitor lists apart from mida.exe (Task Manager's Processes tab groups them);
+  that can't be changed, but pages not in a pane now ask WebView2 to use as little memory as it can
+  (`win::set_background` -> ICoreWebView2_19 MemoryUsageTargetLevel Low; Normal again when shown; menus don't count).
 * v0.7 (2 Oct 2026, owner's round 4): background perk/mod swaps, weapon mod slots changeable, game-style card header,
   class figures (own silhouettes or the player's pictures; the owner's fan-art posters kept out of the repo), loadout
   dock beside any page, darker blurred glass for the sidebar, settings tabs, toggles and buttons (`--glass`,

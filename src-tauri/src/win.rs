@@ -6,9 +6,11 @@
 //! - Which page was clicked into, so side by side the open page follows the one in use.
 //! - A picture of the page, shown behind Mida's menus and pop-ups (pages always sit above the
 //!   app's own screen, so the app hides the page and shows this picture in its place).
+//! - Telling the engine a page is in the background, so it gives memory back while unseen.
 
 use crate::PageError;
-use std::sync::mpsc;
+use std::collections::HashMap;
+use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Webview};
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
@@ -162,4 +164,25 @@ unsafe fn read_all(stream: &IStream) -> windows::core::Result<Vec<u8>> {
     stream.Read(bytes.as_mut_ptr().cast(), len as u32, Some(&mut read)).ok()?;
     bytes.truncate(read as usize);
     Ok(bytes)
+}
+
+/// Pages not on screen (another module is open) ask the engine to use as little memory as it can;
+/// pages coming back go back to normal. Only calls the engine when the state changes.
+pub fn set_background(page: &Webview, background: bool) {
+    static LEVELS: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
+    {
+        let mut levels = LEVELS.get_or_init(Default::default).lock().unwrap();
+        if levels.get(page.label()) == Some(&background) {
+            return;
+        }
+        levels.insert(page.label().to_string(), background);
+    }
+    let _ = page.with_webview(move |platform| unsafe {
+        let run = || -> windows::core::Result<()> {
+            let core: ICoreWebView2_19 = platform.controller().CoreWebView2()?.cast()?;
+            core.SetMemoryUsageTargetLevel(if background { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW } else { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL })
+        };
+        // Older engines without this setting simply keep their memory.
+        let _ = run();
+    });
 }

@@ -265,7 +265,11 @@ fn layout(app: &AppHandle) {
     let mut active_rect = None;
     for (id, healthy) in pages {
         let Some(page) = app.get_webview(&label_for(&id)) else { continue };
-        match pane_rect(app, &id) {
+        let rect = pane_rect(app, &id);
+        // A page that isn't in a pane at all (not just under a menu) is in the background.
+        #[cfg(windows)]
+        win::set_background(&page, rect.is_none());
+        match rect {
             Some(r) if !overlay && healthy => {
                 let _ = page.set_bounds(scaled(r, scale));
                 let _ = page.show();
@@ -817,8 +821,8 @@ fn apply_prefs(app: &AppHandle, before: &Prefs) {
 // New versions are published as GitHub releases of cee86/mida, signed with Mida's update key
 // (the public half is in tauri.conf.json, so a download that isn't ours is refused). The app
 // only *checks* by itself, at start and every few hours; nothing downloads or installs until the
-// user chooses Update. Then it downloads with progress, installs into the same folder and Mida
-// reopens. Only the installed app checks; running from the code never does.
+// user chooses Update. Then it downloads with progress (shown in Mida's own window), installs
+// silently into the same folder and Mida reopens. Only the installed app checks; running from the code never does.
 
 fn set_update(app: &AppHandle, info: Option<UpdateInfo>) {
     *hub(app).update.lock().unwrap() = info;
@@ -861,10 +865,10 @@ async fn download_update_now(app: AppHandle) {
     set_update(&app, Some(UpdateInfo { status: "downloading", version: version.clone(), percent: 0 }));
     let mut received: u64 = 0;
     let mut shown: u32 = 0;
-    let (progress_app, done_app) = (app.clone(), app.clone());
-    let (progress_version, done_version) = (version.clone(), version.clone());
-    let result = update
-        .download_and_install(
+    let progress_app = app.clone();
+    let progress_version = version.clone();
+    let bytes = update
+        .download(
             move |chunk, total| {
                 received += chunk as u64;
                 let percent = total.filter(|t| *t > 0).map(|t| (received * 100 / t).min(100) as u32).unwrap_or(0);
@@ -874,11 +878,22 @@ async fn download_update_now(app: AppHandle) {
                     set_update(&progress_app, Some(info));
                 }
             },
-            // Downloaded and checked: the installer takes over and reopens Mida.
-            move || set_update(&done_app, Some(UpdateInfo { status: "ready", version: done_version, percent: 100 })),
+            || {},
         )
         .await;
-    if let Err(err) = result {
+    let bytes = match bytes {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("Update failed: {err}");
+            set_update(&app, Some(UpdateInfo { status: "error", version, percent: 0 }));
+            return;
+        }
+    };
+    // Downloaded and checked: say so in Mida's own window for a moment, then the installer runs
+    // silently (installMode "quiet" in tauri.conf.json) and reopens Mida.
+    set_update(&app, Some(UpdateInfo { status: "ready", version: version.clone(), percent: 100 }));
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    if let Err(err) = update.install(bytes) {
         eprintln!("Update failed: {err}");
         set_update(&app, Some(UpdateInfo { status: "error", version, percent: 0 }));
     }

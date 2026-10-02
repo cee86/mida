@@ -257,12 +257,23 @@
     <div class="dialog__head">
       <h1 class="dialog__title" id="update-dialog-title">Update available</h1>
       <p class="dialog__lede" id="update-dialog-text"></p>
-      <p class="dialog__fine">Mida downloads it and restarts by itself. Your modules and sign-ins stay as they are.
+      <p class="dialog__fine">Mida downloads and installs it inside its own window, then reopens by itself. Your modules and sign-ins stay as they are.
         Choose Later to update any time from the banner at the bottom of the sidebar.</p>
     </div>
     <div class="dialog__actions dialog__actions--end">
       <button class="btn" id="update-later" type="button">Later</button>
       <button class="btn btn--primary" id="update-now" type="button">Update now</button>
+    </div>
+  </dialog>
+
+  <!-- Updating: shown inside Mida while an update downloads and installs (the installer itself
+       runs silently and reopens Mida). -->
+  <dialog class="dialog dialog--small dialog--updating" id="updating-dialog" aria-labelledby="updating-title">
+    <div class="dialog__head">
+      <h1 class="dialog__title" id="updating-title">Updating Mida</h1>
+      <p class="dialog__lede" id="updating-text"></p>
+      <div class="updating-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="updating-progress"><span id="updating-fill"></span></div>
+      <p class="dialog__fine">Mida closes and reopens by itself when it's done. Your modules, settings and sign-ins stay as they are.</p>
     </div>
   </dialog>
 

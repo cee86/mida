@@ -1335,3 +1335,8 @@ html[data-motion="reduce"] .toolbar__progress::before { left: 0; width: 100%; }
 .note.is-new .note__title strong::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--accent); vertical-align: 0.1em; }
 .note__dismiss { width: 28px; height: 28px; }
 .note__dismiss svg { width: 15px; height: 15px; }
+
+/* The in-app "Updating" window. */
+.updating-bar { height: 6px; margin: 16px 0 12px; border-radius: 3px; background: var(--hover); overflow: hidden; }
+.updating-bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s ease; }
+.dialog--updating.is-installing .updating-bar span { animation: pulse 1s ease-in-out infinite; }

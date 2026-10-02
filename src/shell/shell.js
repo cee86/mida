@@ -1879,7 +1879,30 @@ function renderUpdate() {
   $("update-detail").textContent = detail;
   $("update-bar").style.width = `${update.percent ?? 0}%`;
   if (update.status === "available" && announcedUpdate !== update.version) maybeAnnounce();
+  renderUpdating(update);
 }
+
+// While an update downloads and installs, Mida shows it in its own window (no installer window).
+function renderUpdating(update) {
+  const dialog = $("updating-dialog");
+  const busy = update && (update.status === "downloading" || update.status === "ready");
+  if (!busy) {
+    if (dialog.open) dialog.close();
+    return;
+  }
+  const ready = update.status === "ready";
+  $("updating-title").textContent = ready ? "Installing the update" : "Updating Mida";
+  $("updating-text").textContent = ready ? `Mida ${update.version} is downloaded. Installing it now; Mida reopens in a moment.` : `Downloading Mida ${update.version}… ${update.percent ?? 0}%`;
+  $("updating-progress").setAttribute("aria-valuenow", String(update.percent ?? 0));
+  $("updating-fill").style.width = `${ready ? 100 : update.percent ?? 0}%`;
+  $("updating-dialog").classList.toggle("is-installing", ready);
+  if (!dialog.open) {
+    if ($("update-dialog").open) $("update-dialog").close();
+    openDialog(dialog);
+  }
+}
+// It can't be dismissed: the update is already on its way.
+$("updating-dialog").addEventListener("cancel", (event) => event.preventDefault());
 
 // Show the pop-up once per new version, but never on top of another window.
 function maybeAnnounce() {
