@@ -918,6 +918,82 @@ function squarePicture(file) {
   });
 }
 
+// The Inventory backdrop: the player's own picture, shrunk to at most 1920 wide and kept in this
+// computer's browser storage (never uploaded). Read as a data address, which the page rules allow.
+const BACKDROP_KEY = "mida-inv-backdrop";
+function backdropPicture(file) {
+  return new Promise((resolve, reject) => {
+    const fail = () => reject(new Error("That file isn't a picture Mida can read."));
+    if (!file.type.startsWith("image/")) return fail();
+    const reader = new FileReader();
+    reader.onerror = fail;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = fail;
+      img.onload = () => {
+        const scale = Math.min(1, 1920 / img.naturalWidth, 1200 / img.naturalHeight);
+        const canvas = el("canvas", { width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) });
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function backdropSetting() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(BACKDROP_KEY);
+  } catch {
+    // Storage unavailable: the built-in backdrop shows.
+  }
+  const status = el("span", { class: "inline-status", role: "status", text: saved ? "Using your picture." : "Using Mida's own dark backdrop." });
+  const preview = el("span", { class: "backdrop-preview" });
+  if (saved) preview.style.backgroundImage = `url("${saved}")`;
+  const changed = () => window.dispatchEvent(new Event("mida-backdrop"));
+  const choose = el("button", {
+    class: "btn btn--small",
+    type: "button",
+    "data-key": "backdrop",
+    text: "Choose picture…",
+    onclick: () => {
+      const input = $("picture-input");
+      input.value = "";
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        try {
+          const picture = await backdropPicture(file);
+          localStorage.setItem(BACKDROP_KEY, picture);
+          changed();
+          renderSettings();
+        } catch (err) {
+          status.textContent = err?.name === "QuotaExceededError" ? "That picture is too big to keep. Try a smaller one." : err.message;
+        }
+      };
+      input.click();
+    },
+  });
+  const clear = el("button", {
+    class: "btn btn--small",
+    type: "button",
+    text: "Remove",
+    disabled: !saved || null,
+    onclick: () => {
+      try {
+        localStorage.removeItem(BACKDROP_KEY);
+      } catch {
+        // Nothing to remove.
+      }
+      changed();
+      renderSettings();
+    },
+  });
+  return setting("Inventory backdrop", "A picture from your computer behind the Inventory tab, darkened and blurred. It stays on this computer.", el("div", { class: "picture" }, preview, el("div", {}, el("div", { class: "picture__buttons" }, choose, clear), status)));
+}
+
 function profileForm(initial = {}) {
   let picture = initial.image ?? null;
   const name = el("input", { class: "field__input", type: "text", maxlength: "32", value: initial.name ?? "", placeholder: "Your name or gamertag" });
@@ -1419,6 +1495,7 @@ function personalizationPanel() {
       : p.theme === "retro"
         ? [setting("Colorway", "Retro keeps Destiny 1's own colours. Pick another theme to use a colorway.", el("div", {}, swatches), { disabled: true })]
         : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
+    backdropSetting(),
     setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
     setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
     setting("Show the address bar", "The bar above the site with back, forward, reload and the page's address.", toggle("address", p.showAddressBar, (v) => updatePrefs({ showAddressBar: v }), "Show the address bar"), { row: true }),

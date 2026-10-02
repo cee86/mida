@@ -113,6 +113,7 @@ struct Hub {
     signing_in: Mutex<bool>,
     account_error: Mutex<Option<String>>,
     manifest: tokio::sync::Mutex<Option<Arc<bungie::Manifest>>>,
+    plug_sets: Mutex<Option<(u64, Value)>>, // the account's plug sets and when they were read
 }
 
 fn hub(app: &AppHandle) -> tauri::State<'_, Hub> {
@@ -1056,7 +1057,7 @@ async fn d2_inventory(webview: Webview, app: AppHandle) -> Value {
         async {
             let a = account(&app).await?;
             let m = manifest(&app).await?;
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,103,200,201,205,300").await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,103,200,201,205,300,305").await?;
             let mut data = bungie::shape_inventory(&profile, &m);
             bungie::decorate_inventory(&mut data).await;
             Ok(data)
@@ -1111,6 +1112,69 @@ async fn d2_character(webview: Webview, app: AppHandle, character: String) -> Va
             let a = account(&app).await?;
             let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,205").await?;
             Ok(bungie::character_details(&profile, &character).await)
+        }
+        .await,
+    )
+}
+
+/// The account's plug sets (owned mods etc.), read at most every ten minutes.
+async fn plug_sets(app: &AppHandle, a: &auth::Account) -> Value {
+    {
+        let cached = hub(app).plug_sets.lock().unwrap().clone();
+        if let Some((at, v)) = cached {
+            if auth::now() < at + 600 {
+                return v;
+            }
+        }
+    }
+    let v = bungie::profile(a.membership_type, &a.membership_id, &a.access, "105").await.unwrap_or(Value::Null);
+    *hub(app).plug_sets.lock().unwrap() = Some((auth::now(), v.clone()));
+    v
+}
+
+/// An item's card (hover/click in Inventory).
+#[tauri::command]
+async fn d2_item(webview: Webview, app: AppHandle, instance: String, hash: u32) -> Value {
+    if !from_shell(&webview) || !is_id(&instance) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let m = manifest(&app).await?;
+            let item = bungie::item(a.membership_type, &a.membership_id, &a.access, &instance).await?;
+            let sets = plug_sets(&app, &a).await;
+            Ok(bungie::item_details(&item, hash as u64, &sets, &m).await)
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+async fn d2_lock(webview: Webview, app: AppHandle, instance: String, character: String, locked: bool) -> Value {
+    if !from_shell(&webview) || !is_id(&instance) || !is_id(&character) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            bungie::set_lock(a.membership_type, &a.access, &instance, &character, locked).await?;
+            Ok(Value::Null)
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+async fn d2_plug(webview: Webview, app: AppHandle, instance: String, character: String, socket: u32, plug: u32) -> Value {
+    if !from_shell(&webview) || !is_id(&instance) || !is_id(&character) || socket > 64 {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            bungie::insert_plug(a.membership_type, &a.access, &instance, &character, socket as u64, plug as u64).await?;
+            Ok(Value::Null)
         }
         .await,
     )
@@ -1624,6 +1688,7 @@ pub fn run() {
                 signing_in: Mutex::new(false),
                 account_error: Mutex::new(None),
                 manifest: tokio::sync::Mutex::new(None),
+                plug_sets: Mutex::new(None),
                 dir: dir.clone(),
                 store: Mutex::new(Store::open(dir)),
                 statuses: Mutex::new(HashMap::new()),
@@ -1669,6 +1734,9 @@ pub fn run() {
             d2_equip,
             d2_character,
             d2_pull,
+            d2_item,
+            d2_lock,
+            d2_plug,
             d2_rotators,
             split,
             close_pane,

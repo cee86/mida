@@ -2,16 +2,23 @@
 //
 //   [ title band on the current character's emblem ................. search ]
 //   [ tabs | filters | size | postmaster | refresh | characters | panel        ]
-//   [ character emblems (DIM style) ..................... vault: count / max ]
-//   [ currencies under the characters                                        ]
+//   [ character emblems (DIM style) ..................... vault: count / max ]  <- fixed bar,
+//   [ currencies under the characters                                        ]     full width
 //   [ one row per bucket: each character's equipped item + 3x3, then vault   ] [ side panel ]
 //
-// Data comes from the app (src-tauri/src/bungie.rs: shape_inventory + decorate_inventory;
-// character_details for the side panel). Moves show at once and undo if Bungie refuses.
+// Over it: the item card (hover shows it, a click pins it with moves, lock, perk and mod
+// changes), the filter screen (like the game's vault filters) and the postmaster drop-down.
+// Behind it: a darkened, blurred backdrop (a picture the player picks in Settings, or our own).
+// Data comes from the app (src-tauri/src/bungie.rs). Moves show at once and undo if Bungie
+// refuses.
 
 const TIERS = { 6: "exotic", 5: "legendary", 4: "rare", 3: "common", 2: "basic" };
+const RARITY = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Uncommon", 2: "Common" };
 const ELEMENTS = { 1: "kinetic", 2: "arc", 3: "solar", 4: "void", 6: "stasis", 7: "strand" };
 const ELEMENT_NAMES = { arc: "Arc", solar: "Solar", void: "Void", stasis: "Stasis", strand: "Strand", kinetic: "Kinetic" };
+const AMMO = { 1: "Primary", 2: "Special", 3: "Heavy" };
+const BREAKERS = { 1: "Barrier", 2: "Overload", 3: "Unstoppable" };
+const CLASSES = { 0: "Titan", 1: "Hunter", 2: "Warlock", 3: "Any class" };
 const GROUPS = [
   ["weapons", "Weapons"],
   ["armor", "Armor"],
@@ -22,12 +29,15 @@ const SIZES = { s: 44, m: 56, l: 68 };
 // How many slots a character has per bucket besides the equipped one (engrams: 10, none equipped).
 const SLOTS = { 375726501: 10 };
 const ENGRAMS = 375726501;
+export const BACKDROP_KEY = "mida-inv-backdrop";
 
 const LOCK = ["M7 11V8a5 5 0 0 1 10 0v3", "M5 11h14v10H5z"];
+const UNLOCK = ["M7 11V8a5 5 0 0 1 9.6-2", "M5 11h14v10H5z"];
 const SEARCH = ["M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z", "M20 20l-4-4"];
 const PANEL = ["M4 5h16v14H4z", "M15 5v14"];
 const MAIL = ["M4 6h16v12H4z", "M4 7l8 6 8-6"];
 const FILTER = ["M4 5h16l-6 8v5l-4 2v-7z"];
+const RELOAD = ["M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4"];
 
 // Remembered between visits (only conveniences, so the browser's storage is fine).
 const remember = (key, fallback) => {
@@ -44,13 +54,21 @@ const keep = (key, value) => {
     // Only a convenience.
   }
 };
+const backdropPicture = () => {
+  try {
+    return localStorage.getItem(BACKDROP_KEY);
+  } catch {
+    return null;
+  }
+};
 
 const view = {
   group: remember("group", "weapons"),
   size: remember("size", "m"),
   allCharacters: remember("all", true),
   panel: remember("panel", true),
-  filters: new Set(remember("filters", [])),
+  // Per tab: { category: [values] }.
+  filters: remember("filters2", {}),
   current: null,
 };
 
@@ -59,8 +77,14 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   let data = null;
   let search = "";
   let resync = null;
+  let overlay = null; // "filters" | "postmaster" | null
+  let filterCategory = null;
+  let card = null; // { item, tile, pinned, picking }
+  let hoverTimer = null;
   const details = {}; // side panel data per character
+  const itemDetails = new Map(); // item card data per instance
   const root = el("div", { class: "tab tab--inventory inv" });
+  const backdrop = el("div", { class: "inv-backdrop", "aria-hidden": "true" });
   const toast = el("div", { class: "toast", role: "status", hidden: true });
   const say = (text) => {
     toast.textContent = text;
@@ -71,39 +95,82 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
 
   const chars = () => data.characters;
   const current = () => chars().find((c) => c.id === view.current) ?? chars()[0];
-  const shown = () => (view.allCharacters ? chars() : [current()]);
+  // "Current only" applies to weapons and armor; General and Inventory always show everyone.
+  const characterChoice = () => view.group === "weapons" || view.group === "armor";
+  const shown = () => (view.allCharacters || !characterChoice() ? chars() : [current()]);
   const charName = (id) => chars().find((c) => c.id === id)?.className ?? "character";
   const fits = (item, c) => item.classType === 3 || item.classType === c.classType;
   const bucketInfo = (hash) => data.buckets.find((b) => b.hash === hash);
-  const isAccount = (item) => item.owner === "account";
-  // Account-wide items are moved "from" any character (Bungie needs one), so use the first.
-  const refOwner = (item) => (isAccount(item) ? chars()[0].id : item.owner);
+  // Bungie needs a character for account-wide and vault items: use the first.
+  const actingCharacter = (item) => (item.owner === "vault" || item.owner === "account" ? chars()[0].id : item.owner);
 
-  // ---------- Filters and search ----------
+  // ---------- Filters (like the game's vault filters) ----------
 
-  const FILTERS = [
-    ["exotic", "Exotic", (i) => i.tier === 6],
-    ["legendary", "Legendary", (i) => i.tier === 5],
-    ["other", "Rare and below", (i) => i.tier < 5],
-    "sep",
-    ...["arc", "solar", "void", "stasis", "strand", "kinetic"].map((e) => [e, ELEMENT_NAMES[e], (i) => ELEMENTS[i.damage] === e]),
-    "sep",
-    ["masterwork", "Masterworked", (i) => i.masterwork],
-    ["locked", "Locked", (i) => i.locked],
-    ["class", "Usable by this character", (i) => fits(i, current())],
-  ];
-  // Within a kind of filter (tier, element, other) any match counts; across kinds all must.
-  const kinds = [["exotic", "legendary", "other"], ["arc", "solar", "void", "stasis", "strand", "kinetic"], ["masterwork"], ["locked"], ["class"]];
+  let duplicates = new Set();
+  const countDuplicates = () => {
+    const seen = new Map();
+    for (const i of data.items) if (i.instance) seen.set(i.hash, (seen.get(i.hash) ?? 0) + 1);
+    duplicates = new Set([...seen].filter(([, n]) => n > 1).map(([h]) => h));
+  };
+  const common = {
+    gear: ["Gear Tier", (i) => (i.gearTier ? `Tier ${i.gearTier}` : null)],
+    rarity: ["Rarity", (i) => RARITY[i.tier] ?? null],
+    mw: ["Masterwork", (i) => (i.instance ? (i.masterwork ? "Masterworked" : "Not masterworked") : null)],
+    dupes: ["Duplicates", (i) => (i.instance ? (duplicates.has(i.hash) ? "Duplicates" : "No duplicates") : null)],
+    locked: ["Locked", (i) => (i.instance ? (i.locked ? "Locked" : "Unlocked") : null)],
+  };
+  const slotOf = (i) => bucketInfo(i.bucket)?.name ?? null;
+  const CATEGORIES = {
+    weapons: [
+      ["slot", "Slot", slotOf],
+      ["type", "Archetype", (i) => i.typeName || null],
+      ["damage", "Damage Type", (i) => ELEMENT_NAMES[ELEMENTS[i.damage]] ?? null],
+      ["ammo", "Ammo Type", (i) => AMMO[i.ammo] ?? null],
+      ["breaker", "Anti-Champion", (i) => BREAKERS[i.breaker] ?? null],
+      ["gear", ...common.gear],
+      ["rarity", ...common.rarity],
+      ["mw", ...common.mw],
+      ["dupes", ...common.dupes],
+      ["locked", ...common.locked],
+    ],
+    armor: [
+      ["slot", "Armor Slot", slotOf],
+      ["archetype", "Archetype", (i) => i.archetype ?? null],
+      ["class", "Class", (i) => CLASSES[i.classType] ?? null],
+      ["gear", ...common.gear],
+      ["mw", ...common.mw],
+      ["rarity", ...common.rarity],
+      ["dupes", ...common.dupes],
+      ["locked", ...common.locked],
+      ["set", "Set Bonus", (i) => (i.set ? data.setNames?.[i.set] ?? null : null)],
+    ],
+    general: [["slot", "Slot", slotOf], ["rarity", ...common.rarity], ["dupes", ...common.dupes], ["locked", ...common.locked]],
+    inventory: [["slot", "Slot", slotOf], ["rarity", ...common.rarity]],
+  };
+  const groupItems = () => data.items.filter((i) => bucketInfo(i.bucket)?.group === view.group);
+  const optionsFor = ([, , value]) => {
+    const values = [...new Set(groupItems().map(value).filter(Boolean))];
+    return values.sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  };
+  const chosen = () => view.filters[view.group] ?? {};
+  const chosenCount = () => Object.values(chosen()).reduce((n, list) => n + list.length, 0);
+  function setChosen(cat, values) {
+    const next = { ...chosen(), [cat]: values };
+    if (!values.length) delete next[cat];
+    view.filters = { ...view.filters, [view.group]: next };
+    keep("filters2", view.filters);
+  }
   function passes(item) {
-    if (search && !`${item.name} ${item.typeName}`.toLowerCase().includes(search)) return false;
-    for (const kind of kinds) {
-      const on = kind.filter((k) => view.filters.has(k));
-      if (on.length && !on.some((k) => FILTERS.find((f) => f[0] === k)[2](item))) return false;
+    if (search && !`${item.name} ${item.typeName} ${item.archetype ?? ""}`.toLowerCase().includes(search)) return false;
+    const picks = chosen();
+    for (const cat of CATEGORIES[view.group] ?? []) {
+      const list = picks[cat[0]];
+      if (list?.length && !list.includes(cat[2](item))) return false;
     }
     return true;
   }
 
-  // ---------- Moves ----------
+  // ---------- Moves and changes ----------
 
   async function act(item, to, equip) {
     const before = { owner: item.owner, equipped: item.equipped };
@@ -112,6 +179,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     item.owner = to === chars()[0].id && bucketInfo(item.bucket)?.account ? "account" : to;
     item.equipped = Boolean(equip);
     if (displaced) displaced.equipped = false;
+    closeCard();
     draw();
     const ref = { hash: item.hash, instance: item.instance, owner: before.owner === "account" ? chars()[0].id : before.owner, quantity: item.quantity };
     const result = equip ? await ctx.hub.d2Equip(ref, to) : await ctx.hub.d2Transfer(ref, to);
@@ -130,32 +198,69 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     draw();
   }
 
-  function itemMenu(item, anchor) {
-    const account = bucketInfo(item.bucket)?.account;
-    const items = [{ heading: [item.name, item.typeName, item.power ? `◆ ${item.power}` : item.quantity > 1 ? `×${item.quantity}` : ""].filter(Boolean).join(" · ") }];
-    if (account) {
-      if (item.owner === "vault") items.push({ label: "Move to your inventory", icon: "up", disabled: !item.transferable, action: () => act(item, chars()[0].id, false) });
-      else items.push({ label: "Move to the vault", icon: "down", disabled: !item.transferable, action: () => act(item, "vault", false) });
-    } else {
-      if (item.equipped) items.push({ label: "Equipped: equip something else first to move it", disabled: true, action: () => {} });
-      if (item.instance && item.bucket !== ENGRAMS) {
-        for (const c of chars()) {
-          if (fits(item, c) && !(item.owner === c.id && item.equipped)) {
-            items.push({ label: `Equip on ${c.className}`, icon: "star", disabled: (!item.transferable && item.owner !== c.id) || (item.equipped && item.owner !== c.id), action: () => act(item, c.id, true) });
-          }
-        }
-      }
-      for (const c of chars()) {
-        if (c.id !== item.owner && fits(item, c)) {
-          items.push({ label: `Move to ${c.className}`, icon: "open", disabled: !item.transferable || item.equipped, action: () => act(item, c.id, false) });
-        }
-      }
-      if (item.owner !== "vault") items.push({ label: "Move to the vault", icon: "down", disabled: !item.transferable || item.equipped, action: () => act(item, "vault", false) });
-    }
-    ctx.openMenu(anchor, items);
+  async function pull(item) {
+    closeCard();
+    const result = await ctx.hub.d2Pull({ hash: item.hash, instance: item.instance, owner: item.owner, quantity: item.quantity });
+    if (!result?.ok) return say(result?.error ?? "Couldn't pull that.");
+    say(`${item.name} is on its way to your ${charName(item.owner)}.`);
+    invalidate();
+    load(true, true);
   }
 
-  // ---------- Pieces ----------
+  async function toggleLock(item) {
+    const want = !item.locked;
+    item.locked = want;
+    drawCard();
+    const result = await ctx.hub.d2Lock(item.instance, actingCharacter(item), want);
+    if (!result?.ok) {
+      item.locked = !want;
+      say(result?.error ?? "Couldn't change the lock.");
+    } else {
+      invalidate();
+    }
+    draw();
+  }
+
+  async function swapPlug(item, socket, plug) {
+    if (card) card.busy = true;
+    drawCard();
+    const result = await ctx.hub.d2Plug(item.instance, actingCharacter(item), socket.index, plug.hash);
+    if (card) card.busy = false;
+    if (!result?.ok) {
+      say(result?.error ?? "Couldn't change that.");
+    } else {
+      itemDetails.delete(item.instance);
+      invalidate();
+      if (card) card.picking = null;
+    }
+    drawCard();
+  }
+
+  // What can be done with an item, as card buttons.
+  function actionsFor(item) {
+    if (item.postmaster) return [{ label: `Pull to ${charName(item.owner)}`, disabled: !item.transferable, run: () => pull(item) }];
+    const list = [];
+    const account = bucketInfo(item.bucket)?.account;
+    if (account) {
+      if (item.owner === "vault") list.push({ label: "To inventory", disabled: !item.transferable, run: () => act(item, chars()[0].id, false) });
+      else list.push({ label: "To vault", disabled: !item.transferable, run: () => act(item, "vault", false) });
+      return list;
+    }
+    if (item.instance && item.bucket !== ENGRAMS) {
+      for (const c of chars()) {
+        if (fits(item, c) && !(item.owner === c.id && item.equipped)) {
+          list.push({ label: `Equip ${c.className}`, primary: true, disabled: (!item.transferable && item.owner !== c.id) || (item.equipped && item.owner !== c.id), run: () => act(item, c.id, true) });
+        }
+      }
+    }
+    for (const c of chars()) {
+      if (c.id !== item.owner && fits(item, c)) list.push({ label: `To ${c.className}`, disabled: !item.transferable || item.equipped, run: () => act(item, c.id, false) });
+    }
+    if (item.owner !== "vault") list.push({ label: "To vault", disabled: !item.transferable || item.equipped, run: () => act(item, "vault", false) });
+    return list;
+  }
+
+  // ---------- Tiles ----------
 
   function tile(item) {
     const element = ELEMENTS[item.damage];
@@ -163,14 +268,29 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const node = el(
       "button",
       {
-        class: `tile2 tile2--${TIERS[item.tier] ?? "basic"}${item.masterwork ? " is-mw" : ""}${item.moving ? " is-moving" : ""}${passes(item) ? "" : " is-dim"}`,
+        class: `tile2 tile2--${TIERS[item.tier] ?? "basic"}${item.masterwork ? " is-mw" : ""}${item.moving ? " is-moving" : ""}${passes(item) ? "" : " is-dim"}${card?.item === item ? " is-open" : ""}`,
         type: "button",
-        draggable: item.transferable && !item.equipped ? "true" : null,
-        title: [item.name, item.typeName, element && element !== "kinetic" ? ELEMENT_NAMES[element] : "", item.power ? `Power ${item.power}` : "", item.masterwork ? "Masterworked" : "", item.crafted ? "Crafted" : "", item.locked ? "Locked" : ""].filter(Boolean).join(" · "),
+        draggable: item.transferable && !item.equipped && !item.postmaster ? "true" : null,
         "aria-label": item.name,
-        "aria-haspopup": "menu",
-        onclick: (event) => itemMenu(item, event.currentTarget),
+        "aria-haspopup": "dialog",
+        onclick: (event) => {
+          event.stopPropagation();
+          if (card?.pinned && card.item === item) closeCard();
+          else openCard(item, event.currentTarget, true);
+        },
+        onpointerenter: (event) => {
+          if (event.pointerType !== "mouse" || card?.pinned) return;
+          const target = event.currentTarget;
+          clearTimeout(hoverTimer);
+          hoverTimer = setTimeout(() => openCard(item, target, false), 260);
+        },
+        onpointerleave: () => {
+          clearTimeout(hoverTimer);
+          if (card && !card.pinned) closeCard();
+        },
         ondragstart: (event) => {
+          clearTimeout(hoverTimer);
+          if (card && !card.pinned) closeCard();
           event.dataTransfer.setData("text/plain", item.id);
           event.dataTransfer.effectAllowed = "move";
         },
@@ -191,7 +311,223 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   }
   const slot = () => el("span", { class: "tile2 tile2--empty", "aria-hidden": "true" });
 
-  // A place items can be dropped: a character's (or the vault's / the account's) part of a row.
+  // ---------- The item card ----------
+
+  function openCard(item, tileNode, pinned) {
+    card = { item, tile: tileNode, pinned, picking: null, busy: false };
+    if (item.instance && !itemDetails.has(item.instance)) {
+      itemDetails.set(item.instance, null);
+      ctx.hub.d2Item(item.instance, item.hash).then((result) => {
+        itemDetails.set(item.instance, result?.ok ? result.data : { error: result?.error ?? "Couldn't read the details." });
+        if (card?.item === item) drawCard();
+      });
+    }
+    drawCard();
+    if (pinned) markOpen();
+  }
+
+  function closeCard() {
+    clearTimeout(hoverTimer);
+    card = null;
+    root.querySelector(".inv-card")?.remove();
+    markOpen();
+  }
+
+  function markOpen() {
+    root.querySelectorAll(".tile2.is-open").forEach((t) => t.classList.remove("is-open"));
+    if (card?.pinned) card.tile.classList.add("is-open");
+  }
+
+  function perkButton(item, socket, option, pinned) {
+    const active = option.current;
+    const canPick = pinned && !active && item.instance && !card?.busy;
+    return el(
+      "button",
+      {
+        class: `inv-perk${active ? " is-current" : ""}`,
+        type: "button",
+        title: `${option.name}${option.description ? `\n${option.description}` : ""}${canPick ? "\nClick to switch to this" : ""}`,
+        disabled: !canPick || null,
+        onclick: (event) => {
+          event.stopPropagation();
+          swapPlug(item, socket, option);
+        },
+      },
+      option.icon ? el("img", { src: option.icon, alt: "" }) : el("span", { text: option.name.slice(0, 2) }),
+    );
+  }
+
+  function drawCard() {
+    root.querySelector(".inv-card")?.remove();
+    if (!card) return;
+    const { item, pinned } = card;
+    const d = item.instance ? itemDetails.get(item.instance) : undefined;
+    const element = ELEMENTS[d?.damage ?? item.damage];
+    const power = d?.power ?? item.power;
+    const node = el(
+      "div",
+      { class: `inv-card inv-card--${TIERS[item.tier] ?? "basic"}${pinned ? " is-pinned" : ""}`, role: "dialog", "aria-label": item.name, onclick: (e) => e.stopPropagation() },
+      el(
+        "header",
+        { class: "inv-card__head" },
+        el("div", { class: "inv-card__name", text: item.name }),
+        el("div", { class: "inv-card__sub" }, el("span", { text: item.typeName }), el("span", { text: d?.tierName || RARITY[item.tier] || "" })),
+      ),
+    );
+    const body = el("div", { class: "inv-card__body" });
+    node.append(body);
+
+    if (power) {
+      body.append(
+        el(
+          "div",
+          { class: "inv-card__power" },
+          el("span", { class: `inv-card__light${element ? ` is-${element}` : ""}`, text: String(power) }),
+          AMMO[d?.ammo ?? item.ammo] ? el("span", { class: "inv-card__ammo", text: AMMO[d?.ammo ?? item.ammo] }) : null,
+          d?.gearTier ?? item.gearTier ? el("span", { class: "inv-card__tier", title: `Gear tier ${d?.gearTier ?? item.gearTier}`, text: "◆".repeat(d?.gearTier ?? item.gearTier) }) : null,
+        ),
+      );
+    }
+    if (!item.instance) {
+      if (item.description) body.append(el("p", { class: "inv-card__desc", text: item.description }));
+      if (item.quantity > 1) body.append(el("p", { class: "inv-card__desc", text: `You have ${item.quantity.toLocaleString()}.` }));
+    } else if (d === null || d === undefined) {
+      body.append(el("p", { class: "tab__note", text: "Reading details…" }));
+    } else if (d.error) {
+      body.append(el("p", { class: "tab__error", text: d.error }));
+    } else {
+      for (const t of d.trackers.slice(0, 2)) body.append(el("div", { class: "inv-card__tracker" }, el("span", { text: t.label }), el("strong", { text: Number(t.value ?? 0).toLocaleString() })));
+      if (d.stats.length) {
+        body.append(
+          el(
+            "div",
+            { class: "inv-card__stats" },
+            ...d.stats.map((s) => {
+              const row = el("div", { class: "inv-card__stat" }, el("span", { class: "inv-card__statname", text: s.name }));
+              if (s.bar) {
+                const fill = el("span");
+                fill.style.width = `${Math.max(0, Math.min(100, s.value))}%`;
+                row.append(el("span", { class: "inv-card__statbar" }, fill));
+              } else row.append(el("span"));
+              row.append(el("span", { class: "inv-card__statvalue", text: String(s.value) }));
+              return row;
+            }),
+          ),
+        );
+      }
+      const intrinsic = d.sockets.filter((s) => s.kind === "intrinsic");
+      for (const s of intrinsic.slice(0, 1)) {
+        body.append(el("div", { class: "inv-card__frame" }, s.current.icon ? el("img", { src: s.current.icon, alt: "" }) : null, el("span", { text: s.current.name })));
+      }
+      const perks = d.sockets.filter((s) => s.kind === "perks");
+      if (perks.length) {
+        body.append(
+          el(
+            "div",
+            { class: "inv-card__perks" },
+            ...perks.map((s) =>
+              el(
+                "div",
+                { class: "inv-perk-col" },
+                ...(s.options.length ? s.options : [{ ...s.current, current: true }]).map((o) => perkButton(item, s, o, pinned)),
+              ),
+            ),
+          ),
+        );
+      }
+      const mods = d.sockets.filter((s) => s.kind === "mods");
+      if (mods.length) {
+        body.append(
+          el(
+            "div",
+            { class: "inv-card__mods" },
+            ...mods.map((s) =>
+              el(
+                "button",
+                {
+                  class: `inv-mod${card.picking === s.index ? " is-picking" : ""}`,
+                  type: "button",
+                  title: `${s.current.name}${s.current.description ? `\n${s.current.description}` : ""}${pinned && s.options.length ? "\nClick to change" : ""}`,
+                  disabled: !pinned || !s.options.length || card.busy || null,
+                  onclick: (event) => {
+                    event.stopPropagation();
+                    card.picking = card.picking === s.index ? null : s.index;
+                    drawCard();
+                  },
+                },
+                s.current.icon ? el("img", { src: s.current.icon, alt: "" }) : el("span", { text: "+" }),
+              ),
+            ),
+          ),
+        );
+        const open = mods.find((s) => s.index === card.picking);
+        if (open) {
+          body.append(
+            el("div", { class: "inv-label" }, el("span", { text: `Change ${open.category.toLowerCase()}` }), el("span", { class: "inv-label__count", text: `${open.options.length} available` })),
+            el(
+              "div",
+              { class: "inv-card__choices" },
+              ...open.options.map((o) =>
+                el(
+                  "button",
+                  {
+                    class: `inv-choice${o.current ? " is-current" : ""}`,
+                    type: "button",
+                    title: o.description || o.name,
+                    disabled: o.current || card.busy || null,
+                    onclick: (event) => {
+                      event.stopPropagation();
+                      swapPlug(item, open, o);
+                    },
+                  },
+                  o.icon ? el("img", { src: o.icon, alt: "" }) : null,
+                  el("span", { text: o.name }),
+                ),
+              ),
+            ),
+          );
+        }
+      }
+      if (d.flavor) body.append(el("p", { class: "inv-card__flavor", text: d.flavor }));
+    }
+    if (card.busy) body.append(el("p", { class: "tab__note", text: "Asking Bungie…" }));
+
+    if (pinned) {
+      const actions = actionsFor(item);
+      node.append(
+        el(
+          "footer",
+          { class: "inv-card__foot" },
+          item.instance && !item.postmaster
+            ? el("button", { class: "btn btn--small inv-card__lock", type: "button", title: item.locked ? "Unlock" : "Lock", onclick: () => toggleLock(item) }, svg(item.locked ? LOCK : UNLOCK), el("span", { text: item.locked ? "Locked" : "Unlocked" }))
+            : null,
+          ...actions.map((a) => el("button", { class: `btn btn--small${a.primary ? " btn--primary" : ""}`, type: "button", disabled: a.disabled || null, text: a.label, onclick: a.run })),
+        ),
+      );
+    } else {
+      node.append(el("footer", { class: "inv-card__hint", text: "Click for moves, lock, perks and mods" }));
+    }
+    root.append(node);
+    place(node, card.tile);
+  }
+
+  // Next to the tile, inside this tab (never over another pane), flipped to fit.
+  function place(node, tileNode) {
+    const box = root.getBoundingClientRect();
+    const t = tileNode.getBoundingClientRect();
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+    let left = t.right - box.left + 10;
+    if (left + w > box.width - 8) left = t.left - box.left - w - 10;
+    left = Math.max(8, Math.min(left, box.width - w - 8));
+    let top = t.top - box.top;
+    top = Math.max(8, Math.min(top, box.height - h - 8));
+    node.style.left = `${left}px`;
+    node.style.top = `${top}px`;
+  }
+
+  // ---------- Drop targets ----------
+
   function dropTarget(node, owner, bucket, equipSlot) {
     node.addEventListener("dragover", (event) => {
       event.preventDefault();
@@ -213,20 +549,14 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     return node;
   }
 
+  // ---------- Heads: emblems, vault, currencies ----------
+
   function emblem(c) {
     const active = c.id === current().id;
-    const card = el(
+    const node = el(
       "div",
       { class: `inv-emblem${active ? " is-current" : ""}`, title: active ? "The character shown in the side panel" : "Click to make this the current character" },
-      el("button", {
-        class: "inv-emblem__hit",
-        type: "button",
-        "aria-label": `${c.className}${active ? " (current)" : ""}`,
-        onclick: () => {
-          view.current = c.id;
-          draw();
-        },
-      }),
+      el("button", { class: "inv-emblem__hit", type: "button", "aria-label": `${c.className}${active ? " (current)" : ""}`, onclick: () => ((view.current = c.id), draw()) }),
       el("span", { class: "inv-emblem__text" }, el("span", { class: "inv-emblem__class", text: c.className }), el("span", { class: "inv-emblem__title", text: c.subtitle ?? "" })),
       el("span", { class: "inv-emblem__power" }, el("i", { text: "◆" }), document.createTextNode(String(c.light ?? ""))),
       el("button", {
@@ -239,12 +569,12 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
           ctx.openMenu(event.currentTarget, [
             { heading: `${c.className} · ${c.subtitle ?? ""}` },
             { label: "Make this the current character", icon: "star", disabled: active, action: () => ((view.current = c.id), draw()) },
-            { label: view.allCharacters ? "Show only this character" : "Show every character", icon: "split", action: () => ((view.current = c.id), toggleCharacters()) },
+            { label: view.allCharacters ? "Show only this character (weapons, armor)" : "Show every character", icon: "split", action: () => ((view.current = c.id), toggleCharacters()) },
           ]),
       }),
     );
-    if (c.banner) card.style.backgroundImage = `url("${c.banner}")`;
-    return card;
+    if (c.banner) node.style.backgroundImage = `url("${c.banner}")`;
+    return node;
   }
 
   function vaultCard() {
@@ -261,14 +591,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     return el(
       "div",
       { class: "inv-currencies" },
-      ...(data.currencies ?? []).map((c) =>
-        el(
-          "span",
-          { class: "inv-currency", title: c.name },
-          c.icon ? el("img", { src: c.icon, alt: "", loading: "lazy" }) : null,
-          el("span", { text: Number(c.quantity ?? 0).toLocaleString() }),
-        ),
-      ),
+      ...(data.currencies ?? []).map((c) => el("span", { class: "inv-currency", title: c.name }, c.icon ? el("img", { src: c.icon, alt: "", loading: "lazy" }) : null, el("span", { text: Number(c.quantity ?? 0).toLocaleString() }))),
     );
   }
 
@@ -281,97 +604,120 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   // ---------- Toolbar ----------
 
   function toolbar() {
-    const onFilters = view.filters.size;
+    const picks = chosenCount();
     const mail = data.postmaster ?? [];
     return el(
       "div",
       { class: "inv-bar" },
-      el(
-        "div",
-        { class: "segmented", role: "group", "aria-label": "Show" },
-        ...GROUPS.map(([id, label]) => el("button", { type: "button", "aria-pressed": String(view.group === id), text: label, onclick: () => ((view.group = id), keep("group", id), draw()) })),
-      ),
-      el(
-        "button",
-        {
-          class: `btn btn--small inv-bar__btn${onFilters ? " is-on" : ""}`,
-          type: "button",
-          "aria-haspopup": "menu",
-          onclick: (event) =>
-            ctx.openMenu(event.currentTarget, [
-              { heading: "Show only" },
-              ...FILTERS.map((f) =>
-                f === "sep"
-                  ? "sep"
-                  : {
-                      label: f[1],
-                      checked: view.filters.has(f[0]),
-                      action: () => {
-                        if (view.filters.has(f[0])) view.filters.delete(f[0]);
-                        else view.filters.add(f[0]);
-                        keep("filters", [...view.filters]);
-                        draw();
-                      },
-                    },
-              ),
-              "sep",
-              { label: "Clear filters", icon: "close", disabled: !onFilters, action: () => (view.filters.clear(), keep("filters", []), draw()) },
-            ]),
-        },
-        svg(FILTER),
-        el("span", { text: onFilters ? `Filters (${onFilters})` : "Filters" }),
-      ),
-      el(
-        "div",
-        { class: "segmented", role: "group", "aria-label": "Item size" },
-        ...[["s", "S"], ["m", "M"], ["l", "L"]].map(([id, label]) =>
-          el("button", { type: "button", title: `${{ s: "Small", m: "Medium", l: "Large" }[id]} items`, "aria-pressed": String(view.size === id), text: label, onclick: () => ((view.size = id), keep("size", id), draw()) }),
-        ),
-      ),
-      el(
-        "button",
-        {
-          class: `btn btn--small inv-bar__btn${mail.length ? " is-on" : ""}`,
-          type: "button",
-          "aria-haspopup": "menu",
-          disabled: !mail.length || null,
-          onclick: (event) =>
-            ctx.openMenu(
-              event.currentTarget,
-              chars().flatMap((c) => {
-                const mine = mail.filter((i) => i.owner === c.id);
-                return mine.length
-                  ? [
-                      { heading: `${c.className}'s postmaster (${mine.length})` },
-                      ...mine.map((i) => ({ label: `Pull ${i.name}${i.quantity > 1 ? ` ×${i.quantity}` : ""}`, icon: "down", disabled: !i.transferable, action: () => pull(i) })),
-                    ]
-                  : [];
-              }),
-            ),
-        },
-        svg(MAIL),
-        el("span", { text: `Postmaster${mail.length ? ` (${mail.length})` : ""}` }),
-      ),
-      el("button", { class: "btn btn--small inv-bar__btn", type: "button", title: "Read everything from Bungie again", onclick: () => load(true) }, svg(["M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4"]), el("span", { text: "Refresh" })),
+      el("div", { class: "segmented", role: "group", "aria-label": "Show" }, ...GROUPS.map(([id, label]) => el("button", { type: "button", "aria-pressed": String(view.group === id), text: label, onclick: () => ((view.group = id), keep("group", id), closeCard(), draw()) }))),
+      el("button", { class: `btn inv-bar__btn${picks ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "filters"), onclick: () => ((overlay = overlay === "filters" ? null : "filters"), closeCard(), draw()) }, svg(FILTER), el("span", { text: picks ? `Filters (${picks})` : "Filters" })),
+      el("div", { class: "segmented", role: "group", "aria-label": "Item size" }, ...[["s", "S"], ["m", "M"], ["l", "L"]].map(([id, label]) => el("button", { type: "button", title: `${{ s: "Small", m: "Medium", l: "Large" }[id]} items`, "aria-pressed": String(view.size === id), text: label, onclick: () => ((view.size = id), keep("size", id), draw()) }))),
+      el("button", { class: `btn inv-bar__btn${mail.length ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "postmaster"), onclick: () => ((overlay = overlay === "postmaster" ? null : "postmaster"), closeCard(), draw()) }, svg(MAIL), el("span", { text: `Postmaster${mail.length ? ` (${mail.length})` : ""}` })),
+      el("button", { class: "btn inv-bar__btn", type: "button", title: "Read everything from Bungie again", onclick: () => load(true) }, svg(RELOAD), el("span", { text: "Refresh" })),
       el("span", { class: "inv-bar__spacer" }),
-      el(
-        "div",
-        { class: "segmented", role: "group", "aria-label": "Characters" },
-        ...[[true, "All characters"], [false, "Current only"]].map(([all, label]) => el("button", { type: "button", "aria-pressed": String(view.allCharacters === all), text: label, onclick: () => view.allCharacters !== all && toggleCharacters() })),
-      ),
+      characterChoice()
+        ? el("div", { class: "segmented", role: "group", "aria-label": "Characters" }, ...[[true, "All characters"], [false, "Current only"]].map(([all, label]) => el("button", { type: "button", "aria-pressed": String(view.allCharacters === all), text: label, onclick: () => view.allCharacters !== all && toggleCharacters() })))
+        : null,
       el("button", { class: `icon-btn inv-bar__panel${view.panel ? " is-on" : ""}`, type: "button", title: view.panel ? "Hide the side panel" : "Show the side panel", "aria-pressed": String(view.panel), onclick: () => ((view.panel = !view.panel), keep("panel", view.panel), draw()) }, svg(PANEL)),
     );
   }
 
-  async function pull(item) {
-    const result = await ctx.hub.d2Pull({ hash: item.hash, instance: item.instance, owner: item.owner, quantity: item.quantity });
-    if (!result?.ok) return say(result?.error ?? "Couldn't pull that.");
-    say(`${item.name} is on its way to your ${charName(item.owner)}.`);
-    invalidate();
-    load(true, true);
+  // ---------- The filter screen ----------
+
+  function filterScreen() {
+    const cats = (CATEGORIES[view.group] ?? []).filter((c) => optionsFor(c).length);
+    if (!cats.find((c) => c[0] === filterCategory)) filterCategory = cats[0]?.[0] ?? null;
+    const cat = cats.find((c) => c[0] === filterCategory);
+    const options = cat ? optionsFor(cat) : [];
+    const picked = cat ? chosen()[cat[0]] ?? [] : [];
+    const close = () => ((overlay = null), draw());
+    return el(
+      "div",
+      { class: "inv-overlay", onclick: close },
+      el(
+        "div",
+        { class: "inv-filter", role: "dialog", "aria-label": "Filters", onclick: (e) => e.stopPropagation() },
+        el(
+          "nav",
+          { class: "inv-filter__cats" },
+          ...cats.map((c) => {
+            const n = (chosen()[c[0]] ?? []).length;
+            return el("button", { class: "inv-filter__cat", type: "button", "aria-current": String(c[0] === filterCategory), onclick: () => ((filterCategory = c[0]), draw()) }, el("span", { text: c[1] }), n ? el("span", { class: "inv-filter__n", text: String(n) }) : null);
+          }),
+        ),
+        el(
+          "div",
+          { class: "inv-filter__main" },
+          el("div", { class: "inv-filter__head" }, el("span", { text: "Filters" }), el("span", { class: "inv-filter__count", text: `Currently selected: ${picked.length}/${options.length}` })),
+          el(
+            "div",
+            { class: "inv-filter__grid" },
+            ...options.map((o) =>
+              el("button", {
+                class: "inv-filter__opt",
+                type: "button",
+                "aria-pressed": String(picked.includes(o)),
+                text: o,
+                onclick: () => {
+                  setChosen(cat[0], picked.includes(o) ? picked.filter((x) => x !== o) : [...picked, o]);
+                  draw();
+                },
+              }),
+            ),
+          ),
+          el(
+            "div",
+            { class: "inv-filter__foot" },
+            el("button", { class: "btn", type: "button", disabled: !cat || null, text: "Select all", onclick: () => (setChosen(cat[0], [...options]), draw()) }),
+            el("button", { class: "btn", type: "button", disabled: !picked.length || null, text: "Deselect all", onclick: () => (setChosen(cat[0], []), draw()) }),
+            el("button", { class: "btn", type: "button", disabled: !chosenCount() || null, text: "Clear every filter", onclick: () => ((view.filters = { ...view.filters, [view.group]: {} }), keep("filters2", view.filters), draw()) }),
+            el("span", { class: "inv-bar__spacer" }),
+            el("button", { class: "btn btn--primary", type: "button", text: "Done", onclick: close }),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------- The postmaster drop-down ----------
+
+  function postmasterPanel() {
+    const mail = (data.postmaster ?? []).map((i) => Object.assign(i, { postmaster: true }));
+    const close = () => ((overlay = null), closeCard(), draw());
+    return el(
+      "div",
+      { class: "inv-overlay inv-overlay--clear", onclick: close },
+      el(
+        "div",
+        { class: "inv-drop", role: "dialog", "aria-label": "Postmaster", onclick: (e) => e.stopPropagation() },
+        el("div", { class: "inv-label" }, el("span", { text: "Postmaster" }), el("span", { class: "inv-label__count", text: `${mail.length} waiting` })),
+        mail.length
+          ? el(
+              "div",
+              { class: "inv-drop__chars" },
+              ...chars().map((c) => {
+                const mine = mail.filter((i) => i.owner === c.id);
+                return el(
+                  "div",
+                  { class: "inv-drop__char" },
+                  el("div", { class: "inv-drop__who" }, el("strong", { text: c.className }), el("span", { class: "inv-label__count", text: `${mine.length} / 21` })),
+                  el("div", { class: "inv__flow" }, ...mine.map(tile), ...Array.from({ length: Math.max(0, 7 - mine.length) }, slot)),
+                );
+              }),
+            )
+          : el("p", { class: "tab__note", text: "Nothing waiting at the postmaster." }),
+        el("p", { class: "tab__note", text: "Hover an item for its details; click it to pull it to that character." }),
+      ),
+    );
   }
 
   // ---------- The grid ----------
+
+  function grid(children) {
+    const g = el("div", { class: "inv__grid" }, ...children);
+    g.style.gridTemplateColumns = `${shown().map(() => "var(--cw)").join(" ")} minmax(calc(var(--tile) * 4), 1fr)`;
+    return g;
+  }
 
   function rows() {
     const list = shown();
@@ -380,7 +726,6 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       const inBucket = data.items.filter((i) => i.bucket === b.hash);
       const cells = [];
       if (b.account) {
-        // Consumables and mods belong to the account: one wide cell under the characters.
         const mine = inBucket.filter((i) => i.owner === "account");
         const cell = el("div", { class: "inv__cell inv__cell--account" }, el("div", { class: "inv__flow" }, ...mine.map(tile)));
         cell.style.gridColumn = `1 / span ${list.length}`;
@@ -395,12 +740,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
           const noEquip = b.hash === ENGRAMS;
           cells.push(
             dropTarget(
-              el(
-                "div",
-                { class: `inv__cell${noEquip ? " inv__cell--engrams" : ""}` },
-                noEquip ? null : el("div", { class: "inv__equipped" }, equipped ? tile(equipped) : slot()),
-                el("div", { class: "inv__slots" }, ...rest.map(tile), ...empties),
-              ),
+              el("div", { class: `inv__cell${noEquip ? " inv__cell--engrams" : ""}` }, noEquip ? null : el("div", { class: "inv__equipped" }, equipped ? tile(equipped) : slot()), el("div", { class: "inv__slots" }, ...rest.map(tile), ...empties)),
               c.id,
               b.hash,
               !noEquip,
@@ -411,19 +751,8 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       const inVault = inBucket.filter((i) => i.owner === "vault");
       cells.push(dropTarget(el("div", { class: "inv__cell inv__cell--vault" }, el("div", { class: "inv__flow" }, ...inVault.map(tile))), "vault", b.hash, false));
       const total = b.account ? inBucket.filter((i) => i.owner === "account").length : null;
-      return el(
-        "section",
-        { class: "inv__row" },
-        el("div", { class: "inv-label" }, el("span", { text: b.name }), el("span", { class: "inv-label__count", text: total !== null ? `${total} / 50` : `${inVault.length} in vault` })),
-        grid(cells),
-      );
+      return el("section", { class: "inv__row" }, el("div", { class: "inv-label" }, el("span", { text: b.name }), el("span", { class: "inv-label__count", text: total !== null ? `${total} / 50` : `${inVault.length} in vault` })), grid(cells));
     });
-  }
-
-  function grid(children) {
-    const g = el("div", { class: "inv__grid" }, ...children);
-    g.style.gridTemplateColumns = `${shown().map(() => "var(--cw)").join(" ")} minmax(calc(var(--tile) * 4), 1fr)`;
-    return g;
   }
 
   // ---------- Side panel ----------
@@ -446,15 +775,12 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const side = el(
       "aside",
       { class: "inv-side" },
-      el("div", { class: "inv-side__head" }, el("span", { class: "inv-side__class", text: c.className }), el("span", { class: "inv-side__power" }, el("i", { text: "◆" }), document.createTextNode(String(c.light ?? "")))),
       el("div", { class: "inv-label" }, el("span", { text: "Loadout" })),
       el("div", { class: "inv-side__loadout" }, el("div", { class: "inv-side__col" }, ...equipped("weapons")), el("div", { class: "inv-side__col" }, ...equipped("armor"))),
     );
-    if (!d) {
-      side.append(el("p", { class: "tab__note", text: "Reading stats…" }));
-    } else if (d.error) {
-      side.append(el("p", { class: "tab__error", text: d.error }));
-    } else {
+    if (!d) side.append(el("p", { class: "tab__note", text: "Reading stats…" }));
+    else if (d.error) side.append(el("p", { class: "tab__error", text: d.error }));
+    else {
       side.append(
         el("div", { class: "inv-label" }, el("span", { text: "Stats" })),
         el(
@@ -463,14 +789,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
           ...d.stats.map((s) => {
             const fill = el("span", { class: "meter__fill" });
             fill.style.width = `${Math.min(100, (Number(s.value) / 200) * 100)}%`;
-            return el(
-              "div",
-              { class: "inv-stat" },
-              s.icon ? el("img", { src: s.icon, alt: "" }) : el("span"),
-              el("span", { class: "inv-stat__name", text: s.name }),
-              el("span", { class: "inv-stat__value", text: String(s.value) }),
-              el("span", { class: "meter inv-stat__bar" }, fill),
-            );
+            return el("div", { class: "inv-stat" }, s.icon ? el("img", { src: s.icon, alt: "" }) : el("span"), el("span", { class: "inv-stat__name", text: s.name }), el("span", { class: "inv-stat__value", text: String(s.value) }), el("span", { class: "meter inv-stat__bar" }, fill));
           }),
         ),
         el("div", { class: "inv-label" }, el("span", { text: "Armor set bonuses" })),
@@ -483,14 +802,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
                   "div",
                   { class: "inv-set" },
                   el("div", { class: "inv-set__name" }, el("span", { text: set.name || "Armor set" }), el("span", { class: "inv-label__count", text: `${set.count} equipped` })),
-                  ...set.perks.map((p) =>
-                    el(
-                      "div",
-                      { class: `inv-set__perk${p.active ? " is-active" : ""}` },
-                      el("span", { class: "inv-set__need", text: `${p.need}` }),
-                      el("span", {}, el("strong", { text: p.name || "Bonus" }), p.description ? el("span", { class: "inv-set__desc", text: p.description }) : null),
-                    ),
-                  ),
+                  ...set.perks.map((p) => el("div", { class: `inv-set__perk${p.active ? " is-active" : ""}` }, el("span", { class: "inv-set__need", text: `${p.need}` }), el("span", {}, el("strong", { text: p.name || "Bonus" }), p.description ? el("span", { class: "inv-set__desc", text: p.description }) : null))),
                 ),
               ),
             )
@@ -502,11 +814,19 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
 
   // ---------- Drawing ----------
 
+  function paintBackdrop() {
+    const picture = backdropPicture();
+    backdrop.style.backgroundImage = picture ? `url("${picture}")` : "";
+    backdrop.classList.toggle("has-picture", Boolean(picture));
+  }
+
   function draw() {
     const c = current();
     view.current = c.id;
     root.style.setProperty("--tile", `${SIZES[view.size] ?? 56}px`);
-    root.dataset.panel = String(view.panel);
+    const scroll = root.querySelector(".inv-scroll");
+    const keepScroll = scroll ? [scroll.scrollTop, scroll.scrollLeft] : null;
+    countDuplicates();
 
     const top = el(
       "header",
@@ -535,13 +855,58 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     if (c.wide || c.banner) top.style.backgroundImage = `linear-gradient(90deg, rgba(8, 10, 12, 0.82), rgba(8, 10, 12, 0.35) 60%, rgba(8, 10, 12, 0.6)), url("${c.wide || c.banner}")`;
 
     const heads = grid([...shown().map(emblem), vaultCard()]);
-    heads.classList.add("inv__heads");
     const money = grid([currencies()]);
     money.firstChild.style.gridColumn = `1 / span ${shown().length}`;
+    // The bar runs the whole width (over the side panel too); only the rows under it scroll.
+    const headScroll = el("div", { class: "inv-headbar__scroll" }, el("div", { class: "inv-headbar__inner" }, heads, money));
+    const headbar = el(
+      "div",
+      { class: "inv-headbar" },
+      headScroll,
+      view.panel
+        ? el("div", { class: "inv-headbar__side" }, el("span", { class: "inv-side__class", text: c.className }), el("span", { class: "inv-side__power" }, el("i", { text: "◆" }), document.createTextNode(String(c.light ?? ""))))
+        : null,
+    );
+    const body = el("div", { class: "inv-scroll" }, ...rows());
+    body.addEventListener("scroll", () => {
+      headScroll.scrollLeft = body.scrollLeft;
+      if (card && !card.pinned) closeCard();
+    });
 
-    const main = el("div", { class: "inv-main" }, el("div", { class: "inv-scroll" }, heads, money, ...rows()), view.panel ? panel() : null);
-    root.replaceChildren(top, toolbar(), main, toast);
+    const main = el("div", { class: "inv-main" }, body, view.panel ? panel() : null);
+    root.replaceChildren(backdrop, top, toolbar(), headbar, main, toast);
+    if (overlay === "filters") root.append(filterScreen());
+    if (overlay === "postmaster") {
+      // The drop-down hangs just under the toolbar, whatever its height.
+      const drop = postmasterPanel();
+      root.append(drop);
+      const bar = root.querySelector(".inv-bar");
+      drop.style.paddingTop = `${bar.offsetTop + bar.offsetHeight + 6}px`;
+    }
+    if (keepScroll) {
+      body.scrollTop = keepScroll[0];
+      body.scrollLeft = keepScroll[1];
+      headScroll.scrollLeft = keepScroll[1];
+    }
+    // A pinned card stays open across redraws, on its item's new tile.
+    if (card) {
+      const tiles = [...root.querySelectorAll(".tile2:not(.tile2--empty)")];
+      const again = tiles.find((t) => t.getAttribute("aria-label") === card.item.name && t.classList.contains("is-open"));
+      if (again) card.tile = again;
+      if (card.pinned && document.body.contains(card.tile)) drawCard();
+      else closeCard();
+    }
   }
+
+  // Clicking elsewhere or Esc closes the pinned card and overlays.
+  root.addEventListener("click", () => card?.pinned && closeCard());
+  root.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (card) closeCard();
+    else if (overlay) ((overlay = null), draw());
+  });
+  window.addEventListener("mida-backdrop", paintBackdrop);
+  paintBackdrop();
 
   async function load(fresh, quiet) {
     if (!quiet) container.replaceChildren(loadingView(ctx, "Reading your gear from Bungie… (the first time also downloads Destiny's item list)"));
@@ -553,7 +918,11 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     data = result.data;
     if (!data.characters?.length) return container.replaceChildren(problemView(ctx, "That account has no Destiny 2 characters.", () => load(true)));
     if (!view.current || !data.characters.some((ch) => ch.id === view.current)) view.current = data.characters[0].id;
-    if (fresh) for (const key of Object.keys(details)) delete details[key];
+    if (fresh) {
+      for (const key of Object.keys(details)) delete details[key];
+      itemDetails.clear();
+    }
+    if (card) card = { ...card, item: data.items.find((i) => i.id === card.item.id) ?? card.item };
     draw();
     if (!container.contains(root)) container.replaceChildren(root);
   }

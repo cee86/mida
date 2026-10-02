@@ -892,6 +892,7 @@ html[data-theme="light"] .app {
 .profile-form { display: grid; gap: 18px; }
 .picture { display: flex; align-items: center; gap: 16px; }
 .picture__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.backdrop-preview { width: 96px; height: 54px; flex-shrink: 0; border: 1px solid var(--rule); border-radius: 6px; background: linear-gradient(180deg, #14181d, #0a0c0f) center / cover no-repeat; filter: brightness(0.6); }
 .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .game {
   display: flex;

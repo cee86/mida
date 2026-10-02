@@ -117,6 +117,12 @@ pub struct Item {
     pub tier: i64,       // 6 exotic, 5 legendary, 4 rare, 3 common, 2 basic
     pub bucket: u32,     // where it goes when equipped / pulled from the vault
     pub class: i64,      // 0 Titan, 1 Hunter, 2 Warlock, 3 any
+    #[serde(default)]
+    pub ammo: i64,       // 1 primary, 2 special, 3 heavy
+    #[serde(default)]
+    pub set: u32,        // the armor set it belongs to (equipableItemSetHash)
+    #[serde(default)]
+    pub breaker: i64,    // anti-champion: 1 barrier, 2 overload, 3 unstoppable
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -149,9 +155,18 @@ struct RawInventory {
 
 #[derive(Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
+struct RawEquipping {
+    ammo_type: i64,
+    equipable_item_set_hash: u32,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
 struct RawItem {
     display_properties: RawDisplay,
     icon_watermark: String,
+    equipping_block: RawEquipping,
+    breaker_type: i64,
     item_type: i64,
     item_type_display_name: String,
     inventory: RawInventory,
@@ -184,6 +199,9 @@ fn slim_items(bytes: &[u8]) -> Result<HashMap<u32, Item>, String> {
                     tier: r.inventory.tier_type,
                     bucket: r.inventory.bucket_type_hash,
                     class: r.class_type,
+                    ammo: r.equipping_block.ammo_type,
+                    set: r.equipping_block.equipable_item_set_hash,
+                    breaker: r.breaker_type,
                 },
             ))
         })
@@ -205,8 +223,8 @@ pub async fn load_manifest(dir: &Path) -> Result<Manifest, String> {
     let version = info["version"].as_str().unwrap_or("").to_string();
     let safe: String = version.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-').collect();
     let folder = dir.join("manifest");
-    // "-2": the slimmed format gained fields (v0.5), so files saved by older Midas are read again.
-    let file = folder.join(format!("{safe}-2.json"));
+    // "-3": the slimmed format gained fields (v0.5, v0.6), so files saved by older Midas are read again.
+    let file = folder.join(format!("{safe}-3.json"));
     if !safe.is_empty() {
         if let Ok(bytes) = std::fs::read(&file) {
             if let Ok(m) = serde_json::from_slice::<Manifest>(&bytes) {
@@ -284,6 +302,7 @@ fn items_of(section: &Value) -> impl Iterator<Item = &Value> {
 /// currencies; how full the vault is.
 pub fn shape_inventory(profile: &Value, m: &Manifest) -> Value {
     let instances = &profile["itemComponents"]["instances"]["data"];
+    let sockets = &profile["itemComponents"]["sockets"]["data"];
     let mut out: Vec<Value> = Vec::new();
     let mut postmaster: Vec<Value> = Vec::new();
     let mut vault_count = 0;
@@ -300,6 +319,14 @@ pub fn shape_inventory(profile: &Value, m: &Manifest) -> Value {
         let instance = item["itemInstanceId"].as_str().unwrap_or("").to_string();
         let info = &instances[&instance];
         let state = item["state"].as_i64().unwrap_or(0);
+        // Armor's archetype (Bulwark, Grenadier...) is one of its plugs; found by the plug's type.
+        let archetype = sockets[&instance]["sockets"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|so| m.items.get(&(so["plugHash"].as_u64()? as u32)))
+            .find(|p| p.type_name.to_lowercase().contains("archetype"))
+            .map(|p| p.name.clone());
         // An applied ornament replaces the icon (as in the game and DIM).
         let style = item["overrideStyleItemHash"].as_u64().and_then(|h| m.items.get(&(h as u32)));
         let id = if instance.is_empty() { format!("{hash}-{owner}-{}", list.len()) } else { instance.clone() };
@@ -324,6 +351,13 @@ pub fn shape_inventory(profile: &Value, m: &Manifest) -> Value {
             "locked": state & 1 == 1,
             "masterwork": state & 4 == 4,
             "crafted": state & 8 == 8,
+            "gearTier": info["gearTier"],
+            "ammo": def.ammo,
+            "breaker": def.breaker,
+            "set": if def.set == 0 { Value::Null } else { json!(def.set) },
+            "archetype": archetype,
+            // Things without a copy of their own (consumables, mods) show their description.
+            "description": if instance.is_empty() { json!(def.description) } else { Value::Null },
         }));
     };
     if let Some(chars) = profile["characterEquipment"]["data"].as_object() {
@@ -423,6 +457,19 @@ pub async fn decorate_inventory(data: &mut Value) {
             }
         }
     }
+    // Armor set names, for the Set bonus filter.
+    let mut set_hashes: Vec<u64> = data["items"].as_array().into_iter().flatten().filter_map(|i| i["set"].as_u64()).collect();
+    set_hashes.sort_unstable();
+    set_hashes.dedup();
+    let mut set_names = serde_json::Map::new();
+    for hash in set_hashes.into_iter().take(80) {
+        if let Some(set) = entity("DestinyEquipableItemSetDefinition", hash).await {
+            if let Some(name) = set["displayProperties"]["name"].as_str().filter(|n| !n.is_empty()) {
+                set_names.insert(hash.to_string(), json!(name));
+            }
+        }
+    }
+    data["setNames"] = Value::Object(set_names);
     if let Some(bucket) = entity("DestinyInventoryBucketDefinition", VAULT_BUCKET as u64).await {
         data["vault"]["max"] = bucket["itemCount"].clone();
     }
@@ -671,6 +718,188 @@ pub async fn transfer(kind: i64, token: &str, mv: &Move, to: &str) -> Result<(),
     Ok(())
 }
 
+// ---------- One item in detail (the item card) ----------
+
+fn plug_json(m: &Manifest, hash: u32) -> Value {
+    match m.items.get(&hash) {
+        Some(p) => json!({ "hash": hash, "name": p.name, "icon": icon_url(&p.icon), "description": p.description, "type": p.type_name }),
+        None => json!({ "hash": hash, "name": "", "icon": Value::Null, "description": "", "type": "" }),
+    }
+}
+
+/// What kind of socket a category is, from its name (WEAPON PERKS, ARMOR MODS, INTRINSIC
+/// TRAITS, WEAPON COSMETICS...).
+fn socket_kind(category: &str) -> &'static str {
+    let c = category.to_lowercase();
+    if c.contains("intrinsic") || c.contains("frame") {
+        "intrinsic"
+    } else if c.contains("perk") || c.contains("trait") {
+        "perks"
+    } else if c.contains("cosmetic") || c.contains("ornament") || c.contains("shader") {
+        "cosmetics"
+    } else if c.contains("mod") {
+        "mods"
+    } else {
+        "other"
+    }
+}
+
+/// An item's card: stats in the game's order, its frame, perk columns (with the other perks it
+/// can switch to), mod sockets (with the mods you own), kill trackers and flavour text.
+/// `item` is Bungie's item endpoint answer (components 300,302,304,305,309,310); `plug_sets` the
+/// profile's and characters' plug sets (component 105), for mod choices.
+pub async fn item_details(item: &Value, hash: u64, plug_sets: &Value, m: &Manifest) -> Value {
+    let def = entity("DestinyInventoryItemDefinition", hash).await.unwrap_or(Value::Null);
+    let mini = m.items.get(&(hash as u32)).cloned().unwrap_or_default();
+
+    // Stats, in the stat group's order; numbers-only ones (RPM, magazine) without bars.
+    let values = &item["stats"]["data"]["stats"];
+    let mut stats = Vec::new();
+    if let Some(group) = def["stats"]["statGroupHash"].as_u64() {
+        if let Some(g) = entity("DestinyStatGroupDefinition", group).await {
+            for scaled in g["scaledStats"].as_array().into_iter().flatten() {
+                let Some(stat) = scaled["statHash"].as_u64() else { continue };
+                let Some(value) = values[stat.to_string()]["value"].as_i64() else { continue };
+                let Some(sd) = entity("DestinyStatDefinition", stat).await else { continue };
+                let name = sd["displayProperties"]["name"].as_str().unwrap_or("");
+                if name.is_empty() {
+                    continue;
+                }
+                stats.push(json!({ "name": name, "value": value, "bar": !scaled["displayAsNumeric"].as_bool().unwrap_or(false) }));
+            }
+        }
+    }
+
+    // Plug choices from plug sets (the account's and every character's).
+    let set_plugs = |set: u64| -> Vec<Value> {
+        let key = set.to_string();
+        let mut list: Vec<Value> = plug_sets["profilePlugSets"]["data"]["plugs"][&key].as_array().cloned().unwrap_or_default();
+        if let Some(chars) = plug_sets["characterPlugSets"]["data"].as_object() {
+            for c in chars.values() {
+                list.extend(c["plugs"][&key].as_array().cloned().unwrap_or_default());
+            }
+        }
+        list
+    };
+
+    let current = item["sockets"]["data"]["sockets"].as_array().cloned().unwrap_or_default();
+    let reusable = &item["reusablePlugs"]["data"]["plugs"];
+    let entries = def["sockets"]["socketEntries"].as_array().cloned().unwrap_or_default();
+    let mut sockets = Vec::new();
+    for category in def["sockets"]["socketCategories"].as_array().into_iter().flatten() {
+        let Some(cat_hash) = category["socketCategoryHash"].as_u64() else { continue };
+        let cat_name = entity("DestinySocketCategoryDefinition", cat_hash)
+            .await
+            .and_then(|c| c["displayProperties"]["name"].as_str().map(str::to_string))
+            .unwrap_or_default();
+        let kind = socket_kind(&cat_name);
+        for index in category["socketIndexes"].as_array().into_iter().flatten().filter_map(|i| i.as_u64()) {
+            let socket = &current.get(index as usize).cloned().unwrap_or(Value::Null);
+            if socket["isVisible"].as_bool() == Some(false) {
+                continue;
+            }
+            let Some(plug) = socket["plugHash"].as_u64() else { continue };
+            let mut options: Vec<Value> = Vec::new();
+            let mut seen: Vec<u64> = Vec::new();
+            let mut offer = |p: &Value| {
+                let Some(h) = p["plugItemHash"].as_u64() else { return };
+                if seen.contains(&h) || p["canInsert"].as_bool() == Some(false) || p["enabled"].as_bool() == Some(false) {
+                    return;
+                }
+                seen.push(h);
+                let mut o = plug_json(m, h as u32);
+                o["current"] = json!(h == plug);
+                options.push(o);
+            };
+            if kind == "perks" || kind == "intrinsic" {
+                for p in reusable[index.to_string()].as_array().into_iter().flatten() {
+                    offer(p);
+                }
+            } else if kind == "mods" {
+                let entry = entries.get(index as usize).cloned().unwrap_or(Value::Null);
+                for set in [entry["reusablePlugSetHash"].as_u64(), entry["randomizedPlugSetHash"].as_u64()].into_iter().flatten() {
+                    for p in set_plugs(set).iter().take(150) {
+                        offer(p);
+                    }
+                }
+            }
+            let mut current_plug = plug_json(m, plug as u32);
+            if current_plug["name"].as_str().unwrap_or("").is_empty() {
+                continue;
+            }
+            current_plug["enabled"] = socket["isEnabled"].clone();
+            sockets.push(json!({
+                "index": index,
+                "kind": kind,
+                "category": cat_name,
+                "current": current_plug,
+                // Only offer a change when there's something else to pick.
+                "options": if options.len() > 1 || (options.len() == 1 && options[0]["hash"].as_u64() != Some(plug)) { Value::Array(options) } else { json!([]) },
+            }));
+        }
+    }
+
+    // Kill trackers and other counters on plugs.
+    let mut trackers = Vec::new();
+    if let Some(per_plug) = item["plugObjectives"]["data"]["objectivesPerPlug"].as_object() {
+        for objectives in per_plug.values() {
+            for o in objectives.as_array().into_iter().flatten() {
+                let Some(h) = o["objectiveHash"].as_u64() else { continue };
+                let label = m.objectives.get(&(h as u32)).map(|d| d.text.clone()).unwrap_or_default();
+                if !label.is_empty() {
+                    trackers.push(json!({ "label": label, "value": o["progress"] }));
+                }
+            }
+        }
+    }
+
+    let instance = &item["instance"]["data"];
+    json!({
+        "name": mini.name,
+        "typeName": mini.type_name,
+        "tierName": def["inventory"]["tierTypeName"],
+        "flavor": def["flavorText"],
+        "power": instance["primaryStat"]["value"],
+        "damage": instance["damageType"],
+        "ammo": def["equippingBlock"]["ammoType"],
+        "gearTier": instance["gearTier"],
+        "locked": item["item"]["data"]["state"].as_i64().unwrap_or(0) & 1 == 1,
+        "stats": stats,
+        "sockets": sockets,
+        "trackers": trackers,
+    })
+}
+
+pub async fn item(kind: i64, id: &str, token: &str, instance: &str) -> Result<Value, String> {
+    get(&format!("/Destiny2/{kind}/Profile/{id}/Item/{instance}/?components=300,302,304,305,309,310"), Some(token)).await
+}
+
+pub async fn set_lock(kind: i64, token: &str, instance: &str, character: &str, locked: bool) -> Result<(), String> {
+    post(
+        "/Destiny2/Actions/Items/SetLockState/",
+        token,
+        json!({ "state": locked, "itemId": instance, "characterId": character, "membershipType": kind }),
+    )
+    .await
+    .map(|_| ())
+}
+
+/// Put a perk or mod into a socket (only "free" plugs, as Bungie allows apps).
+pub async fn insert_plug(kind: i64, token: &str, instance: &str, character: &str, socket: u64, plug: u64) -> Result<(), String> {
+    post(
+        "/Destiny2/Actions/Items/InsertSocketPlugFree/",
+        token,
+        json!({
+            "plug": { "socketIndex": socket, "socketArrayType": 0, "plugItemHash": plug },
+            "itemId": instance,
+            "characterId": character,
+            "membershipType": kind,
+        }),
+    )
+    .await
+    .map(|_| ())
+}
+
 pub async fn pull_from_postmaster(kind: i64, token: &str, mv: &Move) -> Result<(), String> {
     post(
         "/Destiny2/Actions/Items/PullFromPostmaster/",
@@ -754,6 +983,15 @@ mod tests {
         assert_eq!(out["bounties"]["100"][0]["complete"], true);
         assert_eq!(out["bounties"]["100"][0]["objectives"][0]["text"], "Defeat enemies");
         assert_eq!(out["quests"]["100"][0]["objectives"][0]["goal"], 50, "goal falls back to the definition");
+    }
+
+    #[test]
+    fn sorts_sockets_by_category_name() {
+        assert_eq!(socket_kind("WEAPON PERKS"), "perks");
+        assert_eq!(socket_kind("INTRINSIC TRAITS"), "intrinsic");
+        assert_eq!(socket_kind("ARMOR MODS"), "mods");
+        assert_eq!(socket_kind("WEAPON COSMETICS"), "cosmetics");
+        assert_eq!(socket_kind("ARMOR TIER"), "other");
     }
 
     #[test]

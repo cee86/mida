@@ -189,8 +189,31 @@ loadout (weapons + ghost | armor), stats (component 200 `stats`, named via Desti
 armor set bonuses (equipped armor's `equippingBlock.equipableItemSetHash` -> DestinyEquipableItemSetDefinition
 `setPerks` -> DestinySandboxPerkDefinition; field names from Bungie's docs, unverified). Single definitions come from
 `bungie::entity` (memory-cached per run). View choices are kept in localStorage (`mida-inv-*`). Moves show at once
-and undo on error, then a quiet re-read 6 s later. The slimmed manifest file is now `<version>-2.json` (gained
-`watermark`). Quests and Seasonal hub (tabs.js: character picker, last played first; objective bars; bounty
+and undo on error, then a quiet re-read 6 s later.
+**Inventory v0.6** (owner's second round): General and Inventory always show all three characters ("All characters /
+Current only" only appears on Weapons and Armor). The emblems + vault + currencies are a fixed bar across the whole
+width (`.inv-headbar`, over the side panel it shows the current character); only the rows under it scroll
+(`scrollbar-gutter: stable` on both so columns line up; the bar follows sideways scrolls). Toolbar buttons are 42 px
+like the segmented controls. **Filters** = a screen like the game's vault filters (categories left, a grid of
+toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
+items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
+type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,
+Locked; Armor: Armor Slot, Archetype (the socket plug whose type names "archetype"), Class, Gear Tier, Masterwork,
+Rarity, Duplicates, Locked, Set Bonus (`setNames` from DestinyEquipableItemSetDefinition). **Postmaster** = a drop-down
+under the toolbar with each character's waiting items as tiles (hover card; click pins it with "Pull to X").
+**Item card** (like seals.report's ItemPeek, in the game's hover-card style): hover a tile 260 ms shows it beside the
+tile inside the tab; a click pins it (click elsewhere or Esc closes). `d2_item` (item endpoint, components
+300,302,304,305,309,310; cached per instance until a refresh) gives power, ammo, gear tier, stat bars (stat group order),
+the intrinsic frame, perk columns (310 reusable plugs), mods (options from the socket's reusable/randomized plug set
+hash looked up in component 105 plug sets, cached 10 min in `Hub.plug_sets`, capped at 150), kill trackers and flavour
+text. Pinned: lock/unlock (`d2_lock` -> SetLockState), equip / move buttons, click a perk or pick a mod to swap it
+(`d2_plug` -> InsertSocketPlugFree; Bungie only allows free swaps, e.g. perks already unlocked, so others fail with
+Bungie's message). **Backdrop**: Settings -> Personalization -> "Inventory backdrop" lets the player pick a picture from
+their own PC (shrunk to 1920 px JPEG in localStorage `mida-inv-backdrop`, read with FileReader as a data address since the
+CSP allows data: images; event `mida-backdrop` repaints); shown darkened and blurred; without one, our own dark hangar-like
+gradient. The owner's hangar concept art was **not** bundled: it's Bungie's copyrighted art with the artist's watermark
+and the repo is public. Items now also carry gearTier, ammo, breaker, set, archetype and (non-instanced) description; the
+slimmed manifest file is `<version>-3.json`. All of the new Bungie field reading is unverified against live data. Quests and Seasonal hub (tabs.js: character picker, last played first; objective bars; bounty
 expiry countdowns). CSP allows images from https://www.bungie.net (item icons, emblems).
 
 **Profiles:** first run is a two-step wizard: name, optional picture (cropped to 128px WebP in the page), game (Destiny 2
@@ -317,6 +340,9 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.6 (2 Oct 2026, owner's inventory round 2): all characters on General/Inventory, fixed full-width emblem bar,
+  game-style filter screen, postmaster drop-down, item card with lock/perk/mod changes, backdrop picker (the owner's
+  Bungie concept art kept out of the repo, see §4), equal-height toolbar buttons.
 * v0.4.0 (part 3, released 1 Oct 2026): Bungie sign-in, Inventory, Quests, Seasonal hub; seals.report gained
   `/api/mida/login|callback|token|rotators` (live on main).
 * Sign-in plan the owner agreed to: a separate Bungie app for Mida (Confidential), its client secret kept on the
