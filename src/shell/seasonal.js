@@ -4,7 +4,7 @@
 //
 //   [ SEASONAL HUB · season name ............................... character · refresh ]
 //   [ active orders        ] [ daily objectives ] [ weekly objectives ]  [ bounties  ]
-//   [ order upgrade chance ] [ refresh timer    ] [ refresh timer     ]  [ on this   ]
+//                            [ refresh timer    ] [ refresh timer     ]  [ on this   ]
 //                            [ weekly rewards ........................ ]  [ character ]
 //   ( rank )  PASS NAME  [past passes ▾]        [ season pass bonuses ]  [           ]
 //   [ season pass rewards: a column per rank, free row over pass row     ]  [           ]
@@ -146,16 +146,10 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
           ),
         )
       : note(hub ? "No orders found on this character (see the data check below)." : "Reading…");
-    const chance = hub?.orderChance;
     return el(
       "div",
       { class: "sh-col" },
       section("Active orders", list.length ? String(list.length) : null, body),
-      section(
-        "Order upgrade chance",
-        null,
-        chance ? el("div", { class: "sh-chance" }, el("strong", { text: chance.name }), meter(chance.next ? Math.round(((chance.progress ?? 0) / chance.next) * 100) : 0), note(`Level ${chance.level ?? 0}${chance.levelCap ? ` of ${chance.levelCap}` : ""}`)) : note(hub ? "Not found in Bungie's data yet." : "Reading…"),
-      ),
     );
   }
 
@@ -422,7 +416,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
               k.vendors.flatMap((v) => [`${v.name || "(no name)"}${v.refresh ? ` · refreshes ${new Date(v.refresh).toLocaleString()}` : ""}`, ...v.categories.map((cat) => `   – ${cat.name || "(no name)"}: ${cat.count} items, e.g. ${cat.first ?? "?"}`)]),
               k.vendorsRead ? "None of them." : "Couldn't read vendors.",
             ),
-            el("h3", { text: "Reward tracks (weekly rewards, order chance)" }),
+            el("h3", { text: "Reward tracks (weekly rewards)" }),
             list(k.tracks.map((t) => `${t.name || "(no name)"} [${t.hash}] · ${t.steps} steps · level ${t.level ?? 0}${t.levelCap ? ` of ${t.levelCap}` : ""}${t.firstReward ? ` · first reward: ${t.firstReward}` : ""}`), "None found."),
             el("h3", { text: "Milestones on this character" }),
             list(k.milestones ?? [], "None."),

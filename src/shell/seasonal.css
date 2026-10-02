@@ -117,8 +117,6 @@
 
 .sh-meter { display: block; height: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .sh-meter > span { display: block; height: 100%; background: var(--accent); }
-.sh-chance { display: flex; flex-direction: column; gap: 6px; }
-.sh-chance .sh-meter { height: 6px; }
 
 /* Objective cards, like the game's. */
 .sh-cards { display: flex; flex-direction: column; gap: 8px; }

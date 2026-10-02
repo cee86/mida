@@ -1174,7 +1174,6 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
             json!({ "name": "Weekly rewards", "level": Value::Null, "rewards": weekly_rewards_items.iter().enumerate().map(|(i, it)| { let mut w = it.clone(); w["step"] = json!(i + 1); w }).collect::<Vec<_>>() })
         }
     });
-    let order_chance = named("order").unwrap_or(Value::Null);
 
     // Pursuits the character holds whose objectives Bungie keeps apart from the item (orders may
     // be these), and what kinds of things sit in the inventories, for the data check.
@@ -1226,7 +1225,6 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
         "weekly": weekly,
         "orders": orders,
         "weeklyRewards": weekly_rewards,
-        "orderChance": order_chance,
         "check": {
             "roots": roots.iter().map(|(k, h)| json!({ "from": k, "hash": h })).collect::<Vec<_>>(),
             "nodes": nodes_seen,

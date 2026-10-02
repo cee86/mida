@@ -283,7 +283,7 @@ weekly objectives = each objective of an uninstanced item named "...Daily/Weekly
 component 104), one card each, named from DestinyObjectiveDefinition; **weekly rewards = the unnamed 20-step track whose
 first reward is a Strange Coin** (owner identified it; found by that first reward, else a track with 18+ levels and a
 reward per level), else the weekly item's own `value` list (marked as a guess). `d2_seasonal` reads 100,102,104,201,202,
-300,301,900. The data check adds "Orders found", the objective holders (done counts, reward lists) and track hashes. **Filters** = a screen like the game's vault filters (categories left, a grid of
+300,301,900. The order upgrade chance box was dropped (owner: not in Bungie's data). The data check adds "Orders found", the objective holders (done counts, reward lists) and track hashes. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,
