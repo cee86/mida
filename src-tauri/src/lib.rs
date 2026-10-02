@@ -1110,7 +1110,7 @@ async fn d2_character(webview: Webview, app: AppHandle, character: String) -> Va
     answer(
         async {
             let a = account(&app).await?;
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,205").await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,205,206").await?;
             Ok(bungie::character_details(&profile, &character).await)
         }
         .await,
@@ -1209,6 +1209,22 @@ async fn d2_equip(webview: Webview, app: AppHandle, item: ItemRef, character: St
             let a = account(&app).await?;
             bungie::transfer(a.membership_type, &a.access, &mv, &character).await?;
             bungie::equip(a.membership_type, &a.access, mv.instance.as_deref().unwrap_or(""), &character).await?;
+            Ok(Value::Null)
+        }
+        .await,
+    )
+}
+
+/// Equips one of a character's in-game loadouts.
+#[tauri::command]
+async fn d2_loadout(webview: Webview, app: AppHandle, character: String, index: u32) -> Value {
+    if !from_shell(&webview) || !is_id(&character) || index > 20 {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            bungie::equip_loadout(a.membership_type, &a.access, index, &character).await?;
             Ok(Value::Null)
         }
         .await,
@@ -1737,6 +1753,7 @@ pub fn run() {
             d2_item,
             d2_lock,
             d2_plug,
+            d2_loadout,
             d2_rotators,
             split,
             close_pane,

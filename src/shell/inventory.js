@@ -1099,9 +1099,10 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
 // ---------- The loadout dock ----------
 //
 // The current character's equipped gear beside any page (the shell's dock, next to the panes):
-// weapons | class figure | armor, then stats. Pointing at a slot lists the other items in that
-// character's inventory for it (up to 9, like the game's slot); clicking one equips it. Everything
-// stays inside the dock, because sites are drawn over the rest of the window.
+// weapons and armor in two tight rows, stats, the active armor set bonuses as icons, then the
+// character's in-game loadouts to switch with one click. Pointing at a slot lists the other items
+// in that character's inventory for it (up to 9, like the game's slot); clicking one equips it.
+// Everything stays inside the dock, because sites are drawn over the rest of the window.
 
 const DOCK_SLOTS = { weapons: [1498876634, 2465295065, 953998645, 4023194814], armor: [3448274439, 3551918588, 14239492, 20886954, 1585787867] };
 
@@ -1169,6 +1170,27 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
     draw();
   }
 
+  // An in-game loadout: Bungie swaps everything; we read the account again afterwards.
+  let equipping = null;
+  async function wearLoadout(l, c) {
+    if (equipping !== null) return;
+    equipping = l.index;
+    note.textContent = `Equipping ${l.name}…`;
+    draw();
+    const result = await ctx.hub.d2Loadout(c.id, l.index);
+    equipping = null;
+    if (!result?.ok) {
+      note.textContent = result?.error ?? "Couldn't equip that loadout.";
+      ctx.notify?.({ kind: "error", title: `Couldn't equip ${l.name}`, detail: note.textContent });
+      return draw();
+    }
+    note.textContent = "";
+    invalidate();
+    delete stats[c.id];
+    window.dispatchEvent(new CustomEvent("mida-inventory-changed", { detail: root }));
+    load(true);
+  }
+
   function slotTile(c, bucket) {
     const item = equippedIn(c, bucket);
     if (!item) return slot();
@@ -1178,11 +1200,11 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
       onpointerenter: (event) => {
         clearTimeout(closeTimer);
         const target = event.currentTarget;
-        closeTimer = setTimeout(() => ((pick = { bucket, side: DOCK_SLOTS.weapons.includes(bucket) ? "left" : "right" }), drawPick(target)), 120);
+        closeTimer = setTimeout(() => ((pick = { bucket }), drawPick(target)), 120);
       },
       onpointerleave: () => scheduleClose(),
       onclick: (event) => {
-        pick = { bucket, side: DOCK_SLOTS.weapons.includes(bucket) ? "left" : "right" };
+        pick = { bucket };
         drawPick(event.currentTarget);
       },
     });
@@ -1216,9 +1238,11 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
     const box = root.getBoundingClientRect();
     const t = anchor.getBoundingClientRect();
     const w = panel.offsetWidth;
-    const left = pick.side === "left" ? t.right - box.left + 8 : t.left - box.left - w - 8;
-    panel.style.left = `${Math.max(6, Math.min(left, box.width - w - 6))}px`;
-    panel.style.top = `${Math.max(6, Math.min(t.top - box.top, box.height - panel.offsetHeight - 6))}px`;
+    const h = panel.offsetHeight;
+    let top = t.bottom - box.top + 6;
+    if (top + h > box.height - 6) top = t.top - box.top - h - 6;
+    panel.style.left = `${Math.max(6, Math.min(t.left - box.left + t.width / 2 - w / 2, box.width - w - 6))}px`;
+    panel.style.top = `${Math.max(6, top)}px`;
   }
 
   function draw() {
@@ -1251,10 +1275,9 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
     if (c.banner) banner.style.backgroundImage = `url("${c.banner}")`;
     const gear = el(
       "div",
-      { class: "inv-side__loadout inv-dock__loadout" },
-      el("div", { class: "inv-side__col" }, ...DOCK_SLOTS.weapons.map((b) => slotTile(c, b))),
-      classFigure(c.classType),
-      el("div", { class: "inv-side__col" }, ...DOCK_SLOTS.armor.map((b) => slotTile(c, b))),
+      { class: "inv-dock__gear" },
+      el("div", { class: "inv-dock__row" }, ...DOCK_SLOTS.weapons.map((b) => slotTile(c, b))),
+      el("div", { class: "inv-dock__row" }, ...DOCK_SLOTS.armor.map((b) => slotTile(c, b))),
     );
     const statList = !st
       ? el("p", { class: "tab__note", text: "Reading stats…" })
@@ -1262,16 +1285,70 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
         ? el("p", { class: "tab__error", text: st.error })
         : el(
             "div",
-            { class: "inv-stats" },
-            ...st.stats.map((x) => {
-              const fill = el("span", { class: "meter__fill" });
-              fill.style.width = `${Math.min(100, (Number(x.value) / 200) * 100)}%`;
-              return el("div", { class: "inv-stat" }, x.icon ? el("img", { src: x.icon, alt: "" }) : el("span"), el("span", { class: "inv-stat__name", text: x.name }), el("span", { class: "inv-stat__value", text: String(x.value) }), el("span", { class: "meter inv-stat__bar" }, fill));
-            }),
+            { class: "inv-dock__stats" },
+            ...st.stats.map((x) => el("div", { class: "inv-dock__stat", title: x.name }, x.icon ? el("img", { src: x.icon, alt: "" }) : null, el("span", { class: "inv-dock__statname", text: x.name }), el("strong", { text: String(x.value) }))),
           );
+    // Active set bonuses only, as icons (name and text on hover).
+    const active = (st?.sets ?? []).flatMap((set) => set.perks.filter((p) => p.active).map((p) => ({ ...p, set: set.name })));
+    const bonuses = st && !st.error
+      ? active.length
+        ? el(
+            "div",
+            { class: "inv-dock__bonuses" },
+            ...active.map((p) =>
+              el(
+                "span",
+                { class: "inv-dock__bonus", title: `${p.set ? `${p.set} · ` : ""}${p.need}-piece: ${p.name ?? "Bonus"}${p.description ? `\n${p.description}` : ""}` },
+                p.icon ? el("img", { src: p.icon, alt: "" }) : el("span", { class: "inv-dock__bonus-mark", text: "◆" }),
+                el("span", { class: "inv-dock__bonus-need", text: String(p.need) }),
+                el("span", { class: "inv-dock__bonus-name", text: p.name ?? "Bonus" }),
+              ),
+            ),
+          )
+        : el("p", { class: "tab__note", text: "No set bonuses active." })
+      : null;
+    // In-game loadouts: icon on its colour, name, and the items it holds on hover.
+    const named = (id) => data.items.find((i) => i.instance === id)?.name;
+    const loadouts = st && !st.error
+      ? (st.loadouts ?? []).length
+        ? el(
+            "div",
+            { class: "inv-dock__loadouts" },
+            ...st.loadouts.map((l) => {
+              const mark = el("span", { class: "inv-dock__lmark" }, l.icon ? el("img", { src: l.icon, alt: "" }) : null);
+              if (l.color) mark.style.backgroundImage = `url("${l.color}")`;
+              return el(
+                "button",
+                {
+                  class: `inv-dock__loadout${equipping === l.index ? " is-busy" : ""}`,
+                  type: "button",
+                  disabled: equipping !== null || null,
+                  title: `Equip ${l.name}\n${l.items.map(named).filter(Boolean).join(", ")}`,
+                  onclick: () => wearLoadout(l, c),
+                },
+                mark,
+                el("span", { class: "inv-dock__lname", text: l.name }),
+              );
+            }),
+          )
+        : el("p", { class: "tab__note", text: "No in-game loadouts saved on this character." })
+      : null;
     root.replaceChildren(
       head,
-      el("div", { class: "inv-dock__body" }, banner, el("div", { class: "inv-label" }, el("span", { text: "Loadout" }), el("span", { class: "inv-label__count", text: "Point at a slot to swap" })), gear, note, el("div", { class: "inv-label" }, el("span", { text: "Stats" })), statList),
+      el(
+        "div",
+        { class: "inv-dock__body" },
+        banner,
+        el("div", { class: "inv-label" }, el("span", { text: "Equipped" }), el("span", { class: "inv-label__count", text: "Point at a slot to swap" })),
+        gear,
+        note,
+        el("div", { class: "inv-label" }, el("span", { text: "Stats" })),
+        statList,
+        bonuses ? el("div", { class: "inv-label" }, el("span", { text: "Set bonuses" })) : null,
+        bonuses,
+        loadouts ? el("div", { class: "inv-label" }, el("span", { text: "Loadouts" }), el("span", { class: "inv-label__count", text: "Click to equip" })) : null,
+        loadouts,
+      ),
     );
   }
 

@@ -228,7 +228,14 @@ after an update (with "What's new"; compares `mida-last-version`), Bungie sign-i
 the Inventory or dock (`ctx.notify`, `fail()` in inventory.js). Kept in localStorage `mida-notifications` (newest
 first, at most 60); `key` stops the same news being added twice; marked read when the list opens (the "new" marks stay
 until it closes); dismiss one or Clear all. Asked about push notifications for releases: not possible without an
-always-on server (Vercel ends requests within a minute), so the owner chose to keep the launch + every-4-hours check. **Filters** = a screen like the game's vault filters (categories left, a grid of
+always-on server (Vercel ends requests within a minute), so the owner chose to keep the launch + every-4-hours check.
+**Next version (stored, not released yet):** the loadout dock drops the class figure: Equipped is two tight rows
+(weapons + ghost, then armor; the slot picker opens below the tile), stats as a 3-across grid, **Set bonuses** shows only
+the active bonuses as icons (DestinySandboxPerkDefinition icon, the pieces needed as a badge, name + text on hover), and
+**Loadouts** lists the character's in-game loadouts (component 206, now read by `d2_character`; name/icon/colour from
+DestinyLoadoutName/Icon/ColorDefinition via `entity`; empty slots skipped) and equips one on click (`d2_loadout` ->
+`/Destiny2/Actions/Loadouts/EquipLoadout/`, index 0-20). Field names from Bungie's docs, unverified live. The class
+figure stays in the Inventory tab's side panel. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

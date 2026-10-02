@@ -529,11 +529,42 @@ pub async fn character_details(profile: &Value, character: &str) -> Value {
                 "active": count >= need,
                 "name": def["displayProperties"]["name"],
                 "description": def["displayProperties"]["description"],
+                "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
             }));
         }
         bonuses.push(json!({ "name": set["displayProperties"]["name"], "count": count, "perks": perks }));
     }
-    json!({ "stats": stats, "sets": bonuses, "light": c["light"] })
+    // The character's in-game loadouts (component 206): name, icon and colour from their small
+    // definition tables, and the item instances in each (the shell matches them to its items).
+    // Empty slots (every item "0") are left out; `index` is what EquipLoadout wants.
+    let mut loadouts = Vec::new();
+    for (index, l) in profile["characterLoadouts"]["data"][character]["loadouts"].as_array().into_iter().flatten().enumerate() {
+        let items: Vec<String> = l["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|i| i["itemInstanceId"].as_str())
+            .filter(|id| !id.is_empty() && *id != "0")
+            .map(str::to_string)
+            .collect();
+        if items.is_empty() {
+            continue;
+        }
+        let name = match l["nameHash"].as_u64() {
+            Some(h) => entity("DestinyLoadoutNameDefinition", h).await.and_then(|d| d["name"].as_str().map(str::to_string)),
+            None => None,
+        };
+        let icon = match l["iconHash"].as_u64() {
+            Some(h) => entity("DestinyLoadoutIconDefinition", h).await.map(|d| icon_url(d["iconImagePath"].as_str().unwrap_or(""))),
+            None => None,
+        };
+        let color = match l["colorHash"].as_u64() {
+            Some(h) => entity("DestinyLoadoutColorDefinition", h).await.map(|d| icon_url(d["colorImagePath"].as_str().unwrap_or(""))),
+            None => None,
+        };
+        loadouts.push(json!({ "index": index, "name": name.unwrap_or_else(|| format!("Loadout {}", index + 1)), "icon": icon, "color": color, "items": items }));
+    }
+    json!({ "stats": stats, "sets": bonuses, "light": c["light"], "loadouts": loadouts })
 }
 
 fn objectives(list: &Value, m: &Manifest) -> Vec<Value> {
@@ -919,6 +950,13 @@ pub async fn pull_from_postmaster(kind: i64, token: &str, mv: &Move) -> Result<(
     )
     .await
     .map(|_| ())
+}
+
+/// Equips one of the character's in-game loadouts (by its slot number).
+pub async fn equip_loadout(kind: i64, token: &str, index: u32, character: &str) -> Result<(), String> {
+    post("/Destiny2/Actions/Loadouts/EquipLoadout/", token, json!({ "loadoutIndex": index, "characterId": character, "membershipType": kind }))
+        .await
+        .map(|_| ())
 }
 
 pub async fn equip(kind: i64, token: &str, instance: &str, character: &str) -> Result<(), String> {
