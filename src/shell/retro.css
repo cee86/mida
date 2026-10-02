@@ -124,11 +124,11 @@ html[data-theme="retro"] .settings__title,
 html[data-theme="retro"] .settings__panel h2 { text-transform: uppercase; letter-spacing: 0.16em; font-size: 1.1rem; font-weight: 500; }
 html[data-theme="retro"] .dialog__head { border-bottom: 1px solid var(--rule); margin: 0 24px; padding-left: 0; padding-right: 0; }
 html[data-theme="retro"] .dialog__head--row { padding-bottom: 12px; }
-html[data-theme="retro"] .settings__tabs { background: rgba(0, 0, 0, 0.35); }
+html[data-theme="retro"] .settings__tabs { background: rgba(0, 0, 0, 0.5); backdrop-filter: var(--glass-blur); }
 html[data-theme="retro"] .settings__tab { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.82rem; }
 
 html[data-theme="retro"] .switch input:checked + span { background: #f2f4f6; border-color: #f2f4f6; }
-html[data-theme="retro"] .segmented { background: transparent; }
+html[data-theme="retro"] .segmented { background: rgba(0, 0, 0, 0.5); }
 html[data-theme="retro"] .segmented button[aria-pressed="true"] { background: #f2f4f6; color: #06090d; }
 html[data-theme="retro"] .pick:has(input:checked),
 html[data-theme="retro"] .game:has(input:checked),

@@ -78,7 +78,8 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
   gap: 8px;
   padding: 8px clamp(14px, 3cqi, 28px);
   border-bottom: 1px solid var(--rule);
-  background: var(--panel);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
 }
 .inv-bar__btn { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; }
 .inv-bar .icon-btn { width: 42px; height: 42px; }
@@ -300,7 +301,33 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 .inv-side__class { font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .inv-side__power { font-family: var(--font-display); font-size: 2rem; color: #e6c75b; line-height: 1; }
 .inv-side__power i { font-style: normal; font-size: 0.55em; vertical-align: 0.6em; margin-right: 3px; }
-.inv-side__loadout { display: flex; justify-content: space-between; gap: 10px; }
+.inv-side__loadout { display: flex; justify-content: space-between; align-items: stretch; gap: 8px; }
+/* The class figure between weapons and armor: a silhouette on a glow in the class's colour (like
+   the posters the owner shared: Titan blue-grey, Hunter amber, Warlock lavender), or the player's
+   own picture, faded at the edges. */
+.inv-figure {
+  --glow: 160, 190, 210;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse 60% 45% at 50% 42%, rgba(var(--glow), 0.4), rgba(var(--glow), 0.08) 60%, transparent 75%);
+}
+.inv-figure--hunter { --glow: 245, 190, 100; }
+.inv-figure--warlock { --glow: 175, 170, 225; }
+.inv-figure svg { position: absolute; left: 6%; top: 4%; width: 88%; height: 92%; fill: #0b0e12; filter: drop-shadow(0 0 6px rgba(var(--glow), 0.35)); }
+.inv-figure svg path { fill: #0b0e12; stroke: none; }
+.inv-figure .inv-figure__light { fill: #fff; stroke: none; filter: drop-shadow(0 0 5px #fff); }
+.inv-figure.has-picture {
+  background-position: center 40%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 55%, transparent 100%);
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 55%, transparent 100%);
+}
+html[data-theme="light"] .inv-figure svg path { fill: #2a2622; }
 .inv-side__col { display: flex; flex-direction: column; gap: 6px; }
 .inv-side .tile2 { --tile: 52px; }
 .inv-stats { display: flex; flex-direction: column; gap: 8px; }
@@ -348,7 +375,22 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
   pointer-events: none;
 }
 .inv-card.is-pinned { pointer-events: auto; }
-.inv-card__head { padding: 10px 14px 8px; background: var(--tier, #3a3f46); color: #fff; }
+/* The game's header: the tier colour brightening to the right with a faint sheen, name in
+   capitals, type and rarity under a thin rule, the season mark and tier pips at the right edge. */
+.inv-card__head {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 8px 8px 7px 14px;
+  background:
+    linear-gradient(100deg, transparent 55%, rgba(255, 255, 255, 0.07) 75%, transparent 76%),
+    linear-gradient(90deg, var(--tier, #3a3f46), color-mix(in srgb, var(--tier, #3a3f46), #fff 14%));
+  color: #fff;
+}
+.inv-card__titles { flex: 1; min-width: 0; }
+.inv-card__badges { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 22px; flex-shrink: 0; }
+.inv-card__badges img { width: 22px; height: 22px; margin-bottom: 2px; }
+.inv-card__badges i { width: 5px; height: 5px; transform: rotate(45deg); background: #f3df8b; box-shadow: 0 0 2px rgba(0, 0, 0, 0.6); }
 .inv-card--exotic { --tier: #ceae33; }
 .inv-card--exotic .inv-card__head { color: #1b1606; }
 .inv-card--legendary { --tier: #522f65; }
@@ -356,8 +398,8 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 .inv-card--common { --tier: #366f42; }
 .inv-card--basic { --tier: #c3bcb4; }
 .inv-card--basic .inv-card__head { color: #15171a; }
-.inv-card__name { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.1; }
-.inv-card__sub { display: flex; justify-content: space-between; gap: 10px; margin-top: 2px; font-size: 0.82rem; opacity: 0.85; }
+.inv-card__name { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inv-card__sub { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; padding-top: 2px; border-top: 1px solid rgba(255, 255, 255, 0.18); font-size: 0.82rem; opacity: 0.78; }
 .inv-card__body { display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 14px 12px; scrollbar-width: thin; }
 .inv-card__head, .inv-card__foot, .inv-card__hint { flex-shrink: 0; }
 .inv-card__power { display: flex; align-items: baseline; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
@@ -397,6 +439,7 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
 }
 .inv-perk img { width: 32px; height: 32px; border-radius: 50%; }
 .inv-perk.is-current { opacity: 1; background: #4a7fbf; border-color: #9cc4f2; }
+.inv-perk.is-pending, .inv-mod.is-pending { animation: pulse 0.8s ease-in-out infinite; }
 .inv-perk:not(:disabled) { cursor: pointer; }
 .inv-perk:not(:disabled):hover { opacity: 1; border-color: #fff; }
 .inv-card__mods { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
@@ -470,3 +513,23 @@ html[data-contrast="high"] .inv-backdrop { display: none; }
   .inv-filter__cats { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
 }
 @media (prefers-reduced-motion: reduce) { .inv-overlay { backdrop-filter: none; } }
+
+/* The loadout dock (beside the pages): a compact side panel with the slot picker. */
+.inv-dock { --tile: 52px; }
+.inv-dock__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+.inv-dock__chars button { padding: 0 9px; font-size: 0.84rem; }
+.inv-dock__body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px 24px; scrollbar-width: thin; }
+.inv-dock__emblem { height: 58px; padding-left: 64px; }
+.inv-dock__loadout .tile2[aria-expanded="true"] { outline: 2px solid #fff; outline-offset: -1px; }
+.inv-dock__note:empty { display: none; }
+.inv-dock__pick {
+  position: absolute;
+  z-index: 10;
+  width: calc(var(--tile) * 3 + 8px + 24px);
+  padding: 2px 12px 12px;
+  background: rgba(12, 14, 17, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+.inv-dock__pick .inv-label { margin-top: 8px; }
+.inv-dock__grid { display: grid; grid-template-columns: repeat(3, var(--tile)); gap: 4px; }

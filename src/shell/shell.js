@@ -118,6 +118,14 @@ const anySiteShown = () => shownIds().some(siteShown);
 
 function renderSidebar() {
   const app = $("app");
+  // Expanding the sidebar from the flyout (its button or the shortcut) ends the flyout at once,
+  // so the sidebar takes its real place straight away instead of after the pointer leaves.
+  if (state.sidebarExpanded && flyoutOpen) {
+    clearTimeout(flyoutTimer);
+    flyoutOpen = false;
+    delete app.dataset.flyout;
+    maybeUnfreeze();
+  }
   // While the flyout is open the sidebar shows expanded, over the page.
   const expanded = state.sidebarExpanded || flyoutOpen;
   app.dataset.expanded = String(expanded);
@@ -599,9 +607,54 @@ function buildHome() {
   );
 }
 
+// ---------- Loadout dock ----------
+//
+// The current character's equipped gear in a column beside the pages (any tab or site), on
+// Destiny 2 profiles once signed in. The panes shrink to make room (their size is measured from
+// our own layout), so sites never cover it. On or off is remembered on this computer.
+
+let dockOn = false;
+try {
+  dockOn = localStorage.getItem("mida-dock") === "1";
+} catch {
+  // Off.
+}
+function setDock(on) {
+  dockOn = on;
+  try {
+    localStorage.setItem("mida-dock", on ? "1" : "0");
+  } catch {
+    // Only a convenience.
+  }
+  renderDock();
+}
+function renderDock() {
+  const available = state.profile?.game === "destiny2" && Boolean(state.account?.signedIn);
+  const button = $("dock-open");
+  button.hidden = !available;
+  button.setAttribute("aria-pressed", String(dockOn));
+  button.classList.toggle("is-on", dockOn);
+  const dock = $("dock");
+  const show = available && dockOn;
+  if (show && dock.hidden) {
+    dock.hidden = false;
+    window.midaTabs?.dock(dock, tabContext());
+  } else if (!show && !dock.hidden) {
+    dock.hidden = true;
+    dock.replaceChildren();
+  } else if (show) {
+    window.midaTabs?.dockUpdate(dock, tabContext());
+  }
+  $("app").dataset.dock = String(show);
+}
+$("dock-open").addEventListener("click", () => setDock(!dockOn));
+window.addEventListener("mida-dock-close", () => setDock(false));
+window.addEventListener("mida-tabs-ready", () => state && renderDock());
+
 function render() {
   applyTheme(state.prefs);
   renderSidebar();
+  renderDock();
   renderActive();
   renderUpdate();
   if (!state.firstRunDone && !$("wizard").open) openWizard("first");
@@ -921,7 +974,7 @@ function squarePicture(file) {
 // The Inventory backdrop: the player's own picture, shrunk to at most 1920 wide and kept in this
 // computer's browser storage (never uploaded). Read as a data address, which the page rules allow.
 const BACKDROP_KEY = "mida-inv-backdrop";
-function backdropPicture(file) {
+function backdropPicture(file, maxWidth = 1920) {
   return new Promise((resolve, reject) => {
     const fail = () => reject(new Error("That file isn't a picture Mida can read."));
     if (!file.type.startsWith("image/")) return fail();
@@ -931,7 +984,7 @@ function backdropPicture(file) {
       const img = new Image();
       img.onerror = fail;
       img.onload = () => {
-        const scale = Math.min(1, 1920 / img.naturalWidth, 1200 / img.naturalHeight);
+        const scale = Math.min(1, maxWidth / img.naturalWidth, (maxWidth * 1.4) / img.naturalHeight);
         const canvas = el("canvas", { width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) });
         canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.82));
@@ -940,6 +993,62 @@ function backdropPicture(file) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+// Loadout figures: a picture per class from the player's own PC (inventory.js reads the same keys).
+function figuresSetting() {
+  const rows = [
+    [0, "Titan"],
+    [1, "Hunter"],
+    [2, "Warlock"],
+  ].map(([cls, name]) => {
+    const key = `mida-inv-figure-${cls}`;
+    let saved = null;
+    try {
+      saved = localStorage.getItem(key);
+    } catch {
+      // Drawn figure.
+    }
+    const status = el("span", { class: "inline-status", text: saved ? "Your picture" : "Mida's silhouette" });
+    const changed = () => (window.dispatchEvent(new Event("mida-figures")), renderSettings());
+    const choose = el("button", {
+      class: "btn btn--small",
+      type: "button",
+      "data-key": `figure-${cls}`,
+      text: "Choose…",
+      onclick: () => {
+        const input = $("picture-input");
+        input.value = "";
+        input.onchange = async () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          try {
+            localStorage.setItem(key, await backdropPicture(file, 900));
+            changed();
+          } catch (err) {
+            status.textContent = err?.name === "QuotaExceededError" ? "Too big to keep. Try a smaller picture." : err.message;
+          }
+        };
+        input.click();
+      },
+    });
+    const clear = el("button", {
+      class: "btn btn--small",
+      type: "button",
+      text: "Remove",
+      disabled: !saved || null,
+      onclick: () => {
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          // Nothing kept.
+        }
+        changed();
+      },
+    });
+    return el("div", { class: "overlay-toggles__row" }, el("span", {}, el("strong", { text: name }), document.createTextNode(" "), status), el("span", { class: "picture__buttons" }, choose, clear));
+  });
+  return setting("Loadout figures", "The figure between weapons and armor in the Inventory's side panel. Pick your own picture for each class, or keep Mida's silhouettes. Pictures stay on this computer.", el("div", { class: "overlay-toggles" }, ...rows));
 }
 
 // What's drawn on inventory item icons; inventory.js reads the same key and defaults.
@@ -1537,6 +1646,7 @@ function personalizationPanel() {
         : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
     backdropSetting(),
     overlaysSetting(),
+    figuresSetting(),
     setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
     setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
     setting("Show the address bar", "The bar above the site with back, forward, reload and the page's address.", toggle("address", p.showAddressBar, (v) => updatePrefs({ showAddressBar: v }), "Show the address bar"), { row: true }),

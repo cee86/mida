@@ -9,7 +9,7 @@
 import { featuredRotation, dreamingCityWeek, distortionSchedule, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 import { ROTATORS, withSaved, rotatorNow } from "./d2/rotators.js";
 import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
-import { inventory as inventoryScreen } from "./inventory.js";
+import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 
 const CLOCK = ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"];
 const PIN = ["M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z", "M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"];
@@ -521,6 +521,18 @@ window.midaTabs = {
         savedRotators = saved && typeof saved === "object" ? saved : {};
         if (Object.keys(savedRotators).length && container.dataset.tab === id) this.mount(id, container, ctx);
       });
+    }
+  },
+  // The loadout dock beside the pages (shell.js shows and hides it).
+  dock(container, ctx) {
+    container.dataset.account = accountKey(ctx);
+    if (!ctx.state.account?.signedIn) return container.replaceChildren();
+    loadoutDock(ctx, container, { read, invalidate: () => (cache.inventory = null), loadingView, problemView });
+  },
+  dockUpdate(container, ctx) {
+    if (container.dataset.account !== accountKey(ctx)) {
+      cache.inventory = null;
+      this.dock(container, ctx);
     }
   },
   update(id, container, ctx) {

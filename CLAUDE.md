@@ -205,7 +205,23 @@ the element diamond beside it, the lock as a small badge in the top-right corner
 "Inventory item icons" toggles Power level, Lock icon, Element, Gear tier (pips bottom-left, off by default), Season
 mark, Gold masterwork edge and the old dark strip (off by default). Saved in localStorage `mida-inv-overlays`
 (defaults in both shell.js and inventory.js); event `mida-overlays` repaints; each shows as `data-ov-*` on the tab and
-CSS does the rest. **Filters** = a screen like the game's vault filters (categories left, a grid of
+CSS does the rest.
+**v0.7 (owner's round 4):** perk and mod swaps run in the background (`swapPlug`: the card shows the new pick at once,
+pulsing while Bungie answers, stays usable, other items can be browsed; a refusal undoes it; the item is re-read quietly
+afterwards). Mod choices also come from the socket's own list (component 310), which is where weapon mod slots list
+unlocked mods. The card header copies the game's: tier colour brightening right with a sheen, name, a thin rule, type
+and rarity, the season mark and gear tier pips stacked at the right edge. **Class figures** between weapons and armor
+(`classFigure`): our own simple silhouettes (Titan rifle raised, Hunter cloak and gun on shoulder, Warlock coat and
+Light in hand) on a glow in the class's colour from the owner's reference posters, or a picture per class chosen in
+Settings -> Personalization -> Loadout figures (localStorage `mida-inv-figure-<classType>`, 900 px JPEG, event
+`mida-figures`). The owner's posters are fan art by another artist with Bungie's class logos, so they're **not
+bundled** (same reason as the hangar art). **Loadout dock** (`loadoutDock`, shell `#dock` beside the stage in `.main`'s
+second grid column, 330 px; sidebar button "Loadout dock" on signed-in Destiny 2 profiles; on/off in localStorage
+`mida-dock`): character switch, emblem, weapons | figure | armor, stats; pointing at a slot shows that character's other
+items for it (up to 9) inside the dock (sites cover anything outside our own layout), click equips. Pane sizes are
+measured from our layout, so sites shrink to make room. Dock and Inventory tab share the cached inventory and tell each
+other about moves (`mida-inventory-changed`). Esc closes the item card from anywhere; a quick click no longer un-pins it
+(the hover timer is cleared). **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,
@@ -351,6 +367,11 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.7 (2 Oct 2026, owner's round 4): background perk/mod swaps, weapon mod slots changeable, game-style card header,
+  class figures (own silhouettes or the player's pictures; the owner's fan-art posters kept out of the repo), loadout
+  dock beside any page, darker blurred glass for the sidebar, settings tabs, toggles and buttons (`--glass`,
+  `--glass-blur`; Foundry keeps its own look), and the sidebar no longer stays in flyout mode after expanding it from
+  the flyout.
 * v0.6 (2 Oct 2026, owner's inventory round 2): all characters on General/Inventory, fixed full-width emblem bar,
   game-style filter screen, postmaster drop-down, item card with lock/perk/mod changes, backdrop picker (the owner's
   Bungie concept art kept out of the repo, see §4), equal-height toolbar buttons.

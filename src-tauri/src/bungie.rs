@@ -816,6 +816,11 @@ pub async fn item_details(item: &Value, hash: u64, plug_sets: &Value, m: &Manife
                     offer(p);
                 }
             } else if kind == "mods" {
+                // The socket's own list (component 310) first: weapon mod slots list the mods
+                // you've unlocked there; then the plug sets the definition names.
+                for p in reusable[index.to_string()].as_array().into_iter().flatten() {
+                    offer(p);
+                }
                 let entry = entries.get(index as usize).cloned().unwrap_or(Value::Null);
                 for set in [entry["reusablePlugSetHash"].as_u64(), entry["randomizedPlugSetHash"].as_u64()].into_iter().flatten() {
                     for p in set_plugs(set).iter().take(150) {

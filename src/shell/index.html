@@ -57,6 +57,12 @@
           </span>
           <span class="update-banner__bar" aria-hidden="true"><span id="update-bar"></span></span>
         </button>
+        <button class="mod mod--add" id="dock-open" type="button" title="Show your loadout beside the page" aria-pressed="false" hidden>
+          <span class="mod__icon mod__icon--add">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M15 5v14M17.5 9h0M17.5 12h0M17.5 15h0"/></svg>
+          </span>
+          <span class="mod__name">Loadout dock</span>
+        </button>
         <button class="mod mod--add" id="add-open" type="button" title="Add a module">
           <span class="mod__icon mod__icon--add">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -108,6 +114,8 @@
           <div class="drop-zone" data-side="right"><span>Put it on the right</span></div>
         </div>
       </section>
+      <!-- The loadout dock: your current character's gear beside whatever page is open. -->
+      <aside class="dock" id="dock" aria-label="Loadout" hidden></aside>
     </main>
   </div>
 

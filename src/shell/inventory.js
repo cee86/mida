@@ -78,6 +78,50 @@ const backdropPicture = () => {
   }
 };
 
+// Class figures for the loadout: a picture the player picked for that class (Settings ->
+// Personalization -> Loadout figures, kept on this PC), else our own simple silhouette in front of
+// a soft glow in the class's colour.
+export const FIGURE_KEY = (classType) => `mida-inv-figure-${classType}`;
+const FIGURES = {
+  // Titan: broad shoulders, rifle raised.
+  0: ["M44 22a8 9 0 1 1 12 0v12H44z", "M29 44l16-6h10l16 6 4 16-6 36H31l-6-36z", "M22 44l15-5-2 19-14-2z", "M78 44l-15-5 2 19 14-2z", "M22 57l9 2-2 32-8-2z", "M68 57l8-1 6-28-7-2z", "M74 6h6l2 56h-6z", "M31 96h38l2 12H29z", "M30 108h18l-2 62 2 16H30l2-16z", "M52 108h18l-2 62 2 16H52l2-16z"],
+  // Hunter: hood, cloak, gun over the shoulder.
+  1: ["M42 24q8-12 16 0v14H42z", "M36 40h28l2 55H34z", "M60 42l12 8 8 120-10-10-4 15-4-75z", "M36 42l-6 2v-14l6-2z", "M20 36l44-17 2 5-44 17z", "M64 44l6 2v44h-6z", "M35 95h14l-1 74 2 17H35l2-17z", "M51 95h14l-2 74 2 17H51l2-17z"],
+  // Warlock: long coat, Light in an open hand, rifle at the side.
+  2: ["M43 24a7 8 0 1 1 14 0v12H43z", "M38 40h24l8 110-12 10-8-10-8 10-12-10z", "M62 44l18 26-4 4-16-18z", "M38 44l-6 46 5 2 5-42z", "M27 70h5l-1 60h-5z", "M42 150h7l-1 36h-8z", "M51 150h7l2 36h-8z"],
+};
+export function classFigure(classType) {
+  let picture = null;
+  try {
+    picture = localStorage.getItem(FIGURE_KEY(classType));
+  } catch {
+    // The drawn figure shows.
+  }
+  const box = document.createElement("div");
+  box.className = `inv-figure inv-figure--${{ 0: "titan", 1: "hunter", 2: "warlock" }[classType] ?? "any"}`;
+  box.setAttribute("aria-hidden", "true");
+  if (picture) {
+    box.classList.add("has-picture");
+    box.style.backgroundImage = `url("${picture}")`;
+    return box;
+  }
+  const ns = "http://www.w3.org/2000/svg";
+  const art = document.createElementNS(ns, "svg");
+  art.setAttribute("viewBox", "0 0 100 190");
+  for (const d of FIGURES[classType] ?? FIGURES[0]) {
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", d);
+    art.append(path);
+  }
+  if (classType === 2) {
+    const orb = document.createElementNS(ns, "circle");
+    Object.entries({ cx: 82, cy: 68, r: 5, class: "inv-figure__light" }).forEach(([k, v]) => orb.setAttribute(k, v));
+    art.append(orb);
+  }
+  box.append(art);
+  return box;
+}
+
 const view = {
   group: remember("group", "weapons"),
   size: remember("size", "m"),
@@ -207,6 +251,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       say(result?.error ?? "That didn't work.");
     } else {
       invalidate();
+      window.dispatchEvent(new CustomEvent("mida-inventory-changed", { detail: root }));
       delete details[to];
       clearTimeout(resync);
       resync = setTimeout(() => load(true, true), 6000);
@@ -237,19 +282,34 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     draw();
   }
 
+  // Perk and mod swaps run in the background: the card shows the new choice at once (marked as
+  // waiting), stays usable, and any other item can be looked at meanwhile; Bungie's refusal undoes it.
   async function swapPlug(item, socket, plug) {
-    if (card) card.busy = true;
-    drawCard();
+    const key = item.instance;
+    const s = itemDetails.get(key)?.sockets?.find((x) => x.index === socket.index);
+    if (!s || s.pending) return;
+    const before = { current: s.current, picks: s.options.map((o) => o.current) };
+    s.options.forEach((o) => (o.current = o.hash === plug.hash));
+    s.current = { ...plug, current: undefined };
+    s.pending = true;
+    if (card?.item.instance === key) card.picking = null;
+    const redraw = () => card?.item.instance === key && drawCard();
+    redraw();
     const result = await ctx.hub.d2Plug(item.instance, actingCharacter(item), socket.index, plug.hash);
-    if (card) card.busy = false;
+    s.pending = false;
     if (!result?.ok) {
+      s.current = before.current;
+      s.options.forEach((o, i) => (o.current = before.picks[i]));
       say(result?.error ?? "Couldn't change that.");
     } else {
-      itemDetails.delete(item.instance);
       invalidate();
-      if (card) card.picking = null;
+      // Read the item again quietly (stats change with perks and mods).
+      ctx.hub.d2Item(item.instance, item.hash).then((fresh) => {
+        if (fresh?.ok) itemDetails.set(key, fresh.data);
+        redraw();
+      });
     }
-    drawCard();
+    redraw();
   }
 
   // What can be done with an item, as card buttons.
@@ -291,6 +351,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
         "aria-haspopup": "dialog",
         onclick: (event) => {
           event.stopPropagation();
+          clearTimeout(hoverTimer);
           if (card?.pinned && card.item === item) closeCard();
           else openCard(item, event.currentTarget, true);
         },
@@ -298,7 +359,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
           if (event.pointerType !== "mouse" || card?.pinned) return;
           const target = event.currentTarget;
           clearTimeout(hoverTimer);
-          hoverTimer = setTimeout(() => openCard(item, target, false), 260);
+          hoverTimer = setTimeout(() => !card?.pinned && openCard(item, target, false), 260);
         },
         onpointerleave: () => {
           clearTimeout(hoverTimer);
@@ -331,7 +392,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   // ---------- The item card ----------
 
   function openCard(item, tileNode, pinned) {
-    card = { item, tile: tileNode, pinned, picking: null, busy: false };
+    card = { item, tile: tileNode, pinned, picking: null };
     if (item.instance && !itemDetails.has(item.instance)) {
       itemDetails.set(item.instance, null);
       ctx.hub.d2Item(item.instance, item.hash).then((result) => {
@@ -357,11 +418,11 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
 
   function perkButton(item, socket, option, pinned) {
     const active = option.current;
-    const canPick = pinned && !active && item.instance && !card?.busy;
+    const canPick = pinned && !active && item.instance && !socket.pending;
     return el(
       "button",
       {
-        class: `inv-perk${active ? " is-current" : ""}`,
+        class: `inv-perk${active ? " is-current" : ""}${active && socket.pending ? " is-pending" : ""}`,
         type: "button",
         title: `${option.name}${option.description ? `\n${option.description}` : ""}${canPick ? "\nClick to switch to this" : ""}`,
         disabled: !canPick || null,
@@ -384,11 +445,25 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const node = el(
       "div",
       { class: `inv-card inv-card--${TIERS[item.tier] ?? "basic"}${pinned ? " is-pinned" : ""}`, role: "dialog", "aria-label": item.name, onclick: (e) => e.stopPropagation() },
+      // The game's header: name, then type and rarity, with the season mark and gear tier pips
+      // stacked at the right.
       el(
         "header",
         { class: "inv-card__head" },
-        el("div", { class: "inv-card__name", text: item.name }),
-        el("div", { class: "inv-card__sub" }, el("span", { text: item.typeName }), el("span", { text: d?.tierName || RARITY[item.tier] || "" })),
+        el(
+          "div",
+          { class: "inv-card__titles" },
+          el("div", { class: "inv-card__name", text: item.name }),
+          el("div", { class: "inv-card__sub" }, el("span", { text: item.typeName }), el("span", { text: d?.tierName || RARITY[item.tier] || "" })),
+        ),
+        item.watermark || (d?.gearTier ?? item.gearTier)
+          ? el(
+              "div",
+              { class: "inv-card__badges" },
+              item.watermark ? el("img", { src: item.watermark, alt: "" }) : null,
+              ...Array.from({ length: Math.min(5, d?.gearTier ?? item.gearTier ?? 0) }, () => el("i")),
+            )
+          : null,
       ),
     );
     const body = el("div", { class: "inv-card__body" });
@@ -401,7 +476,6 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
           { class: "inv-card__power" },
           el("span", { class: `inv-card__light${element ? ` is-${element}` : ""}`, text: String(power) }),
           AMMO[d?.ammo ?? item.ammo] ? el("span", { class: "inv-card__ammo", text: AMMO[d?.ammo ?? item.ammo] }) : null,
-          d?.gearTier ?? item.gearTier ? el("span", { class: "inv-card__tier", title: `Gear tier ${d?.gearTier ?? item.gearTier}`, text: "◆".repeat(d?.gearTier ?? item.gearTier) }) : null,
         ),
       );
     }
@@ -462,10 +536,10 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
               el(
                 "button",
                 {
-                  class: `inv-mod${card.picking === s.index ? " is-picking" : ""}`,
+                  class: `inv-mod${card.picking === s.index ? " is-picking" : ""}${s.pending ? " is-pending" : ""}`,
                   type: "button",
                   title: `${s.current.name}${s.current.description ? `\n${s.current.description}` : ""}${pinned && s.options.length ? "\nClick to change" : ""}`,
-                  disabled: !pinned || !s.options.length || card.busy || null,
+                  disabled: !pinned || !s.options.length || s.pending || null,
                   onclick: (event) => {
                     event.stopPropagation();
                     card.picking = card.picking === s.index ? null : s.index;
@@ -491,7 +565,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
                     class: `inv-choice${o.current ? " is-current" : ""}`,
                     type: "button",
                     title: o.description || o.name,
-                    disabled: o.current || card.busy || null,
+                    disabled: o.current || open.pending || null,
                     onclick: (event) => {
                       event.stopPropagation();
                       swapPlug(item, open, o);
@@ -507,7 +581,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       }
       if (d.flavor) body.append(el("p", { class: "inv-card__flavor", text: d.flavor }));
     }
-    if (card.busy) body.append(el("p", { class: "tab__note", text: "Asking Bungie…" }));
+    if (d?.sockets?.some((x) => x.pending)) body.append(el("p", { class: "tab__note", text: "Changing it in the game… you can keep browsing." }));
 
     if (pinned) {
       const actions = actionsFor(item);
@@ -842,7 +916,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       "aside",
       { class: "inv-side" },
       el("div", { class: "inv-label" }, el("span", { text: "Loadout" })),
-      el("div", { class: "inv-side__loadout" }, el("div", { class: "inv-side__col" }, ...equipped("weapons")), el("div", { class: "inv-side__col" }, ...equipped("armor"))),
+      el("div", { class: "inv-side__loadout" }, el("div", { class: "inv-side__col" }, ...equipped("weapons")), classFigure(c.classType), el("div", { class: "inv-side__col" }, ...equipped("armor"))),
     );
     if (!d) side.append(el("p", { class: "tab__note", text: "Reading stats…" }));
     else if (d.error) side.append(el("p", { class: "tab__error", text: d.error }));
@@ -976,8 +1050,9 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
 
   // Clicking elsewhere or Esc closes the pinned card and overlays.
   root.addEventListener("click", () => card?.pinned && closeCard());
-  root.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+  // Esc works wherever focus is (a redrawn card can drop it to the page).
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !document.body.contains(root) || document.querySelector("dialog[open]")) return;
     if (card) closeCard();
     else if (overlay) ((overlay = null), draw());
   });
@@ -988,6 +1063,11 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     for (const key of Object.keys(OVERLAY_DEFAULTS)) root.dataset[`ov${key[0].toUpperCase()}${key.slice(1)}`] = choices[key] ? "on" : "off";
   }
   window.addEventListener("mida-overlays", paintOverlays);
+  window.addEventListener("mida-figures", () => data && draw());
+  // The loadout dock moved something: read again quietly (it already cleared the shared copy).
+  window.addEventListener("mida-inventory-changed", (event) => {
+    if (event.detail !== root && data && document.body.contains(root)) load(false, true);
+  });
   paintOverlays();
 
   async function load(fresh, quiet) {
@@ -1005,6 +1085,199 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       itemDetails.clear();
     }
     if (card) card = { ...card, item: data.items.find((i) => i.id === card.item.id) ?? card.item };
+    draw();
+    if (!container.contains(root)) container.replaceChildren(root);
+  }
+  load(false);
+}
+
+// ---------- The loadout dock ----------
+//
+// The current character's equipped gear beside any page (the shell's dock, next to the panes):
+// weapons | class figure | armor, then stats. Pointing at a slot lists the other items in that
+// character's inventory for it (up to 9, like the game's slot); clicking one equips it. Everything
+// stays inside the dock, because sites are drawn over the rest of the window.
+
+const DOCK_SLOTS = { weapons: [1498876634, 2465295065, 953998645, 4023194814], armor: [3448274439, 3551918588, 14239492, 20886954, 1585787867] };
+
+function dockTile(el, svg, item, extra = {}) {
+  const element = ELEMENTS[item.damage];
+  return el(
+    "button",
+    { class: `tile2 tile2--${TIERS[item.tier] ?? "basic"}${item.masterwork ? " is-mw" : ""}${item.moving ? " is-moving" : ""}`, type: "button", title: `${item.name}${item.typeName ? ` · ${item.typeName}` : ""}`, "aria-label": item.name, ...extra },
+    item.icon ? el("img", { class: "tile2__icon", src: item.icon, alt: "", loading: "lazy", draggable: "false" }) : null,
+    item.watermark ? el("img", { class: "tile2__mark", src: item.watermark, alt: "", loading: "lazy", draggable: "false" }) : null,
+    item.locked ? el("span", { class: "tile2__lock" }, svg(LOCK)) : null,
+    item.gearTier ? el("span", { class: "tile2__tier" }, ...Array.from({ length: Math.min(5, item.gearTier) }, () => el("i"))) : null,
+    item.power
+      ? el("span", { class: "tile2__bar" }, element && element !== "kinetic" ? el("i", { class: `tile2__element tile2__element--${element}` }) : null, el("span", { class: "tile2__power", text: String(item.power) }))
+      : null,
+  );
+}
+
+export function loadoutDock(ctx, container, { read, invalidate, loadingView, problemView }) {
+  const { el, svg } = ctx;
+  let data = null;
+  let current = remember("dock-character", null);
+  let pick = null; // { bucket, tile }
+  let closeTimer = null;
+  const stats = {};
+  const root = el("div", { class: "inv inv-dock" });
+  const note = el("p", { class: "tab__note inv-dock__note", role: "status" });
+
+  const paint = () => {
+    const choices = overlayChoices();
+    for (const key of Object.keys(OVERLAY_DEFAULTS)) root.dataset[`ov${key[0].toUpperCase()}${key.slice(1)}`] = choices[key] ? "on" : "off";
+  };
+  paint();
+  window.addEventListener("mida-overlays", paint);
+  window.addEventListener("mida-figures", () => data && draw());
+  window.addEventListener("mida-inventory-changed", (event) => {
+    if (event.detail !== root && document.body.contains(root)) load(true);
+  });
+
+  const char = () => data.characters.find((c) => c.id === current) ?? data.characters[0];
+  const equippedIn = (c, bucket) => data.items.find((i) => i.owner === c.id && i.equipped && i.bucket === bucket);
+  const spares = (c, bucket) => data.items.filter((i) => i.owner === c.id && !i.equipped && i.bucket === bucket && i.instance).slice(0, 9);
+  const slot = () => el("span", { class: "tile2 tile2--empty", "aria-hidden": "true" });
+
+  async function equip(item, c) {
+    const was = equippedIn(c, item.bucket);
+    item.moving = true;
+    item.equipped = true;
+    if (was) was.equipped = false;
+    pick = null;
+    draw();
+    const result = await ctx.hub.d2Equip({ hash: item.hash, instance: item.instance, owner: c.id, quantity: 1 }, c.id);
+    item.moving = false;
+    if (!result?.ok) {
+      item.equipped = false;
+      if (was) was.equipped = true;
+      note.textContent = result?.error ?? "Couldn't equip that.";
+    } else {
+      note.textContent = "";
+      invalidate();
+      delete stats[c.id];
+      window.dispatchEvent(new CustomEvent("mida-inventory-changed", { detail: root }));
+    }
+    draw();
+  }
+
+  function slotTile(c, bucket) {
+    const item = equippedIn(c, bucket);
+    if (!item) return slot();
+    const node = dockTile(el, svg, item, {
+      "aria-haspopup": "true",
+      "aria-expanded": String(pick?.bucket === bucket),
+      onpointerenter: (event) => {
+        clearTimeout(closeTimer);
+        const target = event.currentTarget;
+        closeTimer = setTimeout(() => ((pick = { bucket, side: DOCK_SLOTS.weapons.includes(bucket) ? "left" : "right" }), drawPick(target)), 120);
+      },
+      onpointerleave: () => scheduleClose(),
+      onclick: (event) => {
+        pick = { bucket, side: DOCK_SLOTS.weapons.includes(bucket) ? "left" : "right" };
+        drawPick(event.currentTarget);
+      },
+    });
+    return node;
+  }
+
+  function scheduleClose() {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      pick = null;
+      root.querySelector(".inv-dock__pick")?.remove();
+    }, 220);
+  }
+
+  // The slot's other items, beside the hovered tile, over the figure.
+  function drawPick(anchor) {
+    root.querySelector(".inv-dock__pick")?.remove();
+    if (!pick) return;
+    const c = char();
+    const list = spares(c, pick.bucket);
+    const name = data.buckets.find((b) => b.hash === pick.bucket)?.name ?? "Slot";
+    const panel = el(
+      "div",
+      { class: "inv-dock__pick", role: "menu", "aria-label": `${name}: equip another`, onpointerenter: () => clearTimeout(closeTimer), onpointerleave: () => scheduleClose() },
+      el("div", { class: "inv-label" }, el("span", { text: name }), el("span", { class: "inv-label__count", text: `${list.length} / 9` })),
+      list.length
+        ? el("div", { class: "inv-dock__grid" }, ...list.map((i) => dockTile(el, svg, i, { role: "menuitem", title: `Equip ${i.name}`, onclick: () => equip(i, c) })))
+        : el("p", { class: "tab__note", text: "Nothing else in this slot on this character." }),
+    );
+    root.append(panel);
+    const box = root.getBoundingClientRect();
+    const t = anchor.getBoundingClientRect();
+    const w = panel.offsetWidth;
+    const left = pick.side === "left" ? t.right - box.left + 8 : t.left - box.left - w - 8;
+    panel.style.left = `${Math.max(6, Math.min(left, box.width - w - 6))}px`;
+    panel.style.top = `${Math.max(6, Math.min(t.top - box.top, box.height - panel.offsetHeight - 6))}px`;
+  }
+
+  function draw() {
+    const c = char();
+    current = c.id;
+    if (stats[c.id] === undefined) {
+      stats[c.id] = null;
+      ctx.hub.d2Character(c.id).then((result) => {
+        stats[c.id] = result?.ok ? result.data : { error: result?.error ?? "Couldn't read stats." };
+        if (char().id === c.id) draw();
+      });
+    }
+    const st = stats[c.id];
+    const head = el(
+      "div",
+      { class: "inv-dock__head" },
+      el(
+        "div",
+        { class: "segmented inv-dock__chars", role: "group", "aria-label": "Character" },
+        ...data.characters.map((x) => el("button", { type: "button", "aria-pressed": String(x.id === c.id), text: x.className, onclick: () => ((current = x.id), keep("dock-character", x.id), (pick = null), draw()) })),
+      ),
+      el("button", { class: "icon-btn", type: "button", title: "Close the loadout dock", "aria-label": "Close the loadout dock", onclick: () => window.dispatchEvent(new Event("mida-dock-close")) }, svg(["M6 6l12 12M18 6L6 18"])),
+    );
+    const banner = el(
+      "div",
+      { class: "inv-emblem inv-dock__emblem" },
+      el("span", { class: "inv-emblem__text" }, el("span", { class: "inv-emblem__class", text: c.className }), el("span", { class: "inv-emblem__title", text: c.subtitle ?? "" })),
+      el("span", { class: "inv-emblem__power" }, el("i", { text: "◆" }), document.createTextNode(String(c.light ?? ""))),
+    );
+    if (c.banner) banner.style.backgroundImage = `url("${c.banner}")`;
+    const gear = el(
+      "div",
+      { class: "inv-side__loadout inv-dock__loadout" },
+      el("div", { class: "inv-side__col" }, ...DOCK_SLOTS.weapons.map((b) => slotTile(c, b))),
+      classFigure(c.classType),
+      el("div", { class: "inv-side__col" }, ...DOCK_SLOTS.armor.map((b) => slotTile(c, b))),
+    );
+    const statList = !st
+      ? el("p", { class: "tab__note", text: "Reading stats…" })
+      : st.error
+        ? el("p", { class: "tab__error", text: st.error })
+        : el(
+            "div",
+            { class: "inv-stats" },
+            ...st.stats.map((x) => {
+              const fill = el("span", { class: "meter__fill" });
+              fill.style.width = `${Math.min(100, (Number(x.value) / 200) * 100)}%`;
+              return el("div", { class: "inv-stat" }, x.icon ? el("img", { src: x.icon, alt: "" }) : el("span"), el("span", { class: "inv-stat__name", text: x.name }), el("span", { class: "inv-stat__value", text: String(x.value) }), el("span", { class: "meter inv-stat__bar" }, fill));
+            }),
+          );
+    root.replaceChildren(
+      head,
+      el("div", { class: "inv-dock__body" }, banner, el("div", { class: "inv-label" }, el("span", { text: "Loadout" }), el("span", { class: "inv-label__count", text: "Point at a slot to swap" })), gear, note, el("div", { class: "inv-label" }, el("span", { text: "Stats" })), statList),
+    );
+  }
+
+  async function load(fresh) {
+    if (!data) container.replaceChildren(loadingView(ctx, "Reading your loadout…"));
+    const result = await read(ctx, "inventory", fresh);
+    if (!result?.ok) {
+      if (data) return (note.textContent = result?.error ?? "Couldn't refresh.");
+      return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
+    }
+    data = result.data;
+    if (!data.characters?.length) return container.replaceChildren(problemView(ctx, "That account has no Destiny 2 characters.", () => load(true)));
     draw();
     if (!container.contains(root)) container.replaceChildren(root);
   }
