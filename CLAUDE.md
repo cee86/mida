@@ -293,7 +293,16 @@ far-future placeholders are ignored). **Fifth check (v0.8.4 live, 3 Oct 2026):**
 Triumphs, Badges, Items, Weapons, Patterns & Catalysts, Guardian Ranks, Legacy, Lore, Medals, Metrics; the season's
 challenges node is empty), no vendor or hidden item holds them: **the hub's daily and weekly objectives aren't in Bungie's
 public data**, so those two boxes were removed. Top row now: Active orders | Weekly rewards with the daily / weekly reset
-countdowns under it. (The Rust still looks for them, cheaply; if Bungie adds them, they show in the data check.) The data check adds "Orders found", the objective holders (done counts, reward lists) and track hashes. **Filters** = a screen like the game's vault filters (categories left, a grid of
+countdowns under it. (The Rust still looks for them, cheaply; if Bungie adds them, they show in the data check.)
+**Replacements (owner's pick, 3 Oct 2026):** a row of **Weekly checklist** (the character's milestones from component
+202: each raid / dungeon / Kepler / Purification / Weekly Clan Engrams, done when its reward entries are earned, else
+its challenges or quests are complete; same-named milestones merged; reward entries as chips; not-done first),
+**Guardian Rank** (profile `currentGuardianRank` / `lifetimeHighestGuardianRank` from component 100; rank names and the
+next rank's records from the `guardianRanksRootNodeHash` tree in `/Settings/`; done = record objective flag clear; the
+first 6 left to do are listed) and **Clan this week** (the clan's "Personal Weekly Objectives" XP objective, and Weekly
+Clan Engrams' reward entries: ready to collect = earned and not redeemed). The Season pass bonuses box is gone; pass
+owned / ranks past the track / pass end are a line under the pass name. All of these field readings are from Bungie's
+docs, unverified live. The data check adds "Orders found", the objective holders (done counts, reward lists) and track hashes. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,

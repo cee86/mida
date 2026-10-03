@@ -942,7 +942,9 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     // Bungie's core settings name the root of each record tree; list them all (for the data
     // check) and look inside the ones whose names suggest the hub's objectives.
     let mut core_nodes: Vec<Value> = Vec::new();
+    let mut guardian_root: Option<u64> = None;
     if let Ok(settings) = get("/Settings/", None).await {
+        guardian_root = settings["destiny2CoreSettings"]["guardianRanksRootNodeHash"].as_u64().filter(|h| *h != 0);
         if let Some(core) = settings["destiny2CoreSettings"].as_object() {
             for (k, v) in core {
                 if !k.to_lowercase().contains("node") {
@@ -1048,6 +1050,7 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     // Daily / weekly objectives live on hidden items such as "Personal Weekly Objectives": each
     // of its objectives is one card, named from the objective's own definition.
     let mut holders = Vec::new();
+    let mut clan_xp: Vec<Value> = Vec::new();
     let mut held_daily = Vec::new();
     let mut held_weekly = Vec::new();
     let mut weekly_holder: Option<(Value, usize)> = None;
@@ -1065,7 +1068,8 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
                 o["objectiveHash"].as_u64().and_then(|h| m.objectives.get(&(h as u32))).map(|d| d.text.to_lowercase().contains("clan")).unwrap_or(false)
             });
             if clan {
-                holders.push(json!({ "name": format!("{} (clan, skipped)", d.name), "objectives": 0, "done": 0, "value": [] }));
+                holders.push(json!({ "name": format!("{} (clan)", d.name), "objectives": 0, "done": 0, "value": [] }));
+                clan_xp.extend(objectives(entry, m));
                 continue;
             }
             let daily_kind = lower.contains("daily");
@@ -1227,16 +1231,113 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     }
     kinds.sort_by(|a, b| b.1.cmp(&a.1));
 
-    // Milestone names (Bungie also keeps weekly things there), for the data check.
+    // The weekly checklist: the character's milestones (raids, dungeons, Kepler, Purification,
+    // Weekly Clan Engrams...), each done when its rewards are earned (else its challenges or quests
+    // are complete). Same-named milestones are merged. Weekly Clan Engrams also feeds the clan box.
     let mut milestones = Vec::new();
+    let mut checklist: Vec<Value> = Vec::new();
+    let mut clan_engrams: Vec<Value> = Vec::new();
     if let Some(map) = profile["characterProgressions"]["data"][character]["milestones"].as_object() {
-        for key in map.keys().take(30) {
+        for (key, ms) in map.iter().take(40) {
             let Ok(h) = key.parse::<u64>() else { continue };
-            let name = entity("DestinyMilestoneDefinition", h).await.and_then(|d| d["displayProperties"]["name"].as_str().map(str::to_string)).unwrap_or_default();
-            if !name.is_empty() {
-                milestones.push(json!(name));
+            let Some(def) = entity("DestinyMilestoneDefinition", h).await else { continue };
+            let name = def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+            if name.is_empty() {
+                continue;
+            }
+            milestones.push(json!(name));
+            // Reward entries: earned / redeemed, named from the definition's reward categories.
+            let mut entries = Vec::new();
+            for cat in ms["rewards"].as_array().into_iter().flatten() {
+                let cat_def = &def["rewards"][cat["rewardCategoryHash"].as_u64().unwrap_or(0).to_string()];
+                for e in cat["entries"].as_array().into_iter().flatten() {
+                    let entry_def = &cat_def["rewardEntries"][e["rewardEntryHash"].as_u64().unwrap_or(0).to_string()];
+                    entries.push(json!({
+                        "name": entry_def["displayProperties"]["name"].as_str().filter(|n| !n.is_empty()).unwrap_or(cat_def["displayProperties"]["name"].as_str().unwrap_or("Reward")),
+                        "earned": e["earned"].as_bool().unwrap_or(false),
+                        "redeemed": e["redeemed"].as_bool().unwrap_or(false),
+                    }));
+                }
+            }
+            let challenges: Vec<Value> = ms["activities"].as_array().into_iter().flatten().flat_map(|a| a["challenges"].as_array().cloned().unwrap_or_default()).map(|c| c["objective"].clone()).filter(|o| o.is_object()).collect();
+            let quests: Vec<bool> = ms["availableQuests"].as_array().into_iter().flatten().map(|q| q["status"]["completed"].as_bool().unwrap_or(false)).collect();
+            let progress = objectives(&Value::Array(challenges.clone()), m);
+            let done = if !entries.is_empty() {
+                entries.iter().all(|e| e["earned"].as_bool() == Some(true))
+            } else if !challenges.is_empty() {
+                challenges.iter().all(|o| o["complete"].as_bool() == Some(true))
+            } else if !quests.is_empty() {
+                quests.iter().all(|q| *q)
+            } else {
+                false
+            };
+            if name.to_lowercase().contains("clan engram") {
+                clan_engrams.extend(entries.clone());
+            }
+            let known = !entries.is_empty() || !challenges.is_empty() || !quests.is_empty();
+            match checklist.iter_mut().find(|c| c["name"].as_str() == Some(name.as_str())) {
+                Some(c) => {
+                    c["done"] = json!(c["done"].as_bool().unwrap_or(false) && done);
+                    c["known"] = json!(c["known"].as_bool().unwrap_or(false) || known);
+                }
+                None => checklist.push(json!({
+                    "name": name,
+                    "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
+                    "description": def["displayProperties"]["description"],
+                    "done": done,
+                    "known": known,
+                    "entries": entries,
+                    "progress": progress,
+                    "ends": ms["endDate"],
+                    "order": ms["order"],
+                })),
             }
         }
+    }
+    checklist.sort_by_key(|c| (c["done"].as_bool().unwrap_or(false), c["order"].as_i64().unwrap_or(0)));
+
+    // Guardian Rank: the profile's current rank, and the records under the next rank's node in
+    // Bungie's Guardian Ranks tree (done = objective flag clear).
+    let current_rank = profile["profile"]["data"]["currentGuardianRank"].as_i64().unwrap_or(0);
+    let highest_rank = profile["profile"]["data"]["lifetimeHighestGuardianRank"].as_i64().unwrap_or(0);
+    let mut guardian = Value::Null;
+    if let Some(root) = guardian_root {
+        if let Some(root_def) = entity("DestinyPresentationNodeDefinition", root).await {
+            let ranks: Vec<u64> = root_def["children"]["presentationNodes"].as_array().into_iter().flatten().filter_map(|c| c["presentationNodeHash"].as_u64()).collect();
+            let name_of = |def: &Value| def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+            let current = match ranks.get((current_rank.max(1) - 1) as usize) {
+                Some(h) => entity("DestinyPresentationNodeDefinition", *h).await,
+                None => None,
+            };
+            let mut next_json = Value::Null;
+            if let Some(next_hash) = ranks.get(current_rank.max(0) as usize) {
+                if let Some(next) = entity("DestinyPresentationNodeDefinition", *next_hash).await {
+                    let mut steps = Vec::new();
+                    for r in next["children"]["records"].as_array().into_iter().flatten().take(30) {
+                        let Some(rh) = r["recordHash"].as_u64() else { continue };
+                        let state = record_state(rh);
+                        let Some(rdef) = entity("DestinyRecordDefinition", rh).await else { continue };
+                        let flags = state["state"].as_u64().unwrap_or(4);
+                        if flags & 16 != 0 {
+                            continue;
+                        }
+                        steps.push(json!({ "name": rdef["displayProperties"]["name"], "description": rdef["displayProperties"]["description"], "done": flags & 4 == 0 && !state.is_null() }));
+                    }
+                    next_json = json!({ "rank": current_rank + 1, "name": name_of(&next), "steps": steps });
+                }
+            }
+            guardian = json!({
+                "rank": current_rank,
+                "highest": highest_rank,
+                "name": current.as_ref().map(name_of).unwrap_or_default(),
+                "icon": current.as_ref().map(|d| icon_url(d["displayProperties"]["icon"].as_str().unwrap_or(""))).unwrap_or(Value::Null),
+                "max": ranks.len(),
+                "next": next_json,
+            });
+        }
+    }
+    if guardian.is_null() && current_rank > 0 {
+        guardian = json!({ "rank": current_rank, "highest": highest_rank, "name": "", "next": Value::Null });
     }
 
     json!({
@@ -1255,6 +1356,9 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
         "weekly": weekly,
         "orders": orders,
         "weeklyRewards": weekly_rewards,
+        "checklist": checklist,
+        "guardian": guardian,
+        "clan": { "xp": clan_xp, "engrams": clan_engrams },
         "check": {
             "roots": roots.iter().map(|(k, h)| json!({ "from": k, "hash": h })).collect::<Vec<_>>(),
             "nodes": nodes_seen,

@@ -217,9 +217,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
     return el("div", { class: "sh-ring", title: `${pct}% to the next rank` }, s, el("span", { class: "sh-ring__label", text: "Rank" }), el("span", { class: "sh-ring__rank", text: String(rank ?? 0) }));
   }
 
-  function bonus(mark, title, detail) {
-    return el("div", { class: "sh-bonus" }, el("span", { class: "sh-bonus__mark", text: mark }), el("span", { class: "sh-bonus__text" }, el("strong", { text: title }), el("span", {}, ...[].concat(detail))));
-  }
+
 
   function passHeader(hub, pass) {
     const options = hub?.passes ?? [];
@@ -238,15 +236,15 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
       },
       ...options.map((p) => el("option", { value: String(p.hash), selected: (shownPass?.hash ?? currentHash) === p.hash || null, text: `${p.number ? `Season ${p.number}: ` : ""}${p.season}${p.current ? " (current)" : ""}` })),
     );
-    const bonuses = [];
+    // What the bonuses box used to say, as one line under the pass name.
+    const facts = [];
     if (pass) {
-      bonuses.push(bonus(pass.premium === true ? "✓" : pass.premium === false ? "–" : "?", "Rewards pass", pass.premium === true ? "Active" : pass.premium === false ? "Not owned" : "Not known yet"));
+      facts.push(pass.premium === true ? "Rewards pass active" : pass.premium === false ? "Rewards pass not owned" : null);
       const extra = (pass.rank ?? 0) - (pass.trackRank ?? 0);
-      if (extra > 0) bonuses.push(bonus(`+${extra}`, "Ranks past the track", "Keep earning as you play"));
+      if (extra > 0) facts.push(`${extra} ranks past the track`);
     }
-    if (!shownPass && (activity.artifact?.powerBonus || activity.artifact?.points)) bonuses.push(bonus(`+${activity.artifact.powerBonus ?? 0}`, "Artifact power", `${activity.artifact.points ?? 0} points unlocked`));
     const endsSoon = hub?.season?.passEnds && new Date(hub.season.passEnds).getTime() - Date.now() < 400 * DAY;
-    if (!shownPass && endsSoon) bonuses.push(bonus("⏱", "Pass ends in", until(ctx, hub.season.passEnds, "")));
+    const status = el("div", { class: "sh-pass__facts" }, ...facts.filter(Boolean).map((f) => el("span", { text: f })), !shownPass && endsSoon ? el("span", {}, document.createTextNode("Pass ends in "), until(ctx, hub.season.passEnds, "")) : null);
     return el(
       "div",
       { class: "sh-pass" },
@@ -255,15 +253,90 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
         "div",
         { class: "sh-pass__name" },
         el("div", { class: "sh-pass__title", text: pass?.name || "Season pass" }),
+        status.childNodes.length ? status : null,
         pass?.next && pass?.tracked !== false ? note(`${(pass.progress ?? 0).toLocaleString()} / ${pass.next.toLocaleString()} XP to the next rank`) : pass?.tracked === false ? note("Bungie doesn't list your progress on this pass.") : null,
         options.length > 1 ? select : null,
       ),
-      section(
-        "Season pass bonuses",
-        null,
-        bonuses.length ? el("div", { class: "sh-bonuses" }, ...bonuses) : note("Reading…"),
-        hub ? el("p", { class: "tab__note sh-bonuses__note", text: "Bungie doesn't share the pass's own boosts (like its XP bonus) with apps, so Mida can't show them." }) : null,
+    );
+  }
+
+  // ---------- Weekly checklist, Guardian Rank, clan ----------
+
+  function checklist(hub) {
+    const list = hub?.checklist ?? [];
+    const done = list.filter((c) => c.done).length;
+    return section(
+      "Weekly checklist",
+      list.length ? `${done} / ${list.length} done` : null,
+      list.length
+        ? el(
+            "div",
+            { class: "sh-checks" },
+            ...list.map((c) =>
+              el(
+                "div",
+                { class: `sh-check-row${c.done ? " is-done" : ""}`, title: c.description || c.name },
+                el("span", { class: "sh-check-row__icon" }, c.icon ? el("img", { src: c.icon, alt: "", loading: "lazy" }) : null),
+                el(
+                  "span",
+                  { class: "sh-check-row__text" },
+                  el("strong", { text: c.name }),
+                  c.entries?.length > 1 ? el("span", { class: "sh-check-row__entries" }, ...c.entries.map((e) => el("span", { class: `sh-chip${e.earned ? " is-on" : ""}`, text: e.name }))) : null,
+                  c.progress?.length && !c.done ? meter(Math.round(c.progress.reduce((n, o) => n + percent(o), 0) / c.progress.length)) : null,
+                ),
+                el("span", { class: `sh-check-row__state${c.done ? " is-done" : c.known ? "" : " is-unknown"}`, text: c.done ? "Done" : c.known ? "To do" : "–" }),
+              ),
+            ),
+          )
+        : note(hub ? "Bungie lists no weekly milestones for this character." : "Reading…"),
+    );
+  }
+
+  function guardianRank(hub) {
+    const g = hub?.guardian;
+    if (!g) return section("Guardian Rank", null, note(hub ? "Not found in Bungie's data." : "Reading…"));
+    const steps = g.next?.steps ?? [];
+    const doneSteps = steps.filter((x) => x.done).length;
+    return section(
+      "Guardian Rank",
+      g.highest > g.rank ? `Highest ${g.highest}` : null,
+      el(
+        "div",
+        { class: "sh-guardian" },
+        el("span", { class: "sh-guardian__rank" }, el("span", { text: String(g.rank) })),
+        el("span", { class: "sh-guardian__text" }, el("strong", { text: g.name || `Rank ${g.rank}` }), el("span", { class: "tab__note", text: g.max ? `Rank ${g.rank} of ${g.max}` : "" })),
       ),
+      g.next
+        ? el(
+            "div",
+            { class: "sh-guardian__next" },
+            el("div", { class: "sh-guardian__nexthead" }, el("span", { text: `Next: ${g.next.name || `Rank ${g.next.rank}`}` }), el("span", { text: steps.length ? `${doneSteps} / ${steps.length}` : "" })),
+            steps.length ? meter(Math.round((doneSteps / steps.length) * 100)) : null,
+            el("ul", { class: "sh-guardian__steps" }, ...steps.filter((x) => !x.done).slice(0, 6).map((x) => el("li", { text: x.name, title: x.description || "" }))),
+          )
+        : note(g.max && g.rank >= g.max ? "Top rank reached." : ""),
+    );
+  }
+
+  function clanWeekly(hub) {
+    const clan = hub?.clan;
+    const xp = clan?.xp ?? [];
+    const engrams = clan?.engrams ?? [];
+    const ready = engrams.filter((e) => e.earned && !e.redeemed).length;
+    return section(
+      "Clan this week",
+      null,
+      xp.length
+        ? el("div", { class: "sh-clan__xp" }, ...xp.map((o) => el("div", { class: "sh-bounty__obj" }, el("span", { text: clean(o.text) || "Clan XP" }), el("span", { text: o.goal > 1 ? `${o.progress.toLocaleString()} / ${o.goal.toLocaleString()}` : `${percent(o)}%` }), meter(percent(o)))))
+        : note(hub ? "No clan XP objective (not in a clan?)." : "Reading…"),
+      engrams.length
+        ? el(
+            "div",
+            { class: "sh-clan__engrams" },
+            el("div", { class: `sh-clan__ready${ready ? " is-ready" : ""}`, text: ready ? `${ready} clan engram${ready > 1 ? "s" : ""} ready to collect` : "No clan engrams waiting" }),
+            el("div", { class: "sh-check-row__entries" }, ...engrams.map((e) => el("span", { class: `sh-chip${e.redeemed ? " is-on" : e.earned ? " is-ready" : ""}`, title: e.redeemed ? "Collected" : e.earned ? "Ready to collect" : "Not earned yet", text: e.name }))),
+          )
+        : null,
     );
   }
 
@@ -506,6 +579,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
       // The hub's daily and weekly objectives aren't in Bungie's public data (checked live through
       // every record tree, vendor and hidden item), so the top row is orders and weekly rewards.
       el("div", { class: "sh-grid" }, orders(ready), el("div", { class: "sh-right sh-right--one" }, weeklyRewards(ready), resets())),
+      el("div", { class: "sh-row3" }, checklist(ready), guardianRank(ready), clanWeekly(ready)),
       passHeader(ready, pass),
       passError ? el("p", { class: "tab__error", text: passError }) : null,
       track(pass),

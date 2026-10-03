@@ -259,3 +259,43 @@
 /* Top row since the daily/weekly objective boxes were dropped: orders | weekly rewards + resets. */
 .sh-right--one { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .sh-resets { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+
+/* Pass status line (replaces the bonuses box). */
+.sh-pass { grid-template-columns: auto minmax(0, 1fr); }
+.sh-pass__facts { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--mist); font-size: 0.86rem; }
+.sh-pass__facts > span::before { content: "◆"; margin-right: 6px; color: var(--accent); font-size: 0.7em; vertical-align: 0.15em; }
+
+/* Weekly checklist | Guardian Rank | Clan this week. */
+.sh-row3 { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.sh-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
+.sh-check-row { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 10px; min-height: 40px; padding: 4px 8px 4px 4px; background: rgba(255, 255, 255, 0.04); }
+.sh-check-row__icon { display: grid; place-items: center; width: 32px; height: 32px; }
+.sh-check-row__icon img { width: 100%; height: 100%; object-fit: contain; }
+.sh-check-row__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 0.88rem; }
+.sh-check-row__text strong { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-check-row__entries { display: flex; flex-wrap: wrap; gap: 4px; }
+.sh-chip { padding: 1px 6px; border: 1px solid var(--rule); color: var(--mist); font-size: 0.7rem; }
+.sh-chip.is-on { border-color: var(--accent); color: var(--cream); }
+.sh-chip.is-ready { border-color: #5fd4ff; color: #bfeeff; }
+.sh-check-row__state { padding: 2px 8px; border: 1px solid var(--rule); font-size: 0.74rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cream); }
+.sh-check-row__state.is-done { border-color: transparent; color: var(--accent); }
+.sh-check-row__state.is-unknown { color: var(--mist-dim); }
+.sh-check-row.is-done { opacity: 0.6; }
+
+.sh-guardian { display: flex; align-items: center; gap: 14px; }
+.sh-guardian__rank { position: relative; isolation: isolate; display: grid; place-items: center; width: 64px; height: 64px; flex-shrink: 0; font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; }
+.sh-guardian__rank::before { content: ""; position: absolute; z-index: -1; inset: 10px; transform: rotate(45deg); border: 2px solid var(--cream); background: rgba(255, 255, 255, 0.06); }
+.sh-guardian__text { display: flex; flex-direction: column; min-width: 0; }
+.sh-guardian__text strong { font-size: 1.05rem; }
+.sh-guardian__text .tab__note { margin: 2px 0 0; }
+.sh-guardian__next { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.sh-guardian__nexthead { display: flex; justify-content: space-between; gap: 8px; font-size: 0.86rem; font-weight: 600; }
+.sh-guardian__steps { margin: 2px 0 0; padding-left: 18px; color: var(--mist); font-size: 0.82rem; }
+
+.sh-clan__xp { display: flex; flex-direction: column; gap: 6px; }
+.sh-clan__engrams { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.sh-clan__ready { font-weight: 600; color: var(--mist); }
+.sh-clan__ready.is-ready { color: #bfeeff; }
+
+@container (max-width: 1250px) { .sh-row3 { grid-template-columns: 1fr 1fr; } .sh-row3 > :first-child { grid-column: 1 / -1; } }
+@container (max-width: 760px) { .sh-row3 { grid-template-columns: 1fr; } }
