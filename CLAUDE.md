@@ -506,6 +506,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.8.6 (3 Oct 2026, owner): MIDA branding, multi-tool silhouette icon, Vendors tab, Rotators pictures and
+  seals.report's categories, Quests DLC buttons and hover fix, flyout keeps the sidebar background.
 * Branding (3 Oct 2026, owner): the app is **MIDA** (all capitals) everywhere people see it: window title, sidebar,
   dialogs, sign-in page, installer and Start menu (`productName` "MIDA" in tauri.conf.json and package.json). Windows
   treats "Mida" and "MIDA" as the same name for folders, registry keys and shortcuts, so the update installs over the old
