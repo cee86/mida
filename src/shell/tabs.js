@@ -6,6 +6,7 @@
 // lib/rotators.js and lib/loot-tables.js, so both show the same weeks; copy them again when those
 // change. Everything here is worked out on this computer: nothing is fetched.
 
+import { wallpaper } from "./wallpaper.js";
 import { featuredRotation, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
 import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
@@ -370,16 +371,16 @@ function planner(ctx, container) {
 }
 
 // Everything a tab inside Guardian or Director may open needs (the Seasonal Hub, Quests, Vendors, Clan, Armor...).
-const shared = () => ({ read, loadingView, problemView, progressBar, until, characterPicker, questCard, lastCharacter });
+const shared = (tab) => ({ read, loadingView, problemView, progressBar, until, characterPicker, questCard, lastCharacter, wallpaper: tab });
 
 // Characters, journey, collections and recent games, with Triumphs and the collection pages inside (guardian.js).
 function guardian(ctx, container) {
-  guardianTab(ctx, container, shared());
+  guardianTab(ctx, container, shared("tab-guardian"));
 }
 
 // The season, Vanguard alerts and Ops, with the Seasonal Hub, Vendors, Quests, friends and clan inside (director.js).
 function director(ctx, container) {
-  directorTab(ctx, container, shared());
+  directorTab(ctx, container, shared("tab-director"));
 }
 
 
@@ -437,7 +438,9 @@ window.midaTabs = {
       SIGNED_IN[id](ctx, host.node);
       return;
     }
-    container.replaceChildren((BUILDERS[id] ?? ((c) => signIn(c, id)))(ctx));
+    const page = (BUILDERS[id] ?? ((c) => signIn(c, id)))(ctx);
+    // The RAD Assistant's wallpaper sits behind it only when the player picked one (wallpaper.js).
+    container.replaceChildren(id === "tab-rad" ? ctx.el("div", { class: "tab-wall" }, wallpaper(ctx, id, { quiet: true }), page) : page);
     // Asked again when the tab opens and the last answer is over 10 minutes old (seals.report caches it as long).
     if (id === "tab-featured" && Date.now() - rotatorsAskedAt > 10 * 60e3) {
       rotatorsAskedAt = Date.now();

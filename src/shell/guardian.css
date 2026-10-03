@@ -1,4 +1,5 @@
-/* The Guardian tab (guardian.js) and the pages opened inside a tab (subpages.js), on the Seasonal Hub's look. */
+/* The Guardian tab (guardian.js), after the Companion app's Guardian screen, and the pages opened inside a tab
+   (subpages.js). Colours come from the theme; the nameplates are the emblems' own art. */
 
 /* A page inside a tab: back bar, then the screen. */
 .sub { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -12,77 +13,103 @@
 .sub__host > * { height: 100%; }
 .sub__host > .tab:not(.sh) { overflow: auto; }
 
-.gd { --gold: #d9b867; }
-.gd-sub { margin-bottom: 8px; color: var(--mist); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+/* A tab with a wallpaper layer behind content that scrolls (the RAD Assistant). */
+.tab-wall { position: relative; isolation: isolate; height: 100%; overflow: hidden; }
+.tab-wall > .tab { height: 100%; max-width: none; overflow: auto; }
 
-/* Characters and gear shortcuts. */
-.gd-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 16px; align-items: start; }
-.gd-char-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
-.gd-char { display: grid; grid-template-columns: 56px 1fr auto; grid-template-rows: auto auto; align-items: center; column-gap: 12px; row-gap: 8px; min-height: 76px; padding: 10px 12px 10px 10px; background: rgba(0, 0, 0, 0.45) center / cover no-repeat; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
-.gd-char__emblem { display: block; width: 56px; height: 56px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(0, 0, 0, 0.3); }
-.gd-char__emblem img { width: 100%; height: 100%; object-fit: cover; }
-.gd-char__text { display: flex; flex-direction: column; min-width: 0; }
-.gd-char__class { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase; }
-.gd-char__sub { overflow: hidden; color: rgba(255, 255, 255, 0.8); font-size: 0.8rem; white-space: nowrap; text-overflow: ellipsis; }
-.gd-char__light { font-family: var(--font-display); font-size: 1.5rem; color: #e6c75b; }
-.gd-char__light i { margin-right: 3px; font-size: 0.55em; font-style: normal; vertical-align: 0.5em; }
-.gd-char__tracker { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: rgba(0, 0, 0, 0.45); font-size: 0.8rem; }
-.gd-char__tracker img { width: 18px; height: 18px; object-fit: contain; }
-.gd-char__tracker span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.gd-char__tracker strong { font-variant-numeric: tabular-nums; }
-.gd-shorts { display: flex; flex-direction: column; gap: 6px; }
+.gd { --gold: #e6c75b; }
+.gd-main { max-width: 1180px; width: 100%; margin: 0 auto; gap: 14px; }
 
-/* A shortcut button (gear, triumphs, collections). */
-.gd-short { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--cream) 12%, transparent); background: rgba(255, 255, 255, 0.04); color: var(--cream); text-align: left; cursor: pointer; }
-.gd-short:hover { border-color: var(--accent); background: var(--hover); }
-.gd-short__icon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--rule); color: var(--accent); }
-.gd-short__icon svg { width: 20px; height: 20px; }
-.gd-short__text { display: flex; flex-direction: column; min-width: 0; }
-.gd-short__text small { color: var(--mist); font-size: 0.78rem; }
-.gd-short--wide { width: 100%; margin-top: 14px; }
-.gd-short.is-off { opacity: 0.45; cursor: default; }
-.gd-short.is-off:hover { border-color: color-mix(in srgb, var(--cream) 12%, transparent); background: rgba(255, 255, 255, 0.04); }
+/* Section headings like the app's: bold capitals over a full-width white rule. */
+.gd-head { display: flex; align-items: baseline; justify-content: space-between; margin: 18px 0 2px; padding-bottom: 6px; border-bottom: 3px solid var(--cream); font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
+.gd-label { margin-bottom: 8px; color: var(--cream); font-size: 1rem; }
+
+/* Currencies in the title band. */
+.gd-wallet { display: flex; align-items: center; gap: 18px; margin-right: 8px; }
+.gd-wallet__item { display: inline-flex; align-items: center; gap: 6px; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.gd-wallet__item img { width: 24px; height: 24px; object-fit: contain; }
+
+/* Characters as their emblem's nameplate. */
+.gd-plates { display: flex; flex-direction: column; gap: 10px; }
+.gd-plate { position: relative; display: grid; grid-template-columns: 96px 1fr auto; align-items: center; column-gap: 18px; min-height: 96px; padding: 0 16px 0 0; background: #15181f center / cover no-repeat; color: #fff; overflow: hidden; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7); }
+.gd-plate__emblem { display: block; width: 96px; height: 96px; }
+.gd-plate__emblem img { width: 100%; height: 100%; object-fit: cover; }
+.gd-plate__text { display: flex; flex-direction: column; }
+.gd-plate__class { font-size: 1.9rem; font-weight: 500; line-height: 1.1; }
+.gd-plate__race { color: rgba(255, 255, 255, 0.72); font-size: 1.15rem; }
+.gd-plate__light { align-self: start; margin-top: 8px; color: var(--gold); font-family: var(--font-display); font-size: 2.4rem; font-weight: 500; line-height: 1; }
+.gd-plate__light i { margin-right: 2px; font-size: 0.6em; font-style: normal; vertical-align: 0.55em; }
+.gd-plate__tracker { position: absolute; right: 16px; bottom: 8px; display: flex; align-items: baseline; gap: 8px; }
+.gd-plate__tracker-name { max-width: 240px; overflow: hidden; color: rgba(255, 255, 255, 0.7); font-size: 0.74rem; white-space: nowrap; text-overflow: ellipsis; }
+.gd-plate__tracker strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+/* Vault / Postmaster / Armor optimizer. */
+.gd-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.gd-btn { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 0 20px; border: 0; background: color-mix(in srgb, var(--char) 82%, transparent); color: var(--cream); font-size: 1.1rem; font-weight: 600; text-align: left; cursor: pointer; }
+.gd-btn:hover { background: var(--ash-raised); }
+.gd-btn__icon svg { width: 32px; height: 32px; }
 
 /* Journey. */
-.gd-journey__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-.gd-rank__head { display: flex; align-items: center; gap: 12px; }
-.gd-rank__num { position: relative; display: grid; place-items: center; width: 56px; height: 56px; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; line-height: 1; }
-.gd-rank__num::before { content: ""; position: absolute; inset: 8px; border: 2px solid var(--accent); transform: rotate(45deg); }
-.gd-rank__head > div { display: flex; flex-direction: column; margin-left: 6px; }
-.gd-rank__head small, .gd-rank__next small { color: var(--mist); font-size: 0.78rem; }
-.gd-rank__next { display: block; margin-top: 12px; }
-.gd-rank__next ul { margin: 6px 0 4px; padding-left: 18px; font-size: 0.84rem; }
-.gd-rank__next li { margin: 2px 0; }
-.gd-com__total { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
-.gd-com__total strong { font-family: var(--font-display); font-size: 1.6rem; }
-.gd-com__total small { color: var(--mist); }
-.gd-com__row { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 8px; min-height: 24px; font-size: 0.82rem; }
-.gd-com__bar { position: relative; height: 6px; background: rgba(255, 255, 255, 0.1); }
-.gd-com__fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
-.gd-com__num { color: var(--mist); font-variant-numeric: tabular-nums; }
-.gd-seal-list { display: flex; gap: 10px; }
-.gd-seal { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 92px; padding: 4px; border: 0; background: transparent; color: var(--cream); cursor: pointer; text-align: center; }
-.gd-seal__art { display: grid; place-items: center; width: 64px; height: 75px; clip-path: polygon(50% 0, 100% 10%, 100% 62%, 50% 100%, 0 62%, 0 10%); background: linear-gradient(180deg, #5a4520, #2a1f0e); }
-.gd-seal__art img { width: 86%; height: 86%; object-fit: contain; }
-.gd-seal strong { color: var(--gold); font-size: 0.78rem; }
-.gd-seal small { color: var(--mist); font-size: 0.7rem; }
+.gd-journey { background: color-mix(in srgb, var(--char) 82%, transparent); }
+.gd-journey__grid { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 28px; padding: 18px 18px 14px; }
+.gd-rank { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.gd-rank .gd-label { align-self: flex-start; }
+.gd-rank__badge { position: relative; display: grid; place-items: center; width: 190px; height: 190px; background: color-mix(in srgb, var(--ink) 70%, transparent); clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%); }
+.gd-rank__art { position: absolute; inset: 10px; width: calc(100% - 20px); height: calc(100% - 20px); object-fit: contain; }
+.gd-rank__num { position: relative; display: grid; place-items: center; width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #c8d6ea, #7f95b8 70%); color: #fff; font-family: var(--font-display); font-size: 3.6rem; font-weight: 700; text-shadow: 0 2px 6px rgba(20, 30, 60, 0.6); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25); }
+.gd-rank__art + .gd-rank__num { background: transparent; box-shadow: none; }
+.gd-rank__name { margin-top: 10px; font-family: var(--font-display); font-size: 1.5rem; letter-spacing: 0.04em; }
+.gd-rank__next { color: var(--mist); font-size: 0.8rem; }
+.gd-rank__foot { display: flex; justify-content: space-between; align-self: stretch; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 1rem; }
+.gd-rank__foot strong { color: var(--mist); font-size: 1.2rem; }
+.gd-com { margin-bottom: 18px; }
+.gd-com__total { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--mist); }
+.gd-com__total svg { width: 30px; height: 30px; color: var(--cream); }
+.gd-com__total strong { font-size: 1.8rem; font-weight: 600; }
+.gd-com__bar { display: flex; gap: 3px; height: 6px; }
+.gd-com__seg { flex: 1 1 0; background: var(--accent); }
+.gd-com__legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; color: var(--mist); font-size: 0.8rem; }
+.gd-com__dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.gd-titles { display: flex; flex-wrap: wrap; gap: 16px; }
+.gd-title { display: grid; place-items: center; width: 108px; height: 132px; padding: 0; border: 0; background: transparent; color: var(--cream); cursor: pointer; }
+.gd-title img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5)); transition: transform 150ms ease; }
+.gd-title:hover img { transform: translateY(-3px); }
+.gd-journey__triumphs { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 0 18px; border: 0; border-top: 1px solid var(--rule); background: transparent; color: var(--cream); font-size: 1.15rem; text-align: left; cursor: pointer; }
+.gd-journey__triumphs:hover { background: var(--hover); }
+.gd-journey__triumphs svg { width: 24px; height: 24px; }
+.gd-journey__triumphs strong { font-weight: 500; font-variant-numeric: tabular-nums; }
+.gd-journey__go { margin-left: auto; color: var(--mist); font-size: 1.4rem; }
 
-/* Collections shortcuts. */
-.gd-coll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+/* Collections: two big tiles across, icon over name. */
+.gd-colls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.gd-coll { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 150px; padding: 16px; border: 0; background: color-mix(in srgb, var(--char) 82%, transparent); color: var(--cream); cursor: pointer; }
+.gd-coll:hover:not(:disabled) { background: var(--ash-raised); }
+.gd-coll.is-off { opacity: 0.4; cursor: default; }
+.gd-coll__icon { display: grid; place-items: center; width: 72px; height: 72px; }
+.gd-coll__icon img { width: 72px; height: 72px; object-fit: contain; }
+.gd-coll__icon svg { width: 60px; height: 60px; stroke-width: 1.4; }
+.gd-coll__name { font-size: 1.25rem; font-weight: 600; }
 
-/* Recent games. */
-.gd-game-list { display: flex; flex-direction: column; gap: 4px; }
-.gd-game { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto auto auto; align-items: center; gap: 14px; min-height: 52px; padding: 4px 12px 4px 4px; background: rgba(255, 255, 255, 0.04); font-size: 0.86rem; }
-.gd-game__art { display: block; width: 88px; height: 44px; background: rgba(255, 255, 255, 0.06) center / cover no-repeat; }
+/* Recent games: the character, then two cards across. */
+.gd-games { display: flex; flex-direction: column; gap: 10px; }
+.gd-picker { position: relative; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 16px 0 0; background: #000; font-size: 1.3rem; }
+.gd-picker__emblem { display: block; width: 60px; height: 60px; }
+.gd-picker__emblem img { width: 100%; height: 100%; object-fit: cover; }
+.gd-picker__light { color: var(--gold); }
+.gd-picker__select { margin-left: auto; }
+.gd-game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.gd-game { display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 4px 14px; min-height: 130px; padding: 14px 16px; background: color-mix(in srgb, var(--char) 88%, transparent) center / cover no-repeat; }
+.gd-game__icon { grid-row: span 2; display: grid; place-items: start center; }
+.gd-game__icon img { width: 48px; height: 48px; object-fit: contain; }
 .gd-game__text { display: flex; flex-direction: column; min-width: 0; }
-.gd-game__text strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.gd-game__text small { overflow: hidden; color: var(--mist); font-size: 0.76rem; white-space: nowrap; text-overflow: ellipsis; }
-.gd-game__result { padding: 1px 8px; border: 1px solid var(--rule); color: var(--mist); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.gd-game__text strong { font-size: 1.4rem; font-weight: 500; line-height: 1.2; }
+.gd-game__sub { color: var(--mist); font-size: 1.05rem; }
+.gd-game__foot { display: flex; justify-content: space-between; align-items: center; color: var(--mist); font-size: 1rem; }
+.gd-game__result { padding: 0 8px; border: 1px solid var(--rule); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .gd-game__result.is-good { border-color: var(--accent); color: var(--accent); }
-.gd-game__stats, .gd-game__time { color: var(--mist); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-@media (max-width: 1100px) {
-  .gd-top, .gd-journey__grid { grid-template-columns: 1fr; }
-  .gd-game { grid-template-columns: 72px minmax(0, 1fr) auto; }
-  .gd-game__stats, .gd-game__time { display: none; }
+@media (max-width: 900px) {
+  .gd-journey__grid, .gd-buttons { grid-template-columns: 1fr; }
+  .gd-game-grid { grid-template-columns: 1fr; }
+  .gd-wallet { display: none; }
 }

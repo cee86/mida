@@ -1568,6 +1568,48 @@ $("add-form").addEventListener("submit", (event) => {
 // ---------- Settings ----------
 
 let settingsTab = "personalization";
+let personalSection = "general"; // Personalization's page: "general" or a Destiny 2 tab id (its wallpaper and options)
+
+// The tabs with their own wallpaper (a copy of wallpaper.js's list and keys; this file isn't a module).
+const WALL_TABS = [
+  ["tab-guardian", "Guardian", "Behind the Guardian tab and everything it opens (Triumphs, collections, the Armor optimizer)."],
+  ["tab-director", "Director", "Behind the Director and everything it opens (Seasonal Hub, Vendors, Quests, Friends, Clan)."],
+  ["tab-inventory", "Inventory", "Behind the Inventory tab."],
+  ["tab-planner", "Weekly planner", "Behind the Weekly planner."],
+  ["tab-featured", "Rotators", "Behind the Rotators tab."],
+  ["tab-rad", "RAD Assistant", "Behind the RAD Assistant. Without one it keeps the theme's background."],
+];
+const wallKey = (tab) => (tab === "tab-inventory" ? "mida-inv-backdrop" : `mida-wall:${tab.replace(/^tab-/, "")}`);
+
+// Personalization's dropdown in the Settings sidebar: General, then one page per Destiny 2 tab (Destiny 2 profiles).
+function personalNav() {
+  document.querySelector(".settings__sub")?.remove();
+  if (settingsTab !== "personalization") return;
+  const sections = [["general", "General"], ...(state.profile?.game === "destiny2" ? WALL_TABS.map(([id, name]) => [id, name]) : [])];
+  if (sections.length < 2) return;
+  if (!sections.some(([id]) => id === personalSection)) personalSection = "general";
+  const anchor = document.querySelector('.settings__tab[data-tab="personalization"]');
+  anchor?.after(
+    el(
+      "div",
+      { class: "settings__sub", role: "group", "aria-label": "Personalization pages" },
+      ...sections.map(([id, name]) =>
+        el("button", { class: "settings__subtab", type: "button", "aria-current": String(id === personalSection), text: name, onclick: () => ((personalSection = id), renderSettings()) }),
+      ),
+    ),
+  );
+}
+
+// One tab's page: its wallpaper, and anything else about how that tab looks.
+function tabLookPanel(tab) {
+  const [, name, help] = WALL_TABS.find(([id]) => id === tab);
+  return [
+    el("h2", { text: name }),
+    el("p", { text: `How the ${name} tab looks. Changes show straight away.` }),
+    backdropSetting(wallKey(tab), "Wallpaper", `A picture from your computer ${help.charAt(0).toLowerCase()}${help.slice(1)} It's darkened and blurred so text stays readable, and stays on this computer.`, tab === "tab-inventory" ? "Using MIDA's own dark backdrop." : "Using MIDA's own backdrop (or your picture from before, if you had one)."),
+    ...(tab === "tab-inventory" ? [overlaysSetting()] : []),
+  ];
+}
 let saveTimer = null;
 
 // Change preferences: shown straight away, saved by the app (which checks every value).
@@ -1787,9 +1829,6 @@ function personalizationPanel() {
       : FIXED_THEMES.includes(p.theme)
         ? [setting("Colorway", `${THEMES.find(([id]) => id === p.theme)?.[1] ?? "This theme"} keeps its own colours. Pick Dark, Black or Light to use a colorway.`, el("div", {}, swatches), { disabled: true })]
         : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
-    backdropSetting(),
-    backdropSetting("mida-sh-backdrop", "Seasonal Hub backdrop", "A picture behind the Seasonal Hub, darkened and blurred. Without one it uses the Inventory's picture. It stays on this computer.", "Using the Inventory's backdrop."),
-    overlaysSetting(),
     setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
     setting("Keep MIDA on top", "MIDA's window stays above other windows, so it can sit beside the game (play in windowed or borderless mode). Also the pin button in the sidebar.", toggle("on-top", p.alwaysOnTop, (v) => updatePrefs({ alwaysOnTop: v }), "Keep MIDA on top"), { row: true }),
     setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
@@ -1904,9 +1943,11 @@ function renderSettings() {
     const show = panel.dataset.panel === settingsTab;
     panel.hidden = !show;
     if (!show) continue;
-    const build = { personalization: personalizationPanel, accessibility: accessibilityPanel, tabs: tabsPanel, about: aboutPanel }[settingsTab];
+    const personal = () => (personalSection === "general" ? personalizationPanel() : tabLookPanel(personalSection));
+    const build = { personalization: personal, accessibility: accessibilityPanel, tabs: tabsPanel, about: aboutPanel }[settingsTab];
     panel.replaceChildren(...build());
   }
+  personalNav();
   if (focusedKey) document.querySelector(`[data-key="${CSS.escape(focusedKey)}"]`)?.focus();
 }
 

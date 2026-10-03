@@ -9,6 +9,7 @@
 // before the latest daily reset (offline, an old answer) the same code runs here on the saved and built-in schedules.
 // Raids, dungeons, the Dreaming City and the hourly Distortion are counted here from known weeks either way.
 
+import { wallpaper } from "./wallpaper.js";
 import { featuredRotation, distortionSchedule, distortionImages } from "./d2/rotations.js";
 import { ROTATORS, withSaved, rotatorNow, lastReset } from "./d2/rotators.js";
 import { FEATURED_SECTIONS, LANDING_ROWS, LANDING_SECTIONS } from "./d2/featured-sections.js";
@@ -16,8 +17,6 @@ import { featuredWeek, artCandidates, DREAMING_CITY_ART } from "./d2/featured-we
 
 const VIEW_KEY = "mida-rot-view2";
 const MODE_KEY = "mida-rot-mode";
-const SH_BACKDROP = "mida-sh-backdrop";
-const INV_BACKDROP = "mida-inv-backdrop";
 const read = (key, fallback) => {
   try {
     return localStorage.getItem(key) ?? fallback;
@@ -245,17 +244,7 @@ export function rotatorsTab(ctx, { until, remote = () => null }) {
   // ---------- Drawing ----------
 
   const root = el("div", { class: "tab rt sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
-  let picture = null;
-  try {
-    picture = localStorage.getItem(SH_BACKDROP) || localStorage.getItem(INV_BACKDROP);
-  } catch {
-    // The built-in backdrop shows.
-  }
-  if (picture) {
-    backdrop.style.backgroundImage = `url("${picture}")`;
-    backdrop.classList.add("has-picture");
-  }
+  const backdrop = wallpaper(ctx, "tab-featured");
 
   function gridView() {
     const bySection = new Map(FEATURED_SECTIONS.map((s) => [s.id, []]));

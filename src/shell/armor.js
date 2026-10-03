@@ -9,6 +9,7 @@
 // runs here: per slot, pieces another piece beats on every stat are dropped, then every combination of what's left
 // is scored by how close it gets to the targets (each stat counts up to its target), then by its total.
 
+import { wallpaper } from "./wallpaper.js";
 const SLOTS = [
   [3448274439, "Helmet"],
   [3551918588, "Arms"],
@@ -94,19 +95,10 @@ export function bestBuilds(slots, targets, { exotic = "any", set = null, setNeed
   return { builds, tried: size() };
 }
 
-export function armorTab(ctx, container, { read, loadingView, problemView, characterPicker, lastCharacter }) {
+export function armorTab(ctx, container, { read, loadingView, problemView, characterPicker, lastCharacter, wallpaper: wall = "tab-guardian" }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab ao sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
-  try {
-    const picture = localStorage.getItem("mida-sh-backdrop") || localStorage.getItem("mida-inv-backdrop");
-    if (picture) {
-      backdrop.style.backgroundImage = `url("${picture}")`;
-      backdrop.classList.add("has-picture");
-    }
-  } catch {
-    // The built-in backdrop shows.
-  }
+  const backdrop = wallpaper(ctx, wall);
   let inv = null;
   let armor = null;
   let prefs = loadPrefs(); // { [classType]: { targets: [6], exotic, set, setNeed } }

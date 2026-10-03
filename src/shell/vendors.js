@@ -10,8 +10,7 @@
 // Data: d2_vendors (bungie.rs vendor_screen): every vendor the character can visit, their location and
 // group, rank, next reset and sale items with costs. Characters come from the shared "activity" read.
 
-const SH_BACKDROP = "mida-sh-backdrop";
-const INV_BACKDROP = "mida-inv-backdrop";
+import { wallpaper } from "./wallpaper.js";
 const SEARCH = ["M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z", "M20 20l-4-4"];
 const TIER_NAMES = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Uncommon", 2: "Common" };
 const CLASS_NAMES = { 0: "Titan", 1: "Hunter", 2: "Warlock" };
@@ -23,21 +22,11 @@ let picked = null; // the chosen vendor's hash
 
 // `only` (optional): show just the vendors it accepts, under `title` (the Director's season page uses it for the
 // Tenets), with `empty` when none match.
-export function vendorsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter, only = null, title = "Vendors", empty = null }) {
+export function vendorsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter, only = null, title = "Vendors", empty = null, wallpaper: wall = "tab-director" }) {
   const { el } = ctx;
   const root = el("div", { class: "tab vd sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
+  const backdrop = wallpaper(ctx, wall);
   const tip = el("div", { class: "sh-tip", role: "tooltip", hidden: true });
-  let picture = null;
-  try {
-    picture = localStorage.getItem(SH_BACKDROP) || localStorage.getItem(INV_BACKDROP);
-  } catch {
-    // The built-in backdrop shows.
-  }
-  if (picture) {
-    backdrop.style.backgroundImage = `url("${picture}")`;
-    backdrop.classList.add("has-picture");
-  }
   let characters = [];
   let search = "";
 

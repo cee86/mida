@@ -10,6 +10,7 @@
 //
 // Everything comes from d2_records (records.rs): the overview, or one node at a time (kept here once read).
 
+import { wallpaper } from "./wallpaper.js";
 const VIEWS = [
   ["seals", "Seals"],
   ["triumphs", "Triumphs"],
@@ -20,19 +21,10 @@ const pct = (p, g) => (g > 0 ? Math.min(100, Math.round((p / g) * 100)) : 0);
 
 // `start`: open at a view ({ view: "triumphs" }) or at one node ({ node: hash | "patterns" }); a node start hides the
 // Seals | Triumphs | Collections switch and its crumbs begin at that node (the Guardian tab's collection pages).
-export function recordsTab(ctx, container, { loadingView, problemView, start: startAt = null }) {
+export function recordsTab(ctx, container, { loadingView, problemView, start: startAt = null, wallpaper: wall = "tab-guardian" }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab rc sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
-  try {
-    const picture = localStorage.getItem("mida-sh-backdrop") || localStorage.getItem("mida-inv-backdrop");
-    if (picture) {
-      backdrop.style.backgroundImage = `url("${picture}")`;
-      backdrop.classList.add("has-picture");
-    }
-  } catch {
-    // The built-in backdrop shows.
-  }
+  const backdrop = wallpaper(ctx, wall);
   let home = null;
   let view = startAt?.view ?? "seals";
   const base = startAt?.node ? [startAt.node] : [];

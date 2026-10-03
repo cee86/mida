@@ -6,6 +6,7 @@
 //
 // From d2_clan (bungie.rs `clan`): the signed-in player's own clan only, never anyone else's.
 
+import { wallpaper } from "./wallpaper.js";
 const RANKS = { 1: "Beginner", 2: "Member", 3: "Admin", 4: "Acting founder", 5: "Founder" };
 const clean = (text) => String(text ?? "").trim();
 const ago = (seconds) => {
@@ -20,19 +21,10 @@ const ago = (seconds) => {
 };
 const dateOf = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "");
 
-export function clanTab(ctx, container, { loadingView, problemView }) {
+export function clanTab(ctx, container, { loadingView, problemView, wallpaper: wall = "tab-director" }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab cl sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
-  try {
-    const picture = localStorage.getItem("mida-sh-backdrop") || localStorage.getItem("mida-inv-backdrop");
-    if (picture) {
-      backdrop.style.backgroundImage = `url("${picture}")`;
-      backdrop.classList.add("has-picture");
-    }
-  } catch {
-    // The built-in backdrop shows.
-  }
+  const backdrop = wallpaper(ctx, wall);
   let data = null;
   let search = "";
   const label = (title, extra) => el("div", { class: "sh-label" }, el("span", { class: "sh-label__text", text: title }), extra != null ? el("span", { class: "sh-label__count", text: extra }) : null);

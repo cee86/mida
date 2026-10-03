@@ -1431,10 +1431,12 @@ async fn d2_guardian(webview: Webview, app: AppHandle) -> Value {
         async {
             progress(&app, "guardian", 0.1, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "guardian", 0.3, "Reading your Guardians from Bungie");
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,200,205,900,1400").await?;
+            progress(&app, "guardian", 0.2, "Reading Destiny's game data");
+            let m = manifest(&app).await?;
+            progress(&app, "guardian", 0.4, "Reading your Guardians from Bungie");
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,103,200,205,900,1400").await?;
             progress(&app, "guardian", 0.7, "Reading ranks and commendations");
-            Ok(hubs::guardian(&profile).await)
+            Ok(hubs::guardian(&profile, &m).await)
         }
         .await,
     )

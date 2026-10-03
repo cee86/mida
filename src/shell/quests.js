@@ -11,8 +11,7 @@
 // playlists, New Light, past, other), read from each quest's trait ids (enrich_quests in bungie.rs)
 // or, failing that, its type name. Bounties sit in the column on the right.
 
-const SH_BACKDROP = "mida-sh-backdrop";
-const INV_BACKDROP = "mida-inv-backdrop";
+import { wallpaper } from "./wallpaper.js";
 const CATEGORY_KEY = "mida-quest-category";
 const SORT_KEY = "mida-quest-sort";
 const read = (key, fallback) => {
@@ -88,21 +87,11 @@ function questPercent(q) {
   return Math.round(step);
 }
 
-export function questsTab(ctx, container, { read: readData, loadingView, problemView, until, characterPicker, lastCharacter }) {
+export function questsTab(ctx, container, { read: readData, loadingView, problemView, until, characterPicker, lastCharacter, wallpaper: wall = "tab-director" }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab qs sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
+  const backdrop = wallpaper(ctx, wall);
   const tip = el("div", { class: "sh-tip", role: "tooltip", hidden: true });
-  let picture = null;
-  try {
-    picture = localStorage.getItem(SH_BACKDROP) || localStorage.getItem(INV_BACKDROP);
-  } catch {
-    // The built-in backdrop shows.
-  }
-  if (picture) {
-    backdrop.style.backgroundImage = `url("${picture}")`;
-    backdrop.classList.add("has-picture");
-  }
   let data = null;
   let category = read(CATEGORY_KEY, "all");
   let sort = read(SORT_KEY, "game");

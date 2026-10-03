@@ -1353,3 +1353,10 @@ html[data-motion="reduce"] .toolbar__progress::before { left: 0; width: 100%; }
 .sh-loading .load { margin: 0 auto; }
 /* A kept-alive tab's own box (tabs.js): it takes no space of its own, the tab inside lays out as before. */
 .tab-host { display: contents; }
+
+/* Personalization's dropdown in the Settings sidebar: General, then each tab. */
+.settings__sub { display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px 20px; padding-left: 10px; border-left: 1px solid var(--rule); animation: settings-sub-in 140ms ease; }
+@keyframes settings-sub-in { from { opacity: 0; transform: translateY(-4px); } }
+.settings__subtab { min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--mist); font-size: 0.86rem; text-align: left; cursor: pointer; }
+.settings__subtab:hover { background: var(--hover); color: var(--cream); }
+.settings__subtab[aria-current="true"] { background: var(--selected); color: var(--cream); }

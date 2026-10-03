@@ -2,7 +2,7 @@
 //!
 //! Bungie's presentation node, record and collectible tables are large, so they're downloaded once per game update
 //! (only when this tab is first opened), slimmed to what the tab shows and saved beside the main manifest
-//! (`manifest/<version>-records-2.json`, cleaned up with it). Player data comes from profile components 200
+//! (`manifest/<version>-records-3.json`, cleaned up with it). Player data comes from profile components 200
 //! (characters, for the title's gender), 700 (node progress), 800 (collectibles) and 900 (records).
 
 use crate::bungie::{self, Manifest};
@@ -67,6 +67,7 @@ pub struct Roots {
     pub lore: u32,
     pub metrics: u32,
     pub medals: u32,
+    pub crafting: u32,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -293,6 +294,7 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
         lore: root("loreRootNodeHash"),
         metrics: if root("metricsRootNodeHash") != 0 { root("metricsRootNodeHash") } else { root("metricsRootNode") },
         medals: if root("medalsRootNodeHash") != 0 { root("medalsRootNodeHash") } else { root("medalsRootNode") },
+        crafting: root("craftingRootNodeHash"),
     };
     let mut r = Records { version: version.to_string(), roots: Roots::default(), nodes, records, collectibles, metrics };
     // The badges node, when the settings don't name it: the node called "Badges" under the collections root.
@@ -547,6 +549,13 @@ impl View<'_> {
         })
     }
 
+    fn root_info(&self, hash: u32) -> Value {
+        match self.r.nodes.get(&hash) {
+            Some(n) => json!({ "name": n.name, "icon": bungie::icon_url(&n.icon) }),
+            None => Value::Null,
+        }
+    }
+
     fn roots(&self) -> [u32; 5] {
         let r = &self.r.roots;
         [r.active_seals, r.legacy_seals, r.active_triumphs, r.legacy_triumphs, r.collections]
@@ -564,6 +573,15 @@ impl View<'_> {
             "triumphs": { "active": self.summaries(&kids(r.active_triumphs)), "legacy": self.summaries(&kids(r.legacy_triumphs)) },
             "collections": { "categories": self.summaries(&collections), "badges": self.summaries(&kids(r.badges)), "badgesHash": r.badges },
             "roots": { "catalysts": r.catalysts, "lore": r.lore, "metrics": r.metrics, "medals": r.medals },
+            // Each collection page's own name and icon from Bungie (the Companion app's tiles use them).
+            "rootInfo": {
+                "items": self.root_info(r.collections),
+                "patterns": self.root_info(r.crafting),
+                "lore": self.root_info(r.lore),
+                "metrics": self.root_info(r.metrics),
+                "medals": self.root_info(r.medals),
+                "catalysts": self.root_info(r.catalysts),
+            },
         })
     }
 

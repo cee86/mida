@@ -8,6 +8,7 @@
 // the shared "activity" read, this week from the Rotators' schedules. "My list" is the player's own to-dos per
 // character, kept on this PC (`mida-planner`); ticks clear themselves at the weekly reset.
 
+import { wallpaper } from "./wallpaper.js";
 import { featuredRotation } from "./d2/rotations.js";
 import { ROTATORS, withSaved, rotatorNow, lastReset, WEEK_MS } from "./d2/rotators.js";
 
@@ -32,16 +33,7 @@ const CLOCK = ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7v5l3 2"];
 export function plannerTab(ctx, container, { read, loadingView, problemView, until, remote = () => null }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab pl sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
-  try {
-    const picture = localStorage.getItem("mida-sh-backdrop") || localStorage.getItem("mida-inv-backdrop");
-    if (picture) {
-      backdrop.style.backgroundImage = `url("${picture}")`;
-      backdrop.classList.add("has-picture");
-    }
-  } catch {
-    // The built-in backdrop shows.
-  }
+  const backdrop = wallpaper(ctx, "tab-planner");
   let data = null;
   let activity = null;
   let lists = load(); // { characterId: [{ id, text, doneWeek }] }

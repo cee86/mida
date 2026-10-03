@@ -17,9 +17,8 @@
 // from the build workspace: sections that find nothing say so, and the data check lists what was
 // found for tuning.
 
+import { wallpaper } from "./wallpaper.js";
 const DAY = 24 * 3600e3;
-const SH_BACKDROP = "mida-sh-backdrop";
-const INV_BACKDROP = "mida-inv-backdrop";
 
 // Destiny's resets: daily at 17:00 UTC, weekly on Tuesdays at 17:00 UTC.
 function nextDaily(now = Date.now()) {
@@ -40,10 +39,10 @@ const ELEMENT_TOKENS = ["arc", "solar", "void", "stasis", "strand", "kinetic"];
 const percent = (o) => (o.goal > 0 ? Math.min(100, Math.round((o.progress / o.goal) * 100)) : o.complete ? 100 : 0);
 const TIER_NAMES = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Uncommon", 2: "Common" };
 
-export function seasonalHub(ctx, container, { read, loadingView, problemView, progressBar, until, characterPicker, questCard, lastCharacter }) {
+export function seasonalHub(ctx, container, { read, loadingView, problemView, progressBar, until, characterPicker, questCard, lastCharacter, wallpaper: wall = "tab-director" }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab tab--seasonal sh" });
-  const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
+  const backdrop = wallpaper(ctx, wall);
   const tip = el("div", { class: "sh-tip", role: "tooltip", hidden: true });
   let activity = null;
   const hubs = {}; // per character
@@ -574,16 +573,6 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
 
   // ---------- Drawing ----------
 
-  function paintBackdrop() {
-    let picture = null;
-    try {
-      picture = localStorage.getItem(SH_BACKDROP) || localStorage.getItem(INV_BACKDROP);
-    } catch {
-      // The built-in backdrop shows.
-    }
-    backdrop.style.backgroundImage = picture ? `url("${picture}")` : "";
-    backdrop.classList.toggle("has-picture", Boolean(picture));
-  }
 
   function draw() {
     hideTip();
@@ -657,8 +646,6 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
     scroller.scrollTop = scroll;
   }
 
-  window.addEventListener("mida-backdrop", paintBackdrop);
-  paintBackdrop();
 
   async function load(fresh) {
     if (!activity) container.replaceChildren(loadingView(ctx, "Reading this season from Bungie…", "activity"));
