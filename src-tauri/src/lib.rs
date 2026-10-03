@@ -1092,6 +1092,7 @@ async fn d2_activity(webview: Webview, app: AppHandle) -> Value {
             let m = manifest(&app).await?;
             let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,104,200,201,202,300,301").await?;
             let mut data = bungie::shape_activity(&profile, &m);
+            bungie::enrich_quests(&mut data, &m).await;
             data["season"] = bungie::season(&profile, &a.access).await;
             data["alerts"] = Value::Array(bungie::alerts().await);
             Ok(data)

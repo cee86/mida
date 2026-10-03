@@ -1,0 +1,91 @@
+/* The Quests tab (quests.js), after the game's Quests screen, styled like the Inventory and the
+   Seasonal Hub (whose sh-* title band, labels, boxes, meters, tiles and bounty rows it reuses):
+   an icon column of quest types on the left, the quest tiles, the chosen quest, bounties right. */
+
+.qs-layout { display: grid; grid-template-columns: 64px minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+
+/* Quest types: icons only, the name and count in a hover label like the collapsed sidebar. */
+.qs-nav { position: sticky; top: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: var(--glass); backdrop-filter: var(--glass-blur); border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); }
+.qs-nav__item { position: relative; display: grid; place-items: center; width: 50px; height: 50px; border: 1px solid transparent; background: transparent; color: var(--mist); cursor: pointer; }
+.qs-nav__item svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.qs-nav__item:hover, .qs-nav__item:focus-visible { background: var(--hover); color: var(--cream); }
+.qs-nav__item[aria-current="true"] { color: var(--cream); background: rgba(255, 255, 255, 0.08); border-color: color-mix(in srgb, var(--cream) 35%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.qs-nav__count { position: absolute; right: 3px; bottom: 2px; color: var(--mist-dim); font-size: 0.66rem; font-variant-numeric: tabular-nums; }
+.qs-nav__item[aria-current="true"] .qs-nav__count { color: var(--mist); }
+.qs-nav__name { position: absolute; left: calc(100% + 10px); top: 50%; z-index: 5; padding: 5px 9px; transform: translateY(-50%); background: rgba(12, 14, 17, 0.96); border: 1px solid rgba(255, 255, 255, 0.2); color: var(--cream); font-size: 0.82rem; white-space: nowrap; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.12s; }
+.qs-nav__item:hover .qs-nav__name, .qs-nav__item:focus-visible .qs-nav__name { opacity: 1; visibility: visible; }
+
+/* Tiles beside the chosen quest. */
+.qs-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr); gap: 18px; align-items: start; min-width: 0; }
+.qs-list .sh-label { margin-top: 0; }
+.qs-detail > .sh-label:first-child { margin-top: 0; }
+.qs-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.qs-tile { display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: center; padding: 7px; border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); background: var(--glass); backdrop-filter: var(--glass-blur); color: var(--cream); text-align: left; cursor: pointer; }
+.qs-tile:hover { background: color-mix(in srgb, var(--glass), #fff 6%); border-color: color-mix(in srgb, var(--cream) 30%, transparent); }
+.qs-tile.is-picked { border-color: var(--cream); box-shadow: inset 0 0 0 1px var(--cream), 0 0 0 1px rgba(var(--accent-rgb), 0.35); }
+.qs-tile__art { position: relative; display: block; width: 56px; height: 56px; border: 1px solid rgba(255, 255, 255, 0.22); background: #2b2f36; overflow: hidden; }
+.qs-tile--t6 .qs-tile__art { background: #ceae33; border-color: #e8d07a; }
+.qs-tile--t5 .qs-tile__art { background: #522f65; }
+.qs-tile--t4 .qs-tile__art { background: #5076a3; }
+.qs-tile__art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.qs-tile__ready { position: absolute; inset: auto 0 0 auto; display: grid; place-items: center; width: 20px; height: 20px; background: var(--accent); color: #111; font-size: 0.8rem; font-weight: 800; }
+.qs-tile__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qs-tile__line { overflow: hidden; color: var(--mist); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; }
+.qs-tile__name { overflow: hidden; font-weight: 600; font-size: 0.92rem; white-space: nowrap; text-overflow: ellipsis; }
+.qs-tile__meta { display: flex; justify-content: space-between; gap: 6px; color: var(--mist-dim); font-size: 0.75rem; }
+.qs-tile .sh-meter { margin-top: 3px; }
+.qs-tile.is-done .sh-meter > span { background: var(--cream); }
+
+/* The chosen quest. */
+.qs-detail { position: sticky; top: 0; padding-top: 0; }
+.qs-detail.is-empty { padding-top: 2px; }
+.qs-detail__hero { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: end; margin: 0 -14px 10px; padding: 16px 14px 12px; border-bottom: 1px solid var(--rule); background: linear-gradient(90deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.15)); background-size: cover; background-position: center; }
+.qs-detail__hero.has-art { min-height: 140px; }
+.qs-detail__icon { display: block; width: 64px; height: 64px; border: 1px solid rgba(255, 255, 255, 0.3); background: #2b2f36; overflow: hidden; }
+.qs-detail--t6 .qs-detail__icon { background: #ceae33; border-color: #e8d07a; }
+.qs-detail--t5 .qs-detail__icon { background: #522f65; }
+.qs-detail__icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.qs-detail__titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+.qs-detail__line { color: rgba(255, 255, 255, 0.75); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; }
+.qs-detail__name { margin: 0; font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.15; }
+.qs-detail__type { color: rgba(255, 255, 255, 0.7); font-size: 0.8rem; }
+.qs-detail__desc { margin: 8px 0 4px; color: var(--mist); font-size: 0.9rem; line-height: 1.5; white-space: pre-line; }
+.qs-detail__foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 12px; color: var(--mist-dim); font-size: 0.8rem; }
+.qs-detail__ready { color: var(--accent); font-weight: 600; }
+
+/* Steps: a pip per step of the quest line. */
+.qs-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 6px; }
+.qs-steps > span:not(.qs-steps__text) { width: 9px; height: 9px; transform: rotate(45deg); border: 1px solid color-mix(in srgb, var(--cream) 40%, transparent); }
+.qs-steps > .is-done { background: var(--cream); border-color: var(--cream); }
+.qs-steps > .is-now { background: var(--accent); border-color: var(--accent); }
+.qs-steps__text { margin-left: 8px; color: var(--mist); font-size: 0.8rem; }
+
+/* Objectives: a box that fills when done, the text, the count, a meter. */
+.qs-objs { display: flex; flex-direction: column; gap: 8px; }
+.qs-obj { display: grid; grid-template-columns: 14px 1fr auto; gap: 4px 10px; align-items: center; font-size: 0.88rem; }
+.qs-obj__box { width: 12px; height: 12px; border: 1px solid color-mix(in srgb, var(--cream) 55%, transparent); }
+.qs-obj.is-done .qs-obj__box { background: var(--cream); }
+.qs-obj.is-done .qs-obj__text { color: var(--mist); }
+.qs-obj__count { color: var(--mist); font-variant-numeric: tabular-nums; }
+.qs-obj .sh-meter { grid-column: 2 / -1; }
+.qs-rewards { display: flex; flex-wrap: wrap; gap: 8px; }
+.qs-rewards .sh-tile { width: 52px; height: 52px; opacity: 1; }
+.qs-lore { margin-top: 12px; color: var(--mist); font-size: 0.86rem; }
+.qs-lore > summary { cursor: pointer; color: var(--cream); }
+.qs-lore p { margin: 6px 0 0; line-height: 1.5; white-space: pre-line; }
+
+.qs-sort { min-height: 32px; }
+
+@container (max-width: 1400px) {
+  .qs-main { grid-template-columns: 1fr; }
+  .qs-detail { position: static; }
+}
+@container (max-width: 1050px) {
+  .qs-layout { grid-template-columns: 64px minmax(0, 1fr); }
+  .qs-side { grid-column: 1 / -1; position: static; max-height: none; }
+}
+@container (max-width: 640px) {
+  .qs-layout { grid-template-columns: 1fr; }
+  .qs-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+  .qs-nav__name { display: none; }
+}

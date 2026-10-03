@@ -155,6 +155,30 @@ seals.report's lib/rotations.js, rotators.js and loot-tables.js: copy them again
 admin's rotator corrections live in seals.report's Redis and don't reach Mida yet; a small public endpoint could fix
 that; Featured now asks seals.report's `/api/mida/rotators` once a run through `d2_rotators`).
 
+**Rotators** (was Featured; tab id still `tab-featured`, src/shell/rotators.js + rotators.css, 3 Oct 2026): seals.report's
+Featured layout in the Seasonal Hub style (title band with the week's dates, weekly reset countdown, Grid | List;
+backdrop like the hub). Left: view icons (All, Raids, Dungeons, This week, Today, Weekly checklist; `mida-rot-view`).
+Grid = cards in sections, a card opens its row in the list; List = `<details>` rows with "Coming up" and caveats
+(`mida-rot-mode`). The Ascendant Challenge rotator is folded into the Dreaming City card (which follows its saved index).
+
+**Quests** (src/shell/quests.js + quests.css, 3 Oct 2026, after the game's Quests screen): title band (count, character
+picker, sort: game order / most progress / ready first / ending soonest / name, `mida-quest-sort`, Refresh), then an
+icon column of quest types (All, Exotic, Seasonal, Campaigns, Playlists, New Light, Past, Other; only types present;
+hover shows the name; `mida-quest-category`), quest tiles (icon in its rarity colour, quest line, name, step n of m,
+meter, ready check), the chosen quest (screenshot banner when Bungie has one, step diamonds, description, objectives,
+reward tiles with hover cards, quest line text, time left) and bounties in the right column (ready first). The types,
+quest line, step and rewards come from `enrich_quests` in bungie.rs: each quest's full item definition (single-entity
+lookup, memory-cached; first 80 per character): `traitIds` mapped by words (exotic / seasonal|current_release|episode /
+expansion|campaign / playlist / new_light / past|legacy, else other), `setData.questLineName/Description/itemList`
+(step = this quest's place in the list), `value.itemValue` rewards. **Unverified live**: the trait id wording and
+whether the step lists hold every step; when traits are missing the type is guessed from the type name.
+
+**Sidebar fixes (3 Oct 2026):** collapsed icons line up with the expanded ones (labels and the profile text keep their
+height, hidden with `color: transparent` / `visibility: hidden`); built-in tabs can be dragged up and down to reorder
+(`hub.setTabs`); a cancelled drag (Esc, dropped outside) always clears the split drop zones (`dragend` caught on the
+document in the capture phase, a pointer move also ends a stale drag, and the sidebar doesn't re-render mid-drag, which
+used to detach the dragged row so `dragend` never fired).
+
 **Bungie sign-in** (src/auth.rs, v0.4): Mida's own Bungie app (Confidential; redirect
 `https://d2-seals-report.vercel.app/api/mida/callback`; scopes: read Destiny 2 inventory/vault, move or equip gear). Its
 client secret lives only in seals.report's Vercel env (`MIDA_CLIENT_ID`/`MIDA_CLIENT_SECRET`). Flow: Mida listens once
@@ -448,6 +472,9 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* Held for v0.8.5 (3 Oct 2026, owner's round): Seasonal Hub without the hub objectives / bonuses boxes, with a weekly
+  checklist, Guardian Rank and clan weekly; Featured rebuilt as **Rotators**; Quests like the game's Quests screen with
+  bounties on the right; sidebar alignment, tab reordering and cancelled-drag fixes.
 * v0.8.3 (owner): updates install silently (`plugins.updater.windows.installMode` "quiet" = NSIS `/S /R`, per-user so no
   admin prompt; the installer relaunches Mida) after an in-app "Updating Mida" window (`#updating-dialog`, can't be
   dismissed) shows the download percentage and then "Installing"; the Rust side now downloads, shows "ready" for 1.5 s,

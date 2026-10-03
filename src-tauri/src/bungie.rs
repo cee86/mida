@@ -609,6 +609,7 @@ pub fn shape_activity(profile: &Value, m: &Manifest) -> Value {
                 let objs = objectives(list, m);
                 let entry = json!({
                     "id": if instance.is_empty() { hash.to_string() } else { instance.to_string() },
+                    "hash": hash,
                     "name": def.name,
                     "icon": icon_url(&def.icon),
                     "typeName": def.type_name,
@@ -632,6 +633,56 @@ pub fn shape_activity(profile: &Value, m: &Manifest) -> Value {
         "artifact": if artifact.is_object() { json!({ "powerBonus": artifact["powerBonus"], "points": artifact["pointsAcquired"] }) } else { Value::Null },
         "seasonHash": profile["profile"]["data"]["currentSeasonHash"],
     })
+}
+
+/// Adds what the Quests tab shows from each quest's full definition: its category (from Bungie's
+/// trait ids, the same ones the game's quest filters use), quest line name and description, which
+/// step it's on out of how many, and its rewards. Same quest on several characters: read once.
+pub async fn enrich_quests(data: &mut Value, m: &Manifest) {
+    let Some(map) = data["quests"].as_object_mut() else { return };
+    for list in map.values_mut() {
+        for q in list.as_array_mut().into_iter().flatten().take(80) {
+            let Some(hash) = q["hash"].as_u64() else { continue };
+            let Some(def) = entity("DestinyInventoryItemDefinition", hash).await else { continue };
+            let traits: Vec<String> = def["traitIds"].as_array().into_iter().flatten().filter_map(|t| t.as_str().map(str::to_string)).collect();
+            let joined = traits.join(" ").to_lowercase();
+            let category = if joined.contains("exotic") {
+                "exotic"
+            } else if joined.contains("seasonal") || joined.contains("current_release") || joined.contains("episode") {
+                "seasonal"
+            } else if joined.contains("expansion") || joined.contains("campaign") {
+                "expansion"
+            } else if joined.contains("playlist") {
+                "playlists"
+            } else if joined.contains("new_light") {
+                "newlight"
+            } else if joined.contains("past") || joined.contains("legacy") {
+                "past"
+            } else {
+                "other"
+            };
+            let steps: Vec<u64> = def["setData"]["itemList"].as_array().into_iter().flatten().filter_map(|i| i["itemHash"].as_u64()).collect();
+            let step = steps.iter().position(|h| *h == hash).map(|i| i + 1);
+            let rewards: Vec<Value> = def["value"]["itemValue"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| {
+                    let item = m.items.get(&(v["itemHash"].as_u64().filter(|h| *h != 0)? as u32))?;
+                    Some(json!({ "name": item.name, "icon": icon_url(&item.icon), "tier": item.tier, "typeName": item.type_name, "description": item.description, "quantity": v["quantity"] }))
+                })
+                .collect();
+            q["category"] = json!(category);
+            q["traits"] = json!(traits);
+            q["questLine"] = def["setData"]["questLineName"].clone();
+            q["questLineDescription"] = def["setData"]["questLineDescription"].clone();
+            q["step"] = json!(step);
+            q["steps"] = json!(steps.len());
+            q["rewards"] = json!(rewards);
+            q["tier"] = def["inventory"]["tierType"].clone();
+            q["screenshot"] = icon_url(def["screenshot"].as_str().unwrap_or(""));
+        }
+    }
 }
 
 /// The season's name, end and rank (reward track plus anything past it) for a character.

@@ -10,6 +10,7 @@ import { featuredRotation, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
 import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 import { seasonalHub } from "./seasonal.js";
+import { questsTab } from "./quests.js";
 import { rotatorsTab } from "./rotators.js";
 
 const CLOCK = ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"];
@@ -305,36 +306,9 @@ const lastCharacter = {};
 
 // ---------- Quests ----------
 
+// Laid out like the game's Quests screen (quests.js).
 function quests(ctx, container) {
-  const { el } = ctx;
-  const root = el("div", { class: "tab" });
-  const draw = (data) => {
-    const chosen = data.characters.some((c) => c.id === lastCharacter.quests) ? lastCharacter.quests : data.characters[0]?.id;
-    const list = data.quests[chosen] ?? [];
-    root.replaceChildren(
-      head(ctx, "Quests", `${list.length} picked up · ${ctx.state.account?.name ?? ""}`),
-      el(
-        "div",
-        { class: "tab__tools" },
-        characterPicker(ctx, data.characters, chosen, (id) => {
-          lastCharacter.quests = id;
-          draw(data);
-        }),
-        el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => load(true) }),
-      ),
-      list.length
-        ? el("div", { class: "cards cards--wide" }, ...list.map((q) => questCard(ctx, q)))
-        : el("p", { class: "tab__note", text: "No quests on this character." }),
-    );
-  };
-  const load = async (fresh) => {
-    container.replaceChildren(loadingView(ctx, "Reading your quests from Bungie…"));
-    const result = await read(ctx, "activity", fresh);
-    if (!result?.ok) return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
-    draw(result.data);
-    container.replaceChildren(root);
-  };
-  load(false);
+  questsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter });
 }
 
 // ---------- Seasonal Hub ----------
