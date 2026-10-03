@@ -689,6 +689,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.2 (3 Oct 2026, owner): News tab (Bungie.net, Bungie Server Status and Destiny 2 on Bluesky, D2 Community Hub), the
+  Director's news strip, Server Status posts in the bell.
 * v0.9.1 (3 Oct 2026, owner): Guardian and Director redesigned after the Companion app, every activity under Vanguard alerts
   with Ops Categories, a wallpaper per tab, Personalization dropdown in Settings.
 * v0.9.0 (3 Oct 2026, owner): Guardian and Director tabs (the Companion app's organisation); Triumphs, Armor optimizer,
