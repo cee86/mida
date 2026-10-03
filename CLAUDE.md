@@ -293,7 +293,20 @@ duplicates collapse (`unique`). **Ops Categories** boxes sit below (crest, name,
 sent) and open a page of that box's activities. Sorting (`opsOf`): PvP/Crucible/Gambit/Trials/Iron Banner → Crucible &
 Gambit; Onslaught, Prison of Elders and exotic missions (the rotator's names) → Pinnacle; Solo Ops trait → Solo; strikes
 and battlegrounds → Fireteam (the owner called these "Vanguard ops"; the box keeps the game's name); then Bungie's
-Arena/Fireteam/Pinnacle trait. The data check lists the picks and anything in no box. **Unverified live:** how the GM
+Arena/Fireteam/Pinnacle trait. The data check lists the picks and anything in no box. **Live data (owner's data check, 3 Oct 2026):**
+Bungie sends **no traits** on these activities, only a type ("Mission", "Crawl", "Seasonal Arena", "Solo Ops", "Raid"),
+so the owner's sorting now reads the type: Solo Ops type → Solo; Crawl (The Coil, Contest of Elders), Seasonal Arena
+(Ketchcrash, Astral Alignment, Nightmare Containment) and Dares of Eternity → Arena; Mission (Vanguard strikes, Empire
+Hunts, Expedition, Conductor's Keep…) → Fireteam. Titles drop ": Matchmade" too, so the matchmade and private copies
+collapse into one card. The Pantheon (type Raid) is in no box (owner hasn't said). **Guardian tidy (owner's screenshot, same day):** commendations are just the
+total and one thin bar (4px, small gaps, Ally · Mastery · Fun · Leadership as in the app's screenshot); Bungie's
+nameless parent node (no percentage) is dropped, and the colour key is gone. Character cards are one flat row (about
+half the old height; the emblem tracker's number sits under the power, its name on hover). The currencies stay in the title
+band; the page is two independent columns (left: Characters, Journey, Recent games; right: Gear, Triumphs, Collections),
+so boxes don't line up across (owner's choice, instead of filling the gap left by the shorter cards). Journey gets a drawn rank badge (ringed diamond with
+ticks) when Bungie sends no rank art, the rank name letterspaced, "Highest rank n", and the next rank's steps only when
+listed ("Next: rank 11 · Paragon" otherwise; the top ranks list none). Characters and Journey have faint astral
+linework behind them (`journeyArt`, clipped in its own frame so the box corners still show). **Unverified live:** how the GM
 alert and the raid/dungeon are named and flagged in component 204.
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
@@ -702,6 +715,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.5 (3 Oct 2026, owner): Ops sorted by Bungie's activity types (no traits are sent); thin commendation bar
+  without the key; flat character cards; drawn rank badge and faint linework; Guardian as two independent columns.
 * v0.9.4 (3 Oct 2026, owner): Guardian laid out from the owner's sketch; the app's icons redrawn (glyphs.js); five fixed
   Vanguard alerts with clean titles; Ops Categories boxes plus Crucible & Gambit.
 * v0.9.3 (3 Oct 2026, owner): Guardian and Director back to their v0.9.0 layouts with the Companion app's icons and touches;

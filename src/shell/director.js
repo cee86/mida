@@ -39,23 +39,28 @@ const SECTIONS = [
 ];
 const number = (n) => (n == null ? "–" : Number(n).toLocaleString());
 const plain = (s) => String(s ?? "").toLowerCase().replace(/[‘’]/g, "'").replace(/^the\s+/, "").trim();
-// Bungie names the Portal's launch entries like "Exodus Crash: Customize"; the part before the colon is the activity.
-const titleOf = (a) => String(a.fullName || a.name || "Activity").replace(/\s*:\s*customize\s*$/i, "").trim() || "Activity";
+// Bungie names the Portal's launch entries like "Exodus Crash: Customize" or "The Disgraced: Matchmade"; the part before
+// the colon is the activity (the card's tags already say whether it's matchmade).
+const titleOf = (a) => String(a.fullName || a.name || "Activity").replace(/\s*:\s*(customize|matchmade)\s*$/i, "").trim() || "Activity";
 const hasTrait = (a, name) => (a.traits ?? []).some((t) => t.toLowerCase().includes(name));
 // Exotic missions by the rotator's names, compared without "Operation:" and punctuation ("//node.ovrd.AVALON//").
 const missionKey = (s) => plain(s).replace(/^operation:\s*/, "").replace(/[^a-z0-9' ]/g, "");
 const EXOTIC_MISSIONS = (ROTATORS.find((r) => r.id === "exotic-mission")?.entries ?? []).map((e) => missionKey(e.name)).filter(Boolean);
 
-// Which Ops box an activity goes in. The owner's rules come first (PvP is Crucible & Gambit; Onslaught, Prison of Elders
-// and exotic missions are Pinnacle; strikes and battlegrounds are Fireteam unless Bungie marks them Solo), then Bungie's
-// own Ops trait.
+// Which Ops box an activity goes in, by the owner's rules (3 Oct 2026). Bungie sends no traits on these activities, so
+// the activity type does most of the work: PvP is Crucible & Gambit; Onslaught, Prison of Elders and exotic missions are
+// Pinnacle; type "Solo Ops" is Solo; Crawls (The Coil, Contest of Elders), Seasonal Arenas and Dares of Eternity are
+// Arena; Missions (the Vanguard strikes and the like), strikes and battlegrounds are Fireteam. Bungie's Ops trait last.
 function opsOf(a) {
-  const text = `${plain(titleOf(a))} ${a.type ?? ""} ${(a.traits ?? []).join(" ")}`.toLowerCase();
+  const type = String(a.type ?? "").toLowerCase();
+  const title = plain(titleOf(a));
+  const text = `${title} ${type} ${(a.traits ?? []).join(" ")}`.toLowerCase();
   if (a.pvp || /crucible|gambit|trials of osiris|iron banner/.test(text)) return "crucible";
   const mission = missionKey(titleOf(a));
   if (/onslaught|prison of elders|exotic mission/.test(text) || EXOTIC_MISSIONS.some((n) => mission.startsWith(n))) return "pinnacle";
-  if (hasTrait(a, "solo ops")) return "solo";
-  if (/strike|battleground/.test(text)) return "fireteam";
+  if (type.includes("solo ops") || hasTrait(a, "solo ops")) return "solo";
+  if (/crawl|seasonal arena/.test(type) || /^(dares of eternity|contest of elders|coil)\b/.test(title)) return "arena";
+  if (/\bmission\b/.test(type) || /strike|battleground/.test(text)) return "fireteam";
   for (const op of ["arena", "fireteam", "pinnacle"]) if (hasTrait(a, `${op} ops`)) return op;
   return null;
 }

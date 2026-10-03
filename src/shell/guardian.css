@@ -16,25 +16,24 @@
 .gd-sub { margin-bottom: 8px; color: var(--mist); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
 
 /* The page (the owner's sketch): a wide column and a narrow one, three rows. */
-.gd-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 460px); gap: 16px; }
-.gd-layout > .sh-box { margin: 0; }
-.gd-colls { align-self: start; }
+.gd-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 460px); gap: 16px; align-items: start; }
+.gd-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.gd-col > .sh-box { margin: 0; }
 
 /* Characters and gear shortcuts. */
 .gd-chars { display: flex; flex-direction: column; }
-.gd-char-list { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.gd-chars .gd-char { align-content: space-between; }
-.gd-char { display: grid; grid-template-columns: 56px 1fr auto; grid-template-rows: auto auto; align-items: center; column-gap: 12px; row-gap: 8px; min-height: 76px; padding: 10px 12px 10px 10px; background: rgba(0, 0, 0, 0.45) center / cover no-repeat; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
-.gd-char__emblem { display: block; width: 56px; height: 56px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(0, 0, 0, 0.3); }
+.gd-char-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.gd-char { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 74px; padding: 10px 12px 10px 10px; background: rgba(0, 0, 0, 0.45) center / cover no-repeat; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+.gd-char__emblem { display: block; width: 52px; height: 52px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(0, 0, 0, 0.3); }
 .gd-char__emblem img { width: 100%; height: 100%; object-fit: cover; }
 .gd-char__text { display: flex; flex-direction: column; min-width: 0; }
 .gd-char__class { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .gd-char__sub { overflow: hidden; color: rgba(255, 255, 255, 0.8); font-size: 0.8rem; white-space: nowrap; text-overflow: ellipsis; }
 .gd-char__light { font-family: var(--font-display); font-size: 1.5rem; color: #e6c75b; }
 .gd-char__light i { margin-right: 3px; font-size: 0.55em; font-style: normal; vertical-align: 0.5em; }
-.gd-char__tracker { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: rgba(0, 0, 0, 0.45); font-size: 0.8rem; }
-.gd-char__tracker img { width: 18px; height: 18px; object-fit: contain; }
-.gd-char__tracker span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gd-char__right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.gd-char__tracker { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; }
+.gd-char__tracker img { width: 16px; height: 16px; object-fit: contain; }
 .gd-char__tracker strong { font-variant-numeric: tabular-nums; }
 .gd-shorts { display: flex; flex-direction: column; gap: 6px; }
 
@@ -116,7 +115,7 @@
 .gd-rank__art span { position: relative; font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
 .gd-com__total { align-items: center; }
 .gd-com__total svg { width: 26px; height: 26px; color: var(--mist); }
-.gd-com__split { display: flex; height: 8px; margin-bottom: 10px; border-radius: 4px; overflow: hidden; }
+.gd-com__split { display: flex; gap: 3px; height: 4px; margin: 4px 0 10px; }
 .gd-com__split span { flex: 1 1 0; background: var(--accent); }
 /* The redrawn icons (glyphs.js) inside the shortcut buttons. */
 .gd-short__icon .glyph { width: 28px; height: 28px; }
@@ -125,4 +124,22 @@
 .gd-seal__art img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); }
 .gd-game__art { display: grid; place-items: center; }
 .gd-game__art img { width: 32px; height: 32px; object-fit: contain; }
+
+/* Journey: the drawn rank badge, and faint linework filling the box behind its three columns. */
+.gd-journey, .gd-chars { position: relative; }
+.gd-journey > :not(.gd-art), .gd-chars > :not(.gd-art) { position: relative; }
+.gd-art { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.gd-art__lines { width: 100%; height: 100%; color: var(--cream); opacity: 0.07; stroke-width: 1; }
+.gd-journey__grid { align-items: stretch; }
+.gd-journey__grid > div { display: flex; flex-direction: column; }
+.gd-journey__grid > div > :not(.gd-sub) { margin-block: auto; }
+.gd-rank__head { gap: 16px; }
+.gd-rank__head > .gd-rank__text { display: flex; flex-direction: column; gap: 2px; margin-left: 0; }
+.gd-rank__name { font-family: var(--font-display); font-size: 1.25rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.gd-rank__badge { position: relative; display: grid; place-items: center; width: 104px; height: 104px; flex-shrink: 0; color: var(--accent); }
+.gd-rank__svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gd-rank__badge > span { position: relative; color: var(--cream); font-family: var(--font-display); font-size: 2.1rem; font-weight: 700; }
+.gd-rank__art { width: 104px; height: 104px; }
+.gd-rank__text .gd-rank__next { margin-top: 8px; }
+.gd-com__total strong { font-size: 2rem; }
 @media (max-width: 1100px) { .gd-wallet { display: none; } }

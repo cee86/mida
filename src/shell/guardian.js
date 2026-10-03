@@ -2,6 +2,7 @@
 //
 //   [ GUARDIAN · name ............................................................ currencies · refresh ]
 //   [ three characters: emblem, class, race, title, power, tracker ]  [ Inventory / Postmaster / Armor optimizer ]
+//   (two independent columns: the boxes don't line up across, by the owner's choice)
 //   [ Guardian Rank | commendations | titles                       ]  [ Triumphs and scores                       ]
 //   [ Recent games                                                 ]  [ Collections: two columns of six           ]
 //
@@ -70,6 +71,53 @@ export function guardianTab(ctx, container, deps) {
     return earned.slice(0, 3);
   }
 
+  // ---------- Drawn pieces ----------
+
+  const NS = "http://www.w3.org/2000/svg";
+  const drawing = (cls, viewBox, lines) => {
+    const node = document.createElementNS(NS, "svg");
+    node.setAttribute("viewBox", viewBox);
+    node.setAttribute("aria-hidden", "true");
+    node.setAttribute("class", cls);
+    node.setAttribute("preserveAspectRatio", "xMidYMid slice");
+    for (const [d, extra] of lines) {
+      const path = document.createElementNS(NS, "path");
+      path.setAttribute("d", d);
+      for (const [k, v] of Object.entries(extra ?? {})) path.setAttribute(k, v);
+      node.append(path);
+    }
+    return node;
+  };
+  const ring = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+  const ticks = (cx, cy, r1, r2, n) => Array.from({ length: n }, (_, i) => {
+    const a = (i * 2 * Math.PI) / n;
+    const [c, s] = [Math.cos(a), Math.sin(a)];
+    return `M${(cx + c * r1).toFixed(1)} ${(cy + s * r1).toFixed(1)}L${(cx + c * r2).toFixed(1)} ${(cy + s * r2).toFixed(1)}`;
+  }).join("");
+
+  // The Guardian Rank badge when Bungie sends no art: a ringed diamond with tick marks and corner gems.
+  const rankBadge = () =>
+    drawing("gd-rank__svg", "0 0 100 100", [
+      [ring(50, 50, 46), { "stroke-width": "1", opacity: "0.5" }],
+      [ticks(50, 50, 41, 45, 48), { "stroke-width": "1", opacity: "0.6" }],
+      ["M50 10L90 50L50 90L10 50Z", { "stroke-width": "2" }],
+      ["M50 20L80 50L50 80L20 50Z", { "stroke-width": "1", opacity: "0.6" }],
+      ["M50 4l3 6-3 6-3-6zM50 84l3 6-3 6-3-6zM4 50l6-3 6 3-6 3zM84 50l6-3 6 3-6 3z", { fill: "currentColor", stroke: "none" }],
+    ]);
+
+  // Faint astral linework behind the Characters and Journey boxes: rings and ticks around the rank, arcs and a lattice across the rest.
+  // (Clipped by its own frame, so the box's corner marks outside the edge stay visible.)
+  const journeyArt = () =>
+    el("div", { class: "gd-art" }, drawing("gd-art__lines", "0 0 1200 300", [
+      [ring(150, 175, 120) + ring(150, 175, 96) + ring(150, 175, 160), { "stroke-width": "1" }],
+      [ticks(150, 175, 160, 170, 72), { "stroke-width": "1" }],
+      ["M150 15V335M-10 175H310M37 62L263 288M263 62L37 288", { "stroke-width": "0.7", "stroke-dasharray": "3 7" }],
+      ["M300 300A420 420 0 0 1 1180 90M360 300A360 360 0 0 1 1180 150", { "stroke-width": "1" }],
+      [Array.from({ length: 9 }, (_, i) => `M${560 + i * 70} 0L${700 + i * 70} 300M${700 + i * 70} 0L${560 + i * 70} 300`).join(""), { "stroke-width": "0.6", opacity: "0.6" }],
+      [ring(1040, 120, 70) + ring(1040, 120, 50), { "stroke-width": "1" }],
+      ["M1040 40l6 12-6 12-6-12zM1040 176l6 12-6 12-6-12z", { fill: "currentColor", stroke: "none" }],
+    ]));
+
   // ---------- Sections ----------
 
   function characterCard(c) {
@@ -83,16 +131,13 @@ export function guardianTab(ctx, container, deps) {
         el("strong", { class: "gd-char__class", text: c.className }),
         el("span", { class: "gd-char__sub", text: [c.race, c.title].filter(Boolean).join(" · ") }),
       ),
-      el("span", { class: "gd-char__light" }, el("i", { text: "✧" }), document.createTextNode(number(c.light))),
-      c.tracker
-        ? el(
-            "div",
-            { class: "gd-char__tracker", title: c.tracker.name ?? "Stat tracker" },
-            c.tracker.icon ? el("img", { src: c.tracker.icon, alt: "" }) : null,
-            el("span", { text: c.tracker.name ?? "Tracker" }),
-            el("strong", { text: number(c.tracker.value) }),
-          )
-        : null,
+      // Power, with the emblem's stat tracker under it (its name on hover), as the app shows it.
+      el(
+        "div",
+        { class: "gd-char__right" },
+        el("span", { class: "gd-char__light" }, el("i", { text: "✧" }), document.createTextNode(number(c.light))),
+        c.tracker ? el("span", { class: "gd-char__tracker", title: c.tracker.name ?? "Stat tracker" }, c.tracker.icon ? el("img", { src: c.tracker.icon, alt: "" }) : null, el("strong", { text: number(c.tracker.value) })) : null,
+      ),
     );
     if (c.banner) card.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,0.15), rgba(0,0,0,0.55)), url("${c.banner}")`;
     return card;
@@ -108,8 +153,15 @@ export function guardianTab(ctx, container, deps) {
     );
   }
 
+  // The three characters as flat banners.
   function characters() {
-    return el("section", { class: "sh-box gd-chars" }, label("Characters", g ? String(g.characters.length) : null), g ? el("div", { class: "gd-char-list" }, ...g.characters.map(characterCard)) : waiting("guardian", "Reading your Guardians…"));
+    return el(
+      "section",
+      { class: "sh-box gd-chars" },
+      journeyArt(),
+      label("Characters", g ? String(g.characters.length) : null),
+      g ? el("div", { class: "gd-char-list" }, ...g.characters.map(characterCard)) : waiting("guardian", "Reading your Guardians…"),
+    );
   }
 
   function gear() {
@@ -123,8 +175,11 @@ export function guardianTab(ctx, container, deps) {
     );
   }
 
-  // One smooth bar split by commendation category, each in its colour (the app's look), with a key underneath.
-  function splitBar(nodes) {
+  // One thin bar split by commendation category, each in its colour, with small gaps (the app's look). Bungie also sends
+  // the nameless parent node; it isn't a category. Ordered as the app shows them.
+  const COM_ORDER = ["ally", "mastery", "fun", "leadership"];
+  function splitBar(all) {
+    const nodes = all.filter((n) => n.name && n.percent != null).sort((a, b) => (COM_ORDER.indexOf(a.name.toLowerCase()) + 1 || 9) - (COM_ORDER.indexOf(b.name.toLowerCase()) + 1 || 9));
     const bar = el("div", { class: "gd-com__split", role: "img", "aria-label": nodes.map((n) => `${n.name} ${n.percent ?? 0}%`).join(", ") });
     for (const n of nodes) {
       const seg = el("span", { title: `${n.name}: ${number(n.score)}` });
@@ -147,22 +202,28 @@ export function guardianTab(ctx, container, deps) {
         ? el(
             "div",
             { class: "gd-rank__head" },
-            // Bungie's own art for the rank when it has one (like the Companion app's badge), else our numbered diamond.
-            rank.icon ? el("span", { class: "gd-rank__art" }, el("img", { src: rank.icon, alt: "" }), el("span", { text: String(rank.rank ?? "") })) : el("span", { class: "gd-rank__num", text: String(rank.rank ?? "–") }),
-            el("div", {}, el("strong", { text: rank.name || `Rank ${rank.rank}` }), el("small", { text: rank.highest > rank.rank ? `Highest: ${rank.highest}` : "" })),
+            // Bungie's own art for the rank when it has one (like the Companion app's badge), else our drawn badge.
+            rank.icon ? el("span", { class: "gd-rank__art" }, el("img", { src: rank.icon, alt: "" }), el("span", { text: String(rank.rank ?? "") })) : el("span", { class: "gd-rank__badge" }, rankBadge(), el("span", { text: String(rank.rank ?? "–") })),
+            el(
+              "div",
+              { class: "gd-rank__text" },
+              el("strong", { class: "gd-rank__name", text: rank.name || `Rank ${rank.rank}` }),
+              el("small", { text: `Highest rank ${number(Math.max(rank.highest ?? 0, rank.rank ?? 0))}` }),
+              // What the next rank needs, when Bungie lists it (the top ranks list nothing).
+              next?.steps?.length
+                ? el(
+                    "div",
+                    { class: "gd-rank__next" },
+                    el("small", { text: `${left.length} of ${next.steps.length} steps left for rank ${next.rank}${next.name ? ` (${next.name})` : ""}` }),
+                    el("ul", {}, ...left.slice(0, 3).map((s) => el("li", { title: s.description || s.name, text: s.name }))),
+                    left.length > 3 ? el("small", { text: `and ${left.length - 3} more` }) : null,
+                  )
+                : next
+                  ? el("small", { class: "gd-rank__next", text: `Next: rank ${next.rank}${next.name ? ` · ${next.name}` : ""}` })
+                  : null,
+            ),
           )
         : waiting("guardian", "Reading…"),
-      next
-        ? el(
-            "div",
-            { class: "gd-rank__next" },
-            el("small", { text: `${left.length} of ${next.steps.length} steps left for rank ${next.rank}${next.name ? ` (${next.name})` : ""}` }),
-            el("ul", {}, ...left.slice(0, 5).map((s) => el("li", { title: s.description || s.name, text: s.name }))),
-            left.length > 5 ? el("small", { text: `and ${left.length - 5} more` }) : null,
-          )
-        : rank
-          ? el("small", { class: "gd-rank__next", text: "Bungie didn't list the next rank's steps." })
-          : null,
     );
     const com = g?.commendations;
     const comBox = el(
@@ -175,15 +236,6 @@ export function guardianTab(ctx, container, deps) {
             {},
             el("div", { class: "gd-com__total" }, glyph("commend"), el("strong", { text: number(com.total) }), el("small", { text: "score" })),
             splitBar(com.nodes),
-            el(
-              "div",
-              { class: "gd-com__key" },
-              ...com.nodes.map((n) => {
-                const dot = el("i", { class: "gd-com__dot" });
-                if (n.color) dot.style.background = n.color;
-                return el("span", { class: "gd-com__row" }, dot, el("span", { class: "gd-com__name", text: n.name }), el("span", { class: "gd-com__num", text: `${number(n.score)}${n.percent != null ? ` · ${n.percent}%` : ""}` }));
-              }),
-            ),
           )
         : g
           ? el("p", { class: "tab__note", text: "Bungie isn't sharing commendations for this account." })
@@ -211,7 +263,7 @@ export function guardianTab(ctx, container, deps) {
             )
           : el("p", { class: "tab__note", text: "No titles earned yet." }),
     );
-    return el("section", { class: "sh-box gd-journey" }, label("Journey"), el("div", { class: "gd-journey__grid" }, rankBox, comBox, sealsBox));
+    return el("section", { class: "sh-box gd-journey" }, journeyArt(), label("Journey"), el("div", { class: "gd-journey__grid" }, rankBox, comBox, sealsBox));
   }
 
   function triumphs() {
@@ -283,7 +335,7 @@ export function guardianTab(ctx, container, deps) {
     );
   }
 
-  // Your currencies (Glimmer, Bright Dust, Silver...) in the title band, as the app shows them.
+  // Your currencies (Glimmer, Bright Dust, Silver...) in the title band, as the app shows them above the characters.
   function currencies() {
     const list = (g?.currencies ?? []).filter((c) => c.quantity != null).slice(0, 4);
     if (!list.length) return null;
@@ -300,7 +352,7 @@ export function guardianTab(ctx, container, deps) {
       el("div", { class: "sh-top__tools" }, currencies(), el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => start(true) })),
     );
     const scroll = root.querySelector(".sh-body")?.scrollTop ?? 0;
-    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, el("div", { class: "gd-layout" }, characters(), gear(), journey(), triumphs(), recentGames(), collections())));
+    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, el("div", { class: "gd-layout" }, el("div", { class: "gd-col" }, characters(), journey(), recentGames()), el("div", { class: "gd-col" }, gear(), triumphs(), collections()))));
     root.replaceChildren(backdrop, top, body);
     body.scrollTop = scroll;
   }
