@@ -197,6 +197,41 @@ button, and the loadout dock uses the same grid. `character_details` now returns
   card read at once (`fetchDetails`), before the card opens. **Unverified live:** the size of the full item-parts read
   (component 310 can be large) and how long the first definition prefetch takes on a big vault.
 
+**Owner's ideas round (3 Oct 2026, the ideas the owner picked from Claude's suggestions):**
+* **Reminders** (src/shell/reminders.js) in MIDA's own notifications (the sidebar bell; never Windows pop-ups): weekly
+  reset (raids and dungeons; default on), daily reset (Lost Sectors; default off), Xûr/Trials on Fridays and events from
+  seals.report's `week.events` (default on), postmaster at 18 and 20 items per character per day (default on; checked
+  after every inventory read via `postmasterCheck`). Each fires once (its key is remembered); shell.js runs `remind()`
+  every minute. Choices in Settings → Tabs → Reminders (`mida-reminders`).
+* **Inventory tools:** tags (favourite/keep/junk/infuse/archive) and a note per item (`mida-inv-tags`, this PC only,
+  searchable, tag filter, badge on the tile); **Compare** (an item card button: every copy of that item, or the same
+  slot and type, side by side with stat bars); **Make room** (moves the oldest unlocked spares of a full slot to the
+  vault).
+* **Weekly planner** (planner.js, `tab-planner`): "This week" chips (raids, dungeons, Grandmaster, exotic mission,
+  Ascendant Challenge, Pantheon, Xûr) from the Rotators' sources, then a column per character: weekly milestones
+  (`d2_planner` → bungie.rs `planner`, the Seasonal Hub's `weekly_checklist`), bounties (shared "activity" read) and
+  the player's own to-do list (`mida-planner`; ticks clear at the weekly reset, the list stays).
+* **Clan** (clan.js, `tab-clan`): `d2_clan` → bungie.rs `clan`: the signed-in player's own clan only (GroupV2 User +
+  Members, two pages), clan level (d2ClanProgressions 584850370), and for up to 12 online members their current
+  activity (profile 200,204). About box | Online now | Everyone else, with a member search.
+* **Armor optimizer** (armor.js, `tab-armor`): `d2_armor` returns every armor piece's six stats from `Hub.item_parts`
+  (recent) or a fresh read (`armor_stats`, `ARMOR_STATS` hashes), as Bungie reports them now (mods and masterwork
+  included). Per class: six target sliders (0–200), exotic (any / none / a specific one) and armor set (2 or 4 pieces)
+  choices (`mida-armor`). `bestBuilds` drops pieces another in the slot beats on every stat, caps the search at 2.5
+  million combinations (trims each slot's weakest), scores by Σ min(stat, target) then total, keeps 20. Equip moves and
+  equips each piece (exotic last). ~0.16 s at the cap in the harness.
+* **Triumphs** (records.js, `tab-records`; Rust in records.rs): Seals | Triumphs | Collections like seals.report and the
+  game. Bungie's presentation node, record and collectible tables are downloaded once per game update, only when the
+  tab first opens, slimmed and saved as `manifest/<version>-records-1.json` (`Hub.records`); roots from /Settings/. The
+  player's 200,700,800,900 read is kept 5 minutes (`Hub.records_profile`). `d2_records(node?)`: the overview (scores,
+  seals active/legacy, triumph categories, collection categories, badges) or one node (summary, crumbs, sections,
+  records, collectibles). Completion rules copied from seals.report (tiered = every tier; flag 4 or all objectives;
+  title earned = node full or title record complete; gilding-only triumphs apart). Seal page = panel + Still to do /
+  Completed / For gilding tiles; categories = sections down the left, contents in the middle, item detail on the right.
+* **Keep on top** (pref `alwaysOnTop`, sidebar pin button and a Personalization switch): `set_always_on_top` on MIDA's
+  window, applied at start and when changed.
+* **Themes:** Pyramid, Vex network, Traveler's light, Cabal, Neomuna neon (see §6).
+
 **Rotators, round 3 (3 Oct 2026, owner: "bring everything up to date with seals.report"):** the tab now mirrors
 seals.report's Featured v0.58. `src/shell/d2/` holds unchanged copies of seals.report's rotations.js, rotators.js,
 featured-sections.js, live-rotations.js, **featured-week.js** (new on the site: the Featured page's "which cards this
@@ -496,6 +531,14 @@ The site sits 8-12px inside the stage edge so the frame shows (the page is place
 square corners everywhere, thin white lines, letterspaced capitals over a white rule, the white selection box, white
 main buttons, a gold tag. Colorways don't apply.
 
+**Five more themes** (`src/shell/themes.css`, our own CSS and SVG linework, no game art; accents in theme.js
+`THEME_WAYS`, so colorways don't apply, like Retro; `FIXED_THEMES` in shell.js): **Pyramid** (obsidian, triangle
+linework, red-violet glow, clipped corners), **Vex network** (milky white on deep teal, hex circuits that pulse slowly),
+**Traveler's light** (pearl and gold on navy, concentric arcs from above, rounded boxes), **Cabal** (brass and crimson,
+thick bevelled frames with cut corners), **Neomuna neon** (night blues, cyan and magenta, faint drifting scan lines). On
+these themes the game tabs' built-in backdrop steps aside so the theme's background shows (a player's picture still
+wins). Motion stops with Reduce motion; high contrast drops the extra layers.
+
 **Sidebar modes:** `sidebarFlyout` (default on): with the sidebar collapsed, pointing at it for 160 ms opens the full
 sidebar over the page (`data-flyout="open"`: the sidebar is absolutely positioned, the grid column stays narrow, so the
 page never resizes). The page is replaced by its picture while it's open (same freeze as menus); choosing a page, Esc
@@ -520,6 +563,10 @@ contents (`data-fit`).
   Electron `%LOCALAPPDATA%\Programs\mida`, Tauri `%LOCALAPPDATA%\MIDA`.
 * Unsigned installer (SmartScreen warning on first install).
 * Memory grows with each opened module (they stay alive by design).
+* **Unverified against live Bungie data** (the workspace can't reach bungie.net): the clan activity read (204 for other
+  members may be private), armor stat hashes under Armor 3.0 and whether 304 includes tuning/mods as assumed, the
+  Triumphs tab's table field names (`completionInfo.ScoreValue`, `titleInfo`, `forTitleGilding`, `badgesRootNode`) and
+  the size of the first triumphs download (~40 MB).
 
 ## 8. Decisions log
 
