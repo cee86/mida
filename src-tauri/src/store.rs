@@ -371,7 +371,7 @@ mod tests {
         // A list saved before Vendors existed (no tabs_known): the newer tabs are added at the end, order kept.
         let old = Profile { id: "p-1".into(), game: "destiny2".into(), tabs: Some(vec!["tab-featured".into(), "tab-inventory".into()]), ..Profile::default() };
         let p = clean_profile(old).unwrap();
-        assert_eq!(p.tabs.as_deref().unwrap(), ["tab-featured", "tab-inventory", "tab-planner", "tab-vendors"]);
+        assert_eq!(p.tabs.as_deref().unwrap(), ["tab-featured", "tab-inventory", "tab-planner", "tab-clan", "tab-vendors"]);
         // Hidden after that (it's known now): it stays hidden.
         let hidden = Profile { tabs: Some(vec!["tab-featured".into()]), ..p };
         assert_eq!(clean_profile(hidden).unwrap().tabs.as_deref().unwrap(), ["tab-featured"]);

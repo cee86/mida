@@ -1711,6 +1711,94 @@ pub fn strip_tags(html: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// The Clan tab: the signed-in player's clan (name, tag, motto, about, founded, level) and its members, online first,
+/// with what the online ones are playing (their latest character's current activity; at most 12 are looked up).
+pub async fn clan(kind: i64, id: &str, token: &str) -> Result<Value, String> {
+    let mine = get(&format!("/GroupV2/User/{kind}/{id}/0/1/"), Some(token)).await?;
+    let Some(entry) = mine["results"].as_array().and_then(|r| r.first()).cloned() else {
+        return Ok(json!({ "clan": null }));
+    };
+    let group = &entry["group"];
+    let group_id = group["groupId"].as_str().unwrap_or("").to_string();
+    if group_id.is_empty() || !group_id.chars().all(|c| c.is_ascii_digit()) {
+        return Ok(json!({ "clan": null }));
+    }
+    let mut members: Vec<Value> = Vec::new();
+    for page in 1..=2 {
+        let Ok(list) = get(&format!("/GroupV2/{group_id}/Members/?currentpage={page}"), Some(token)).await else { break };
+        for m in list["results"].as_array().into_iter().flatten() {
+            let d = &m["destinyUserInfo"];
+            let name = d["bungieGlobalDisplayName"].as_str().filter(|n| !n.is_empty()).or(d["displayName"].as_str()).unwrap_or("Guardian");
+            let code = d["bungieGlobalDisplayNameCode"].as_u64().map(|c| format!("{c:04}"));
+            members.push(json!({
+                "name": name,
+                "code": code,
+                "membershipType": d["membershipType"],
+                "membershipId": d["membershipId"],
+                "icon": icon_url(d["iconPath"].as_str().unwrap_or("")),
+                "rank": m["memberType"],
+                "online": m["isOnline"].as_bool().unwrap_or(false),
+                "lastOnline": m["lastOnlineStatusChange"],
+                "joined": m["joinDate"],
+                "you": d["membershipId"].as_str() == Some(id),
+            }));
+        }
+        if !list["hasMore"].as_bool().unwrap_or(false) {
+            break;
+        }
+    }
+    // What the online members are playing: their most recent character's current activity (public component 204).
+    let online: Vec<(usize, i64, String)> = members
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m["online"].as_bool() == Some(true))
+        .filter_map(|(i, m)| Some((i, m["membershipType"].as_i64()?, m["membershipId"].as_str()?.to_string())))
+        .take(12)
+        .collect();
+    let tasks: Vec<_> = online
+        .into_iter()
+        .map(|(i, t, mid)| {
+            let token = token.to_string();
+            tauri::async_runtime::spawn(async move {
+                let p = get(&format!("/Destiny2/{t}/Profile/{mid}/?components=200,204"), Some(&token)).await.ok()?;
+                let chars = p["characterActivities"]["data"].as_object()?;
+                let (char_id, act) = chars.iter().max_by_key(|(_, a)| a["dateActivityStarted"].as_str().unwrap_or("").to_string())?;
+                let hash = act["currentActivityHash"].as_u64().filter(|h| *h != 0)?;
+                let def = entity("DestinyActivityDefinition", hash).await?;
+                let name = def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+                let class = class_name(p["characters"]["data"][char_id]["classType"].as_i64().unwrap_or(3));
+                Some((i, name, class, act["dateActivityStarted"].clone()))
+            })
+        })
+        .collect();
+    for task in tasks {
+        if let Ok(Some((i, name, class, since))) = task.await {
+            if let Some(m) = members.get_mut(i) {
+                m["activity"] = json!(if name.is_empty() { "In orbit".to_string() } else { name });
+                m["activityClass"] = json!(class);
+                m["activitySince"] = since;
+            }
+        }
+    }
+    members.sort_by_key(|m| (!m["online"].as_bool().unwrap_or(false), std::cmp::Reverse(m["lastOnline"].as_str().and_then(|x| x.parse::<i64>().ok()).unwrap_or(0))));
+    let level = group["clanInfo"]["d2ClanProgressions"]["584850370"].clone();
+    Ok(json!({
+        "clan": {
+            "id": group_id,
+            "name": group["name"],
+            "tag": group["clanInfo"]["clanCallsign"],
+            "motto": group["motto"],
+            "about": group["about"],
+            "founded": group["creationDate"],
+            "memberCount": group["memberCount"],
+            "level": if level.is_object() { json!({ "level": level["level"], "progress": level["progressToNextLevel"], "next": level["nextLevelAt"], "cap": level["levelCap"] }) } else { Value::Null },
+            "yourRank": entry["member"]["memberType"],
+            "joined": entry["member"]["joinDate"],
+        },
+        "members": members,
+    }))
+}
+
 pub async fn profile(kind: i64, id: &str, token: &str, components: &str) -> Result<Value, String> {
     get(&format!("/Destiny2/{kind}/Profile/{id}/?components={components}"), Some(token)).await
 }

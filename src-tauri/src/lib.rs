@@ -1309,6 +1309,24 @@ async fn d2_seasonal(webview: Webview, app: AppHandle, character: String) -> Val
     )
 }
 
+/// The Clan tab: your clan and its members (who's online and what they're playing).
+#[tauri::command]
+async fn d2_clan(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            progress(&app, "clan", 0.1, "Checking your sign-in");
+            let a = account(&app).await?;
+            progress(&app, "clan", 0.3, "Reading your clan from Bungie");
+            let data = bungie::clan(a.membership_type, &a.membership_id, &a.access).await?;
+            Ok(data)
+        }
+        .await,
+    )
+}
+
 /// The Weekly planner: each character's weekly checklist.
 #[tauri::command]
 async fn d2_planner(webview: Webview, app: AppHandle) -> Value {
@@ -1957,6 +1975,7 @@ pub fn run() {
             d2_seasonal,
             d2_vendors,
             d2_planner,
+            d2_clan,
             d2_pass,
             d2_claim,
             d2_rotators,
