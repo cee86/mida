@@ -572,3 +572,33 @@ html[data-theme="foundry"][data-foundry="light"] .inv-mark img { filter: invert(
 .inv-feed__item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; width: calc(var(--tile) + 4px); }
 .inv-feed__where { max-width: 100%; overflow: hidden; color: rgba(255, 255, 255, 0.6); font-size: 0.68rem; white-space: nowrap; text-overflow: ellipsis; }
 .inv-feed__item.is-new::after { content: ""; position: absolute; top: -3px; left: -3px; width: 9px; height: 9px; transform: rotate(45deg); background: var(--accent); box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.8); pointer-events: none; }
+
+/* Tags (saved on this PC): a small mark in the tile's top-left corner, buttons and a note on the pinned card. */
+.tile2__tag { position: absolute; top: 2px; left: 3px; z-index: 2; color: #fff; font-size: 0.72rem; font-weight: 800; line-height: 1; text-shadow: 0 0 3px #000, 0 0 2px #000; pointer-events: none; }
+.tile2__tag--favorite { color: #ffd76a; }
+.tile2__tag--keep { color: #8fe3a4; }
+.tile2__tag--infuse { color: #8fc8ff; }
+.tile2__tag--junk { color: #ff8a80; }
+.tile2__tag--note { color: #e8e2d6; }
+.inv-card__tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 0; }
+.inv-card__tag { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 0 8px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.05); font-size: 0.76rem; cursor: pointer; }
+.inv-card__tag span:last-child { color: #e9e6df; }
+.inv-card__tag[aria-pressed="true"] { border-color: currentColor; background: rgba(255, 255, 255, 0.14); }
+.inv-card__compare { margin-left: auto; color: #e9e6df; }
+.inv-card__note { display: block; width: calc(100% - 24px); margin: 6px 12px 0; padding: 5px 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.35); color: #fff; font: inherit; font-size: 0.82rem; user-select: text; }
+.inv-card__tagline { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 6px 12px 0; color: rgba(255, 255, 255, 0.75); font-size: 0.8rem; }
+
+/* Compare: copies side by side, stat rows with the best value marked. */
+.inv-cmp { width: min(1100px, 100%); max-height: 100%; overflow: auto; padding: 14px 18px; background: rgba(14, 16, 19, 0.97); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: var(--shadow); scrollbar-width: thin; }
+.inv-cmp__head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
+.inv-cmp__head .btn { margin-left: auto; }
+.inv-cmp__table { display: flex; flex-direction: column; }
+.inv-cmp__row { display: grid; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+.inv-cmp__label { color: rgba(255, 255, 255, 0.65); font-size: 0.82rem; }
+.inv-cmp__item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: 0.84rem; }
+.inv-cmp__where { color: rgba(255, 255, 255, 0.55); font-size: 0.74rem; }
+.inv-cmp__val { color: #e9e6df; font-variant-numeric: tabular-nums; }
+.inv-cmp__val.is-best { color: #8fe3a4; font-weight: 700; }
+.inv-cmp__val.is-best::after { content: " ▲"; font-size: 0.7em; }
+.inv-cmp__perks { color: rgba(255, 255, 255, 0.8); font-size: 0.78rem; line-height: 1.35; }
+.inv-cmp__row.is-perks { align-items: start; }

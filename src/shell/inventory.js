@@ -93,6 +93,27 @@ export function loadoutMark() {
   return box;
 }
 
+// Tags and notes on item copies, kept on this PC (`mida-inv-tags`: { instance: { tag, note } }), like DIM's.
+export const TAGS = [
+  ["favorite", "Favorite", "★"],
+  ["keep", "Keep", "✓"],
+  ["infuse", "Infuse", "⇧"],
+  ["junk", "Junk", "✕"],
+];
+const TAG_NAMES = Object.fromEntries(TAGS.map(([id, name]) => [id, name]));
+let tagStore = remember("tags", {});
+const tagOf = (i) => (i.instance ? tagStore[i.instance]?.tag ?? null : null);
+const noteOf = (i) => (i.instance ? tagStore[i.instance]?.note ?? "" : "");
+function setTag(instance, change) {
+  const next = { ...(tagStore[instance] ?? {}), ...change };
+  if (!next.tag) delete next.tag;
+  if (!next.note) delete next.note;
+  tagStore = { ...tagStore };
+  if (Object.keys(next).length) tagStore[instance] = next;
+  else delete tagStore[instance];
+  keep("tags", tagStore);
+}
+
 const view = {
   group: remember("group", "weapons"),
   size: remember("size", "m"),
@@ -109,7 +130,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   let data = null;
   let search = "";
   let resync = null;
-  let overlay = null; // "filters" | "postmaster" | "wallet" | null
+  let overlay = null; // "filters" | "postmaster" | "wallet" | "loadouts" | "compare" | null
   let filterCategory = null;
   let card = null; // { item, tile, pinned, picking }
   let hoverTimer = null;
@@ -155,6 +176,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     mw: ["Masterwork", (i) => (i.instance ? (i.masterwork ? "Masterworked" : "Not masterworked") : null)],
     dupes: ["Duplicates", (i) => (i.instance ? (duplicates.has(i.hash) ? "Duplicates" : "No duplicates") : null)],
     locked: ["Locked", (i) => (i.instance ? (i.locked ? "Locked" : "Unlocked") : null)],
+    tag: ["Tag", (i) => (i.instance ? TAG_NAMES[tagOf(i)] ?? "No tag" : null)],
   };
   const slotOf = (i) => bucketInfo(i.bucket)?.name ?? null;
   const CATEGORIES = {
@@ -169,6 +191,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       ["mw", ...common.mw],
       ["dupes", ...common.dupes],
       ["locked", ...common.locked],
+      ["tag", ...common.tag],
     ],
     armor: [
       ["slot", "Armor Slot", slotOf],
@@ -180,8 +203,9 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       ["dupes", ...common.dupes],
       ["locked", ...common.locked],
       ["set", "Set Bonus", (i) => (i.set ? data.setNames?.[i.set] ?? null : null)],
+      ["tag", ...common.tag],
     ],
-    general: [["slot", "Slot", slotOf], ["rarity", ...common.rarity], ["dupes", ...common.dupes], ["locked", ...common.locked]],
+    general: [["slot", "Slot", slotOf], ["rarity", ...common.rarity], ["dupes", ...common.dupes], ["locked", ...common.locked], ["tag", ...common.tag]],
     inventory: [["slot", "Slot", slotOf], ["rarity", ...common.rarity]],
   };
   const groupItems = () => data.items.filter((i) => bucketInfo(i.bucket)?.group === view.group);
@@ -198,7 +222,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     keep("filters2", view.filters);
   }
   function passes(item) {
-    if (search && !`${item.name} ${item.typeName} ${item.archetype ?? ""}`.toLowerCase().includes(search)) return false;
+    if (search && !`${item.name} ${item.typeName} ${item.archetype ?? ""} ${noteOf(item)}`.toLowerCase().includes(search)) return false;
     const picks = chosen();
     for (const cat of CATEGORIES[view.group] ?? []) {
       const list = picks[cat[0]];
@@ -313,6 +337,106 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     return list;
   }
 
+  // ---------- Compare ----------
+
+  // Weapons and armor (instanced, in a character or the vault) can be compared with their other copies, or with the
+  // same kind of item in the same slot (armor: same class).
+  const canCompare = (i) => Boolean(i.instance && !i.postmaster && ["weapons", "armor"].includes(bucketInfo(i.bucket)?.group));
+  let compare = null; // { item, scope: "same" | "type" }
+  function compareList() {
+    const { item, scope } = compare;
+    const same = data.items.filter((i) => i !== item && i.hash === item.hash && i.instance && !i.postmaster);
+    const type = data.items.filter((i) => i !== item && i.instance && !i.postmaster && i.bucket === item.bucket && i.typeName === item.typeName && i.classType === item.classType && i.hash !== item.hash);
+    const others = scope === "same" ? same : [...same, ...type];
+    return [item, ...others.sort((a, b) => (b.power ?? 0) - (a.power ?? 0)).slice(0, 5)];
+  }
+  function openCompare(item) {
+    const same = data.items.some((i) => i !== item && i.hash === item.hash && i.instance);
+    compare = { item, scope: same ? "same" : "type" };
+    overlay = "compare";
+    closeCard();
+    draw();
+  }
+  function comparePanel() {
+    const list = compareList();
+    for (const i of list) fetchDetails(i);
+    const where = (i) => (i.owner === "vault" ? "Vault" : charName(i.owner)) + (i.equipped ? " · equipped" : "");
+    const details = list.map((i) => itemDetails.get(i.instance));
+    // Every stat any of them has, in the first one's order; the best value in each row is marked.
+    const names = [];
+    for (const d of details) for (const st of d?.stats ?? []) if (!names.includes(st.name)) names.push(st.name);
+    const value = (d, name) => d?.stats?.find((x) => x.name === name)?.value;
+    const perks = (d) => (d?.sockets ?? []).filter((x) => x.kind === "perks" || x.kind === "intrinsic").map((x) => x.current?.name).filter(Boolean);
+    const close = () => ((overlay = null), (compare = null), draw());
+    const cols = `160px repeat(${list.length}, minmax(130px, 1fr))`;
+    const row = (label, cells, cls = "") => {
+      const r = el("div", { class: `inv-cmp__row ${cls}` }, el("span", { class: "inv-cmp__label", text: label }), ...cells);
+      r.style.gridTemplateColumns = cols;
+      return r;
+    };
+    return el(
+      "div",
+      { class: "inv-overlay", onclick: close },
+      el(
+        "div",
+        { class: "inv-cmp", role: "dialog", "aria-label": `Compare ${compare.item.name}`, onclick: (e) => e.stopPropagation() },
+        el(
+          "div",
+          { class: "inv-cmp__head" },
+          el("span", { class: "inv-filter__head", text: `Compare: ${compare.item.typeName || compare.item.name}` }),
+          el(
+            "div",
+            { class: "segmented", role: "group", "aria-label": "Compare with" },
+            ...[["same", "Same item"], ["type", `All ${compare.item.typeName || "of this kind"}`]].map(([id, label]) => el("button", { type: "button", "aria-pressed": String(compare.scope === id), text: label, onclick: () => ((compare.scope = id), draw()) })),
+          ),
+          el("button", { class: "btn btn--primary", type: "button", text: "Done", onclick: close }),
+        ),
+        list.length < 2 ? el("p", { class: "tab__note", text: "No other copies to compare with. Try “All” to compare with the same kind of item." }) : null,
+        el(
+          "div",
+          { class: "inv-cmp__table" },
+          row("", list.map((i) => el("div", { class: "inv-cmp__item" }, tile(i), el("strong", { text: i.name }), el("span", { class: "inv-cmp__where", text: where(i) })))),
+          row("Power", list.map((i) => el("span", { class: "inv-cmp__val", text: String(i.power ?? "–") }))),
+          ...names.map((n) => {
+            const vals = details.map((d) => value(d, n));
+            const best = Math.max(...vals.filter((v) => typeof v === "number"));
+            return row(n, vals.map((v) => el("span", { class: `inv-cmp__val${typeof v === "number" && v === best && vals.filter((x) => x === best).length < vals.length ? " is-best" : ""}`, text: v === undefined ? "–" : String(v) })));
+          }),
+          row("Perks", details.map((d) => el("span", { class: "inv-cmp__perks", text: d ? perks(d).join(" · ") || "–" : "Reading…" })), "is-perks"),
+          row("Tag", list.map((i) => el("span", { class: "inv-cmp__val", text: TAG_NAMES[tagOf(i)] ?? "–" }))),
+        ),
+        el("p", { class: "tab__note", text: "Stats are this copy's as Bungie reports them (perks and mods included). The best value in each row is marked." }),
+      ),
+    );
+  }
+
+  // ---------- Make room (postmaster) ----------
+
+  // Moves enough of a character's own items to the vault for its waiting postmaster items to fit: junk-tagged first,
+  // then the lowest power; never equipped, locked, favourite or keep-tagged items.
+  let makingRoom = false;
+  async function makeRoom(c) {
+    if (makingRoom) return;
+    const blocked = (data.postmaster ?? []).filter((i) => i.owner === c.id && pullBlock(i)?.includes("full"));
+    const need = new Map();
+    for (const i of blocked) need.set(i.bucket, (need.get(i.bucket) ?? 0) + 1);
+    const moves = [];
+    for (const [bucket, n] of need) {
+      const held = data.items.filter((x) => x.owner === c.id && x.bucket === bucket && !x.equipped).length;
+      const over = held + n - (SLOTS[bucket] ?? 9);
+      const candidates = data.items
+        .filter((x) => x.owner === c.id && x.bucket === bucket && !x.equipped && !x.locked && x.transferable && !["favorite", "keep"].includes(tagOf(x)))
+        .sort((a, b) => Number(tagOf(b) === "junk") - Number(tagOf(a) === "junk") || (a.power ?? 0) - (b.power ?? 0));
+      moves.push(...candidates.slice(0, Math.max(0, over)));
+    }
+    if (!moves.length) return say(`Nothing on ${c.className} can be moved safely (equipped, locked or tagged to keep). Make room in the game.`);
+    makingRoom = true;
+    say(`Moving ${moves.length} item${moves.length === 1 ? "" : "s"} from ${c.className} to the vault…`);
+    for (const m of moves) await act(m, "vault", false);
+    makingRoom = false;
+    say(`Done: ${moves.map((m) => m.name).join(", ")} moved to the vault. The postmaster items can be pulled now.`);
+  }
+
   // ---------- Tiles ----------
 
   function tile(item) {
@@ -355,6 +479,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       item.icon ? el("img", { class: "tile2__icon", src: item.icon, alt: "", loading: "lazy", draggable: "false" }) : null,
       item.watermark ? el("img", { class: "tile2__mark", src: item.watermark, alt: "", loading: "lazy", draggable: "false" }) : null,
       item.locked ? el("span", { class: "tile2__lock", title: "Locked" }, svg(LOCK)) : null,
+      tagOf(item) ? el("span", { class: `tile2__tag tile2__tag--${tagOf(item)}`, title: `${TAG_NAMES[tagOf(item)]}${noteOf(item) ? `: ${noteOf(item)}` : ""}`, text: TAGS.find((t) => t[0] === tagOf(item))[2] }) : !tagOf(item) && noteOf(item) ? el("span", { class: "tile2__tag tile2__tag--note", title: noteOf(item), text: "✎" }) : null,
       item.gearTier && item.instance ? el("span", { class: "tile2__tier", title: `Gear tier ${item.gearTier}` }, ...Array.from({ length: Math.min(5, item.gearTier) }, () => el("i"))) : null,
       value
         ? el(
@@ -378,6 +503,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     ctx.hub.d2Item(item.instance, item.hash).then((result) => {
       itemDetails.set(item.instance, result?.ok ? result.data : { error: result?.error ?? "Couldn't read the details." });
       if (card?.item.instance === item.instance) drawCard();
+      else if (overlay === "compare") draw();
     });
   }
 
@@ -567,6 +693,26 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     }
     if (d?.sockets?.some((x) => x.pending)) body.append(el("p", { class: "tab__note", text: "Changing it in the game… you can keep browsing." }));
 
+    if (item.instance && !item.postmaster) {
+      // Tag and note (saved on this PC); the note is searchable.
+      const tag = tagOf(item);
+      if (pinned) {
+        const note = el("input", { class: "inv-card__note", type: "text", maxlength: "200", placeholder: "Add a note…", value: noteOf(item), "aria-label": "Note" });
+        note.addEventListener("change", () => (setTag(item.instance, { note: note.value.trim() }), draw()));
+        note.addEventListener("click", (e) => e.stopPropagation());
+        node.append(
+          el(
+            "div",
+            { class: "inv-card__tags" },
+            ...TAGS.map(([id, name, glyph]) => el("button", { class: `inv-card__tag tile2__tag--${id}`, type: "button", "aria-pressed": String(tag === id), title: tag === id ? `Remove "${name}"` : `Tag as ${name}`, onclick: () => (setTag(item.instance, { tag: tag === id ? null : id }), draw()) }, el("span", { text: glyph }), el("span", { text: name }))),
+            canCompare(item) ? el("button", { class: "inv-card__tag inv-card__compare", type: "button", title: "Compare with your other copies", onclick: () => openCompare(item) }, el("span", { text: "⇄" }), el("span", { text: "Compare" })) : null,
+          ),
+          note,
+        );
+      } else if (tag || noteOf(item)) {
+        node.append(el("div", { class: "inv-card__tagline" }, tag ? el("span", { class: `tile2__tag--${tag}`, text: `${TAGS.find((t) => t[0] === tag)[2]} ${TAG_NAMES[tag]}` }) : null, noteOf(item) ? el("span", { text: noteOf(item) }) : null));
+      }
+    }
     if (pinned) {
       const actions = actionsFor(item);
       node.append(
@@ -836,7 +982,13 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
                 return el(
                   "div",
                   { class: "inv-drop__char" },
-                  el("div", { class: "inv-drop__who" }, el("strong", { text: c.className }), el("span", { class: "inv-label__count", text: `${mine.length} / 21` })),
+                  el(
+                    "div",
+                    { class: "inv-drop__who" },
+                    el("strong", { text: c.className }),
+                    mine.some((i) => i.blocked?.includes("full")) ? el("button", { class: "btn btn--small", type: "button", disabled: makingRoom || null, title: "Move enough of this character's items to the vault (junk first, then lowest power; never locked, equipped or kept)", text: "Make room", onclick: () => makeRoom(c) }) : null,
+                    el("span", { class: "inv-label__count", text: `${mine.length} / 21` }),
+                  ),
                   el("div", { class: "inv__flow" }, ...mine.map(tile), ...Array.from({ length: Math.max(0, 7 - mine.length) }, slot)),
                 );
               }),
@@ -1122,6 +1274,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const main = el("div", { class: "inv-main" }, body, view.panel ? panel() : null);
     root.replaceChildren(...[backdrop, top, toolbar(), view.feed ? feedBar() : null, headbar, main, toast].filter(Boolean));
     if (overlay === "filters") root.append(filterScreen());
+    if (overlay === "compare" && compare) root.append(comparePanel());
     if (overlay === "wallet") {
       // Opens under the currencies box (the bar clips anything inside it, so it lives on the tab).
       const layer = walletPanel();
