@@ -1317,21 +1317,26 @@ async fn d2_loadout(webview: Webview, app: AppHandle, character: String, index: 
     )
 }
 
-/// seals.report's rotator corrections and activity art for the Rotators tab (public data; empty when
-/// offline): `{ saved: {...}, art: { activity name: bungie.net picture address } }`.
+/// seals.report's answer for the Rotators tab (public data; empty when offline): `{ saved: {...}, art: { activity
+/// name: bungie.net picture address }, week: {...} }`, `week` being this week as the site works it out with Bungie's
+/// live list (rotators, events, weekend cards). It's only ever shown as text; answers over 1 MB are ignored.
 #[tauri::command]
 async fn d2_rotators(webview: Webview) -> Value {
-    let empty = json!({ "saved": {}, "art": {} });
+    let empty = json!({ "saved": {}, "art": {}, "week": null });
     if !from_shell(&webview) {
         return empty;
     }
     let res = reqwest::Client::new().get(format!("{}/api/mida/rotators", auth::SITE)).timeout(Duration::from_secs(10)).send().await;
     let Ok(res) = res else { return empty };
     let Ok(bytes) = res.bytes().await else { return empty };
+    if bytes.len() > 1_000_000 {
+        return empty;
+    }
     let Ok(body) = serde_json::from_slice::<Value>(&bytes) else { return empty };
     json!({
         "saved": body["saved"].as_object().map(|o| Value::Object(o.clone())).unwrap_or_else(|| json!({})),
         "art": rotator_art(&body["art"]),
+        "week": if body["week"]["rotators"].is_array() && body["week"]["at"].is_string() { body["week"].clone() } else { Value::Null },
     })
 }
 

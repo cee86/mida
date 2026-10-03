@@ -166,6 +166,22 @@ countdowns, then Guardian Rank and Clan this week side by side (`.sh-pair`); the
 width (cards 280px+ each); the pass's rank ring and name in a column beside its reward track (`.sh-passrow`, stacked
 under 1250px); then rewards to claim.
 
+**Rotators, round 3 (3 Oct 2026, owner: "bring everything up to date with seals.report"):** the tab now mirrors
+seals.report's Featured v0.58. `src/shell/d2/` holds unchanged copies of seals.report's rotations.js, rotators.js,
+featured-sections.js, live-rotations.js, **featured-week.js** (new on the site: the Featured page's "which cards this
+week" logic, moved out of app/featured/page.js so both use the same code) and loot-tables.js, copied by
+**`scripts/sync-d2.sh [path to d2-seals-report]`** (adds ".js" to relative imports, nothing else). Run it whenever the
+site's Featured changes. `d2_rotators` returns `{ saved, art, week }`: `week` is `featuredWeek()`'s output as the site
+works it out with Bungie's live list (rotators with Bungie's corrections, events, Xûr/Trials weekend cards, Lost
+Sectors, weekly PvP modes, Nightmare Hunts, the Dreaming City week), plus `at`. The live list itself never leaves the
+site (it comes from the owner's characters). MIDA uses `week` when it's from after the latest daily reset; otherwise
+(offline, old answer) it runs its own copy of `featuredWeek` on `saved` (with `v: 2`, which `withSaved` needs) and no
+live list. It asks again when the tab opens and the last answer is over 10 minutes old. Views: This week (default,
+`LANDING_ROWS`, some sections side by side), Everything, one per section with cards, expansions under their own
+heading (`mida-rot-view2`). Cards follow FeaturedCards.js (type or expansion in the picture's corner, entry as title
+or under it, weapon/place/text lines, Dares loot pool label with hover list, time left + API/Manual tag); list rows
+follow the page's RotatorRow (now, Lost Sector table, loot, weapons, coming up, caveat). No seal triumphs in MIDA.
+
 **Rotators, round 2 (3 Oct 2026, owner):** views now match seals.report's Featured sidebar exactly (Everything,
 Raids, Dungeons, Other activities, same icons; old saved views fall back to Other), sections inside stay Raids,
 Dungeons, This week, Today, Weekly checklist. Cards show the activity's loading-screen art like seals.report:

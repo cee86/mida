@@ -14,12 +14,15 @@ export const MAX_ENTRIES = 20;
 export const MAX_TEXT = 80;
 
 // `keywords` find related seal triumphs by wording; entry names are matched too. `art` names the activity
-// whose loading-screen image the card uses ("current" = the current entry's own name, e.g. a strike).
+// whose loading-screen image the card uses ("current" = the current entry's own name, e.g. a strike); since v0.58 it
+// can be a list of names tried in order (the activity, then its destination), so every card gets a picture.
 export const ROTATORS = [
   {
     id: "grandmaster",
     title: "Grandmaster Vanguard Alert",
     kicker: "Grandmaster",
+    section: "pinnacle",
+    titleIsEntry: true,
     period: "weekly",
     place: "Vanguard",
     keywords: ["grandmaster"],
@@ -29,14 +32,16 @@ export const ROTATORS = [
     knownOnce: true,
     entries: [
       { name: "The Sunless Cell", detail: "Adored (Sniper Rifle)" },
-      { name: "Exodus Crash", detail: "The Slammer" },
+      { name: "Exodus Crash", detail: "The Slammer (Sword)" },
     ],
     anchor: { index: 1, at: Date.UTC(2026, 8, 29, 17) },
   },
   {
     id: "exotic-mission",
-    title: "Exotic mission",
-    kicker: "Exotic mission",
+    title: "Exotic Mission",
+    kicker: "Exotic Mission",
+    section: "pinnacle",
+    titleIsEntry: true,
     period: "weekly",
     place: "Pinnacle Ops",
     keywords: ["exotic mission"],
@@ -57,7 +62,9 @@ export const ROTATORS = [
   {
     id: "pantheon",
     title: "Pantheon",
-    kicker: "Pantheon",
+    // Labelled and grouped as a raid (owner, v0.55).
+    kicker: "Raid",
+    section: "raids",
     period: "weekly",
     place: "Monument of Triumph",
     keywords: ["pantheon"],
@@ -71,7 +78,8 @@ export const ROTATORS = [
   {
     id: "ascendant",
     title: "Ascendant Challenge",
-    kicker: "Ascendant Challenge",
+    kicker: "Forsaken",
+    section: "forsaken",
     period: "weekly",
     place: "Dreaming City",
     keywords: ["ascendant challenge"],
@@ -94,29 +102,31 @@ export const ROTATORS = [
   {
     id: "wellspring",
     title: "The Wellspring",
-    kicker: "Wellspring",
+    kicker: "Witch Queen",
+    section: "witch-queen",
     period: "daily",
     place: "Savathûn's Throne World",
     keywords: ["wellspring"],
-    art: "The Wellspring",
-    // Attack and Defend alternate daily (owner's screenshot: Defend on 28 Sep 2026); which boss and weapon each
-    // day brings is from memory, so the admin may need to pick the right one.
+    art: ["The Wellspring", "Savathûn's Throne World"],
+    // Owner's rotation doc (v0.51): Vezuul and Tarnation on 30 Sep 2026, then Bor'gong, Zeerik, Golmag.
+    confirmed: true,
     entries: [
-      { name: "Attack: Golmag, Warden of the Spring", detail: "Come to Pass (Auto Rifle)" },
-      { name: "Defend: Vezuul, Lightflayer", detail: "Tarnation (Grenade Launcher)" },
-      { name: "Attack: Bor'gong, Warden of the Spring", detail: "Fel Taradiddle (Combat Bow)" },
-      { name: "Defend: Zeerik, Lightflayer", detail: "Father's Sins (Sniper Rifle)" },
+      { name: "Attack: Golmag, Hive Ogre", detail: "Come to Pass (Auto Rifle)" },
+      { name: "Defend: Vezuul, Solar Scorn Chieftain", detail: "Tarnation (Grenade Launcher)" },
+      { name: "Attack: Bor'gong, Hive Knight", detail: "Fel Taradiddle (Combat Bow)" },
+      { name: "Defend: Zeerik, Scorn Raider", detail: "Father's Sins (Sniper Rifle)" },
     ],
-    anchor: { index: 1, at: Date.UTC(2026, 8, 28, 17) },
+    anchor: { index: 1, at: Date.UTC(2026, 8, 30, 17) },
   },
   {
     id: "lucent",
     title: "Lucent Executioner",
-    kicker: "Lucent Executioner",
+    kicker: "Witch Queen",
+    section: "witch-queen",
     period: "daily",
     place: "Savathûn's Throne World",
     keywords: ["lucent executioner", "executioner"],
-    art: "Savathûn's Throne World",
+    art: ["Savathûn's Throne World"],
     // Which Executioner is out today (for the Ascended Bounty Hunter triumph); owner's screenshot, Alluring
     // Curtain on 28 Sep 2026.
     confirmed: true,
@@ -126,11 +136,12 @@ export const ROTATORS = [
   {
     id: "altars",
     title: "Altars of Sorrow",
-    kicker: "Altars of Sorrow",
+    kicker: "Shadowkeep",
+    section: "shadowkeep",
     period: "daily",
     place: "The Moon",
     keywords: ["altars of sorrow", "altar of sorrow"],
-    art: "Altars of Sorrow",
+    art: ["Altars of Sorrow", "Altar of Sorrow", "The Moon"],
     // Order from the owner's screenshot (Phogoth on 28 Sep 2026); weapons per boss from guide sites.
     confirmed: true,
     entries: [
@@ -140,91 +151,233 @@ export const ROTATORS = [
     ],
     anchor: { index: 2, at: Date.UTC(2026, 8, 28, 17) },
   },
-  // v0.48, from the owner's list of weekly activities seal triumphs depend on. These loops are from memory and guide
-  // sites and where each one is this week isn't known (`unset`), so they read "Not set this week" until Bungie's
-  // list names the current one or the admin picks it; after that they count forward by themselves.
+  // v0.48 (owner's list of weekly activities seal triumphs depend on), with loops and this week's positions from the
+  // owner's rotation doc (v0.51): every loop below starts with the entry that was up the week of 29 Sep 2026.
   {
     id: "wandering-nightmares",
-    title: "Wandering Nightmares",
-    kicker: "Wandering Nightmare",
+    title: "Wandering Nightmare",
+    kicker: "Shadowkeep",
+    section: "shadowkeep",
     period: "weekly",
     place: "The Moon",
     keywords: ["wandering nightmare"],
-    art: null,
-    unset: true,
+    art: ["The Moon"],
+    confirmed: true,
+    detailKind: "place",
     entries: [
-      { name: "Nightmare of Horkis, Fear of Mithrax" },
-      { name: "Nightmare of Jaxx, Claw of Xivu Arath" },
-      { name: "Nightmare of Xortal, Sworn of Crota" },
-      { name: "Nightmare of Hashladûn, Daughter of Crota" },
+      { name: "Nightmare of Horkis, Fear of Mithrax", detail: "Anchor of Light" },
+      { name: "Nightmare of Jaxx, Claw of Xivu Arath", detail: "Hellmouth" },
+      { name: "Fallen Council", detail: "Archer's Line" },
+      { name: "Nightmare of Xortal, Sworn of Crota", detail: "Sorrow's Harbor" },
     ],
     anchor: { index: 0, at: RESET },
   },
   {
     id: "empire-hunt",
     title: "Empire Hunt",
-    kicker: "Empire Hunt",
+    kicker: "Beyond Light",
+    section: "beyond-light",
     period: "weekly",
     place: "Europa",
     keywords: ["empire hunt", "master hunt"],
-    art: null,
-    unset: true,
-    entries: [{ name: "Phylaks, the Warrior" }, { name: "Praksis, the Technocrat" }, { name: "Kridis, the Dark Priestess" }],
+    art: ["Europa"],
+    confirmed: true,
+    entries: [{ name: "Kridis, the Dark Priestess" }, { name: "Praksis, the Technocrat" }, { name: "Phylaks, the Warrior" }],
     anchor: { index: 0, at: RESET },
   },
   {
     id: "exo-challenge",
     title: "Exo Challenge",
-    kicker: "Exo Challenge",
+    kicker: "Beyond Light",
+    section: "beyond-light",
     period: "weekly",
     place: "Europa",
     keywords: ["exo challenge", "exo simulation"],
-    art: null,
-    unset: true,
-    entries: [{ name: "Simulation: Agility" }, { name: "Simulation: Endurance" }, { name: "Simulation: Safeguard" }],
+    art: ["current", "Europa"],
+    confirmed: true,
+    entries: [{ name: "Simulation: Survival" }, { name: "Simulation: Safeguard" }, { name: "Simulation: Agility" }],
     anchor: { index: 0, at: RESET },
   },
   {
     id: "eclipsed-zone",
     title: "Eclipsed Zone",
-    kicker: "Eclipsed Zone",
+    kicker: "Beyond Light",
+    section: "beyond-light",
     period: "weekly",
     place: "Europa",
     keywords: ["eclipsed zone"],
-    art: null,
-    unset: true,
-    detailIsPlace: false,
-    entries: [{ name: "Cadmus Ridge" }, { name: "Asterion Abyss" }, { name: "Eventide Ruins" }],
+    art: ["Europa"],
+    confirmed: true,
+    entries: [{ name: "Eventide Ruins" }, { name: "Cadmus Ridge" }, { name: "Asterion Abyss" }],
+    anchor: { index: 0, at: RESET },
+  },
+  {
+    id: "vex-incursion",
+    title: "Vex Incursion Zone",
+    kicker: "Lightfall",
+    section: "lightfall",
+    period: "weekly",
+    place: "Neomuna",
+    keywords: ["vex incursion", "incursion zone"],
+    art: ["Neomuna"],
+    confirmed: true,
+    entries: [{ name: "Zephyr Concourse" }, { name: "Ahimsa Park" }, { name: "Límíng Harbor" }],
     anchor: { index: 0, at: RESET },
   },
   {
     id: "partition",
     title: "Partition",
-    kicker: "Partition",
+    kicker: "Lightfall",
+    section: "lightfall",
     period: "weekly",
     place: "Neomuna",
     keywords: ["partition"],
-    art: null,
-    unset: true,
+    art: ["current", "Neomuna"],
+    confirmed: true,
     entries: [{ name: "Partition: Backdoor" }, { name: "Partition: Ordnance" }, { name: "Partition: Hard Reset" }],
     anchor: { index: 0, at: RESET },
   },
-  // Weekly lockouts with nothing to pick (`reminder`): they reset every week, and the seal triumphs tied to them are
-  // listed, so they go in Featured's weekly checklist rather than the rotations.
+  // Neomuna's weekly story mission: a five-week loop (owner, 1 Oct 2026). Bungie's list also gives this week's away
+  // (the only campaign mission with Advanced/Expert/Master).
+  {
+    id: "neomuna-mission",
+    title: "Weekly Story Mission",
+    kicker: "Lightfall",
+    section: "lightfall",
+    period: "weekly",
+    place: "Neomuna",
+    keywords: ["breakneck", "no time left", "desperate measures", "first contact", "downfall", "on the verge", "headlong", "under siege"],
+    art: ["current", "Neomuna"],
+    confirmed: true,
+    entries: [{ name: "Breakneck" }, { name: "No Time Left" }, { name: "Desperate Measures" }, { name: "First Contact" }, { name: "Downfall" }],
+    anchor: { index: 0, at: RESET },
+  },
+  // Kepler's weekly Fabled and Legendary missions (The Edge of Fate): both loop through these three (owner, 1 Oct 2026).
+  {
+    id: "kepler",
+    title: "Weekly Missions",
+    // Shown as "Fabled: The Invitation" on the card; the detail is already "Legendary: ...".
+    namePrefix: "Fabled: ",
+    kicker: "Edge of Fate",
+    section: "edge-of-fate",
+    period: "weekly",
+    place: "Kepler",
+    keywords: ["kepler", "fabled mission"],
+    art: ["current", "Kepler"],
+    confirmed: true,
+    detailKind: "text",
+    entries: [
+      { name: "The Invitation", detail: "Legendary: The Gouge" },
+      { name: "Commencement", detail: "Legendary: Charge" },
+      { name: "Quarantine", detail: "Legendary: The Message" },
+    ],
+    anchor: { index: 0, at: RESET },
+  },
+  // Dares of Eternity: the Expert encounter (two rounds and a boss; a six-week loop, owner 1 Oct 2026) and the Legendary loot pool
+  // (Pool 1 to Pool 4 and back to Pool 1, Pool 4 the week of 29 Sep; order confirmed by the owner, 1 Oct 2026).
+  {
+    id: "dares",
+    title: "Dares of Eternity",
+    kicker: "30th Anniversary",
+    section: "anniversary",
+    period: "weekly",
+    place: "Eternity",
+    keywords: ["dares of eternity"],
+    art: "Dares of Eternity",
+    matchEntries: false,
+    confirmed: true,
+    detailKind: "text",
+    entries: [
+      { name: "Boss: Crota (Hive)", detail: "Rounds: Vex, then Cabal" },
+      { name: "Boss: Zydron (Vex)", detail: "Rounds: Fallen, then Hive" },
+      { name: "Boss: Valus Ta'aurc (Cabal)", detail: "Rounds: Hive, then Vex" },
+      { name: "Boss: Crota (Hive)", detail: "Rounds: Cabal, then Taken" },
+      { name: "Boss: Zydron (Vex)", detail: "Rounds: Taken, then Cabal" },
+      { name: "Boss: Valus Ta'aurc (Cabal)", detail: "Rounds: Hive, then Fallen" },
+    ],
+    anchor: { index: 0, at: RESET },
+  },
+  {
+    id: "dares-loot",
+    title: "Dares Loot Pool",
+    kicker: "30th Anniversary",
+    section: "anniversary",
+    period: "weekly",
+    place: "Eternity",
+    keywords: [],
+    art: "Dares of Eternity",
+    matchEntries: false,
+    confirmed: true,
+    detailKind: "text",
+    entries: [
+      {
+        name: "Pool 1",
+        detail: "Wild Hunt and Scatterhorn armor",
+        items: ["Enigma's Draw", "Dire Promise", "True Prophecy", "Arsenic Bite-4b", "Royal Chase", "Jian 7 Rifle", "Friction Fire", "Escape Velocity", "Corsair's Wrath", "Deafening Whisper", "Blast Battue"],
+      },
+      {
+        name: "Pool 2",
+        detail: "Praefectus and Scatterhorn armor",
+        items: ["Far Future", "Extraordinary Rendition", "Brass Attacks", "Threaded Needle", "Code Duello", "Annual Skate", "Imperial Needle", "Shepherd's Watch", "Scathelocke", "Interference VI", "Distant Tumulus", "Honor's Edge"],
+      },
+      {
+        name: "Pool 3",
+        detail: "Lightkin and Scatterhorn armor",
+        items: ["Chroma Rush", "Sojourner's Tale", "Wishbringer", "Farewell", "The Last Dance", "Gridskipper", "Last Perdition", "Main Ingredient", "Long Shadow", "Toil and Trouble", "Shattered Cipher", "Ignition Code"],
+      },
+      {
+        name: "Pool 4",
+        detail: "Pathfinder's and Scatterhorn armor",
+        items: ["Fractethyst", "Vulpecula", "Contingency Plan", "Legal Action II", "Spoiler Alert", "Iota Draconis", "Wolftone Draw", "Steel Sybil Z-14", "Canis Major", "Chrysura Melo", "Outrageous Fortune"],
+      },
+    ],
+    anchor: { index: 3, at: RESET },
+  },
+  // Daily: the Pale Heart's Overthrow area (The Landing on 30 Sep 2026) and Neomuna's Terminal Overload. Terminal
+  // Overload's order isn't known (only 30 Sep: Límíng Harbor), but Bungie's list names today's zone ("Terminal
+  // Overload: LH"), which lib/live-rotations.js reads.
+  {
+    id: "overthrow",
+    title: "Overthrow",
+    kicker: "Final Shape",
+    section: "final-shape",
+    period: "daily",
+    place: "The Pale Heart",
+    keywords: ["overthrow"],
+    art: ["Overthrow", "The Pale Heart"],
+    confirmed: true,
+    entries: [{ name: "The Landing" }, { name: "The Impasse" }, { name: "The Blooming" }],
+    anchor: { index: 0, at: Date.UTC(2026, 8, 30, 17) },
+  },
+  {
+    id: "terminal-overload",
+    title: "Terminal Overload",
+    kicker: "Lightfall",
+    section: "lightfall",
+    period: "daily",
+    place: "Neomuna",
+    keywords: ["terminal overload"],
+    art: ["Terminal Overload", "Neomuna"],
+    confirmed: true,
+    knownSpan: 1,
+    entries: [{ name: "Límíng Harbor", detail: "Synchronic Roulette (Submachine Gun)" }, { name: "Ahimsa Park" }, { name: "Zephyr Concourse" }],
+    anchor: { index: 0, at: Date.UTC(2026, 8, 30, 17) },
+  },
+  // Weekly lockouts with nothing to pick (`reminder`): they reset every week and carry the seal triumphs tied to them.
+  // v0.57: the Weekly checklist section is gone; the action figures sit with Lightfall, the rest under Other.
   ...[
-    { id: "vex-incursion", title: "Vex Incursion Zone", place: "Neomuna", detail: "The zone moves every week", keywords: ["vex incursion", "incursion zone"] },
-    { id: "action-figures", title: "Neomuna action figures", place: "Neomuna", detail: "A new set of puzzles every week", keywords: ["action figure"] },
-    { id: "vespers-puzzles", title: "Vesper's Host puzzles", place: "Vesper's Host", detail: "Code declassification and puzzles, weekly", keywords: ["declassif"] },
-    { id: "campaign", title: "Campaign replays", place: "Weekly lockout", detail: "Legendary campaign missions reset weekly", keywords: ["legendary campaign", "campaign mission"] },
-    { id: "dares", title: "Dares of Eternity", place: "Eternity", detail: "Enemy lineup cycles every three weeks", keywords: ["dares of eternity"] },
+    { id: "action-figures", label: "Lightfall", section: "lightfall", art: ["Neomuna"], title: "Neomuna Action Figures", place: "Neomuna", detail: "A new set of puzzles every week", keywords: ["action figure"] },
+    { id: "vespers-puzzles", label: "Dungeon", section: "misc", art: ["Vesper's Host"], title: "Vesper's Host Puzzles", place: "Vesper's Host", detail: "Code declassification and puzzles, weekly", keywords: ["declassif"] },
+    { id: "campaign", label: "Campaign", section: "misc", art: ["Transmigration", "The Witness"], title: "Campaign Replays", place: "Weekly lockout", detail: "Legendary campaign missions reset weekly", keywords: ["legendary campaign", "campaign mission"] },
   ].map((r) => ({
     id: r.id,
     title: r.title,
-    kicker: "Weekly",
+    kicker: r.label,
+    section: r.section,
     period: "weekly",
     place: r.place,
     keywords: r.keywords,
-    art: null,
+    art: r.art ?? null,
     reminder: true,
     fixed: true,
     confirmed: true,
@@ -245,8 +398,18 @@ export function lastReset(period, now = Date.now()) {
 }
 
 // A rotator with the admin's saved changes applied: { ...def, entries, anchor, custom }.
+// Admin saves from before v0.52 are ignored (the owner asked to reset them when the rotation doc's schedules went
+// in); every save since carries `v: SAVE_VERSION`.
+export const SAVE_VERSION = 2;
+
 export function withSaved(def, saved) {
-  const entries = !def.fixed && Array.isArray(saved?.entries) && saved.entries.length ? saved.entries : def.entries;
+  if (saved && saved.v !== SAVE_VERSION) saved = null;
+  // An edited loop keeps each entry's item list (the admin edits names and details only) when the name still matches.
+  const items = new Map(def.entries.filter((e) => e.items).map((e) => [e.name, e.items]));
+  const entries =
+    !def.fixed && Array.isArray(saved?.entries) && saved.entries.length
+      ? saved.entries.map((e) => (items.has(e.name) ? { ...e, items: items.get(e.name) } : e))
+      : def.entries;
   const valid = saved && Number.isInteger(saved.index) && saved.index >= 0 && saved.index < entries.length && Number.isFinite(saved.at);
   // `confirmed`: the built-in loop was checked against the game (or the admin has set it).
   return { ...def, entries, anchor: valid ? { index: saved.index, at: saved.at } : def.anchor, custom: Boolean(valid), confirmed: Boolean(valid || def.confirmed) };
@@ -264,7 +427,7 @@ export function rotatorNow(rotator, now = Date.now(), upcoming = 3) {
     return {
       index,
       unknown: true,
-      current: { name: "Not set this week", detail: `Rotates through ${n}: ${rotator.entries.map((e) => e.name.split(",")[0]).join(", ")}` },
+      current: { name: rotator.period === "daily" ? "Not set today" : "Not set this week", detail: `Rotates through ${n}: ${rotator.entries.map((e) => e.name.split(",")[0]).join(", ")}` },
       ends: new Date(start + size).toISOString(),
       next: [],
     };
@@ -274,7 +437,20 @@ export function rotatorNow(rotator, now = Date.now(), upcoming = 3) {
     return {
       index,
       unknown: true,
-      current: { name: "Not set this week", detail: `Last known: ${last.name}${last.detail ? `, ${last.detail}` : ""}` },
+      current: { name: rotator.period === "daily" ? "Not set today" : "Not set this week", detail: `Last known: ${last.name}${last.detail ? `, ${last.detail}` : ""}` },
+      ends: new Date(start + size).toISOString(),
+      next: [],
+    };
+  }
+  // Only some weeks known (`knownSpan`, v0.51): the entries are those weeks in order from the anchor, and nothing is
+  // guessed before or after them.
+  const span = rotator.knownSpan && !rotator.custom ? rotator.knownSpan : null;
+  if (span && (steps < 0 || steps >= span)) {
+    const last = rotator.entries[Math.min(rotator.entries.length - 1, rotator.anchor.index + span - 1)];
+    return {
+      index,
+      unknown: true,
+      current: { name: rotator.period === "daily" ? "Not set today" : "Not set this week", detail: `Last known: ${last.name}${last.detail ? `, ${last.detail}` : ""}` },
       ends: new Date(start + size).toISOString(),
       next: [],
     };
@@ -285,7 +461,7 @@ export function rotatorNow(rotator, now = Date.now(), upcoming = 3) {
     // Events read from Bungie (v0.47) end on their own date, not at a reset.
     ends: rotator.endsAt ?? new Date(start + size).toISOString(),
     next: n > 1
-      ? Array.from({ length: Math.min(upcoming, n - 1) }, (_, k) => ({
+      ? Array.from({ length: Math.min(upcoming, n - 1, span ? Math.max(0, span - steps - 1) : Infinity) }, (_, k) => ({
           entry: rotator.entries[mod(index + k + 1, n)],
           starts: new Date(start + (k + 1) * size).toISOString(),
         }))
@@ -304,7 +480,7 @@ export function cleanRotatorSave(def, body) {
     if (entries.some((e) => !e.name || e.name.length > MAX_TEXT || (e.detail && e.detail.length > MAX_TEXT))) return null;
   }
   if (!Number.isInteger(body.index) || body.index < 0 || body.index >= entries.length) return null;
-  return { entries: def.fixed ? undefined : entries, index: body.index, at: lastReset(def.period) };
+  return { entries: def.fixed ? undefined : entries, index: body.index, at: lastReset(def.period), v: SAVE_VERSION };
 }
 
 // When entry `index` is next up (now if it's current), as an ISO date.

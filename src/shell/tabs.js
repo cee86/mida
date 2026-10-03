@@ -59,7 +59,7 @@ function head(ctx, title, lede) {
 // ---------- Rotators (was Featured; rotators.js) ----------
 
 function featured(ctx) {
-  return rotatorsTab(ctx, { until, saved: () => savedRotators, art: () => rotatorArt });
+  return rotatorsTab(ctx, { until, remote: () => remoteRotators });
 }
 
 // ---------- RAD assistant ----------
@@ -344,10 +344,9 @@ const accountKey = (ctx) => {
   return `${a.signedIn}|${a.busy}|${a.error ?? ""}|${a.name ?? ""}`;
 };
 
-// seals.report's rotator corrections (fetched once a run), applied over the built-in defaults.
-let savedRotators = {};
-let rotatorArt = {}; // activity name -> Bungie picture (the art seals.report's Featured cards use)
-let rotatorsAsked = false;
+// seals.report's answer for the Rotators tab: this week as the site works it out, its saved schedules and card art.
+let remoteRotators = null; // { saved, art, week } from d2_rotators
+let rotatorsAskedAt = 0;
 
 window.midaTabs = {
   mount(id, container, ctx) {
@@ -360,12 +359,13 @@ window.midaTabs = {
       return;
     }
     container.replaceChildren((BUILDERS[id] ?? ((c) => signIn(c, id)))(ctx));
-    if (id === "tab-featured" && !rotatorsAsked) {
-      rotatorsAsked = true;
+    // Asked again when the tab opens and the last answer is over 10 minutes old (seals.report caches it as long).
+    if (id === "tab-featured" && Date.now() - rotatorsAskedAt > 10 * 60e3) {
+      rotatorsAskedAt = Date.now();
       ctx.hub.d2Rotators().then((reply) => {
-        savedRotators = reply?.saved && typeof reply.saved === "object" ? reply.saved : {};
-        rotatorArt = reply?.art && typeof reply.art === "object" ? reply.art : {};
-        if ((Object.keys(savedRotators).length || Object.keys(rotatorArt).length) && container.dataset.tab === id) this.mount(id, container, ctx);
+        if (!reply || typeof reply !== "object" || !(reply.week || Object.keys(reply.saved ?? {}).length || Object.keys(reply.art ?? {}).length)) return;
+        remoteRotators = reply;
+        if (container.dataset.tab === id) this.mount(id, container, ctx);
       });
     }
   },

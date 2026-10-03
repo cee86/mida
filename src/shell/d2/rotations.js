@@ -8,8 +8,12 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ---------- Dreaming City ----------
 
-// Reset that began the week of Ouroborea with a weak curse (per guide sites; confirm in game).
+// Reset that began the week of Ouroborea (confirmed by the owner's rotation screenshot and doc).
 const ANCHOR_WEEK = Date.UTC(2026, 8, 22, 17); // 22 September 2026, 17:00 UTC
+
+// The curse, Petra, the Blind Well and the weekly mission share a three-week cycle that began with a weak (Low)
+// curse at the reset of 29 Sep 2026 (owner's rotation doc, v0.51; the earlier guess had the curse a week off).
+const CYCLE_ANCHOR = Date.UTC(2026, 8, 29, 17);
 
 // The Dreaming City curse grows over three weeks, then resets.
 const CURSE = [
@@ -18,6 +22,11 @@ const CURSE = [
   { id: "growing", label: "Growing Curse" },
   { id: "strong", label: "Strongest Curse" },
 ];
+
+// Where Petra Venj is, which Blind Well plague is up and the weekly story mission, in the same three-week cycle.
+const PETRA = ["The Strand", "Divalian Mists", "Rheasilvia"];
+const BLIND_WELL = ["Scorn (Sikariis and Varkuuriis)", "Hive (Cragur and Paradii)", "Taken (Inomina)"];
+const DC_MISSION = ["Broken Courier", "The Oracle Engine", "Dark Monastery"];
 
 // The Ascendant Challenge moves around the Dreaming City on a six-week loop.
 const ASCENDANT = [
@@ -37,8 +46,12 @@ export function dreamingCityWeek(now = Date.now(), ascendantIndex = null) {
   const index = Math.floor((now - ANCHOR_WEEK) / WEEK_MS);
   const start = ANCHOR_WEEK + index * WEEK_MS;
   const ascendant = Number.isInteger(ascendantIndex) ? ascendantIndex : index;
+  const cycle = Math.floor((now - CYCLE_ANCHOR) / WEEK_MS);
   return {
-    curse: CURSE[mod(index, CURSE.length)],
+    curse: CURSE[mod(cycle, CURSE.length)],
+    petra: PETRA[mod(cycle, 3)],
+    blindWell: BLIND_WELL[mod(cycle, 3)],
+    mission: DC_MISSION[mod(cycle, 3)],
     ascendant: ASCENDANT[mod(ascendant, ASCENDANT.length)],
     weekStart: new Date(start).toISOString(),
     weekEnd: new Date(start + WEEK_MS).toISOString(),
@@ -162,15 +175,55 @@ const HOUR_MS = 60 * 60 * 1000;
 const DISTORTION_ANCHOR = Date.UTC(2026, 8, 29, 1);
 // `place` is the destination's own activity name in Bungie's data, whose art stands in when the
 // distortion activity itself has none.
+// `weapons` are the destination's own weapons (owner's rotation doc, v0.51); `activity` is also its armor set.
 const DISTORTIONS = [
-  { destination: "Nessus", activity: "Exodus Down", place: "Nessus" },
-  { destination: "Cosmodrome", activity: "Seventh Seraph", place: "Cosmodrome" },
-  { destination: "EDZ", activity: "Wildwood", place: "European Dead Zone" },
-  { destination: "Dreaming City", activity: "Reverie Dawn", place: "The Dreaming City" },
-  { destination: "Savathûn's Throne World", activity: "Veritas", place: "Savathûn's Throne World" },
-  { destination: "Moon", activity: "Dreambane", place: "The Moon" },
-  { destination: "Europa", activity: "Crystocrene", place: "Europa" },
+  {
+    destination: "Nessus",
+    activity: "Exodus Down",
+    place: "Nessus",
+    weapons: ["Trophy Hunter", "True Prophecy", "Temporal Clause", "Pyroclastic Flow", "Pluperfect", "The Deicide"],
+  },
+  {
+    destination: "Cosmodrome",
+    activity: "Seventh Seraph",
+    place: "Cosmodrome",
+    weapons: ["Seventh Seraph Carbine", "Seventh Seraph Officer Revolver", "Seventh Seraph SI-2", "Seventh Seraph VY-7", "Seventh Seraph CQC-12", "Seventh Seraph SAW"],
+  },
+  {
+    destination: "EDZ",
+    activity: "Wildwood",
+    place: "European Dead Zone",
+    weapons: ["Scathelocke", "Battle Scar", "Parabellum", "Cartesian Coordinate", "Last Foray", "Nasreddin"],
+  },
+  {
+    destination: "Dreaming City",
+    activity: "Reverie Dawn",
+    place: "The Dreaming City",
+    weapons: ["Waking Vigil", "Tigerspite", "Vouchsafe", "Twilight Oath", "Retold Tale", "Sleepless", "Abide the Return"],
+  },
+  {
+    destination: "Savathûn's Throne World",
+    activity: "Veritas",
+    place: "Savathûn's Throne World",
+    weapons: ["Come to Pass", "Empirical Evidence", "Forensic Nightmare", "Pointed Inquiry", "Fel Taradiddle", "Father's Sins", "Likely Suspect", "The Enigma", "Red Herring", "Tarnation"],
+  },
+  {
+    destination: "Moon",
+    activity: "Dreambane",
+    place: "The Moon",
+    weapons: ["Loud Lullaby", "Arc Logic", "Premonition", "Every Waking Moment", "Blasphemer", "One Small Step", "Apostate", "Tranquility", "Dream Breaker", "Heretic", "Love and Death", "A Fine Memorial", "Night Terror"],
+  },
+  {
+    destination: "Europa",
+    activity: "Crystocrene",
+    place: "Europa",
+    weapons: ["High Albedo", "Arctic Haze", "Hailing Confusion", "Biting Winds", "Bonechiller", "Coriolis Force", "Subzero Salvo", "Thermal Erosion"],
+  },
 ];
+
+// The six Distortions-only weapons, available wherever the Distortion is; one can be picked in Attunement for
+// better odds.
+export const DISTORTION_WEAPONS = ["Allen 05", "Deadhorse 04", "Decatur 02", "Diablerets 06", "Ironwood 03", "Tahoma 01"];
 
 export const DISTORTION_ACTIVITIES = DISTORTIONS.map((d) => d.activity);
 // Every name whose art the Distortion card might use: the activities, then their destinations.
@@ -192,4 +245,36 @@ export function distortionSchedule(now = Date.now(), count = DISTORTIONS.length)
       end: new Date(start + HOUR_MS).toISOString(),
     };
   });
+}
+
+// ---------- Lost Sectors ----------
+// Each destination's Expert and Master Lost Sector changes at the daily reset, on its own loop (owner's rotation
+// doc, 30 Sep to 3 Oct 2026, v0.51). Each loop starts with the one that was up on 30 Sep 2026. Nessus is always The
+// Conflux (owner, 1 Oct 2026).
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const LOST_SECTOR_ANCHOR = Date.UTC(2026, 8, 30, 17);
+export const LOST_SECTORS = [
+  { destination: "Cosmodrome", loop: ["Veles Labyrinth", "Exodus Garden 2A"] },
+  { destination: "Dreaming City", loop: ["Bay of Drowned Wishes", "Chamber of Starlight", "Aphelion's Rest"] },
+  { destination: "EDZ", loop: ["Skydock IV", "The Quarry", "Scavenger's Den", "Excavation Site XII"] },
+  { destination: "Europa", loop: ["Bunker E15", "Perdition", "Concealed Void"] },
+  { destination: "Moon", loop: ["K1 Logistics", "K1 Communion", "K1 Revelation", "K1 Crew Quarters"] },
+  { destination: "Neomuna", loop: ["Hydroponics Delta", "Gilded Precept", "Thrilladrome"] },
+  { destination: "Nessus", loop: ["The Conflux"] },
+  { destination: "Pale Heart", loop: ["The Blooming Deep", "The Forgotten Deep", "The Broken Deep"] },
+  { destination: "Throne World", loop: ["Sepulcher", "Extraction", "Metamorphosis"] },
+];
+
+// Today's Lost Sector on every destination, and tomorrow's, with when today's ends.
+export function lostSectorsToday(now = Date.now()) {
+  const day = Math.floor((now - LOST_SECTOR_ANCHOR) / DAY_MS);
+  return {
+    ends: new Date(LOST_SECTOR_ANCHOR + (day + 1) * DAY_MS).toISOString(),
+    sectors: LOST_SECTORS.map((d) => ({
+      destination: d.destination,
+      name: d.loop[mod(day, d.loop.length)],
+      next: d.loop[mod(day + 1, d.loop.length)],
+    })),
+  };
 }
