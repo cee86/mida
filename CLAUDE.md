@@ -166,6 +166,26 @@ countdowns, then Guardian Rank and Clan this week side by side (`.sh-pair`); the
 width (cards 280px+ each); the pass's rank ring and name in a column beside its reward track (`.sh-passrow`, stacked
 under 1250px); then rewards to claim.
 
+**Speed round (3 Oct 2026, owner):**
+* **Loading bars** everywhere data is read (`progressBar`/`loadingView` in tabs.js; the Seasonal Hub's per-character
+  hub read shows one too): lib.rs `progress(app, task, fraction, label)` emits a "progress" event (shell only) at each
+  step of d2_inventory / d2_activity / d2_seasonal / d2_vendors (sign-in, game data, Bungie read, shaping), and
+  bungie.rs reports the game data download by bytes (task "manifest", `set_reporter`). Between messages the bar creeps
+  forward (never past 95%); bars stop themselves once off screen.
+* **Tabs stay built**: signed-in tabs (Inventory, Quests, Seasonal Hub, Vendors) draw into their own host element
+  (`.tab-host`, display: contents) kept in `hosts` while another tab is open; coming back re-attaches it with its
+  scroll positions (instant, no Bungie read). Rebuilt after 30 minutes or when the account changes; Refresh reads
+  again. A move made from the loadout dock while the Inventory is hidden is read when it's shown again
+  (`container.midaShown`). The shared "inventory"/"activity" reads are kept 5 minutes and shared while in flight.
+* **Item cards**: right after the inventory loads, `read_cards_ahead` (background) reads every item's card parts in
+  one profile call (102, 201, 205, 300, 304, 305, 309, 310 → `Hub.item_parts`, used for 15 minutes; a lock or perk/mod
+  change forgets that item so its next card asks Bungie), the plug sets (105), and the definitions every weapon and
+  armor card needs (`prefetch_cards`, 10 at a time). Single-entity definitions are now also kept on disk per game
+  version (`manifest/<version>-entities/`, removed with the old manifest after an update), so cards stay quick after
+  a restart. `item_details` reads its stat and socket-category definitions in parallel. Hovering a tile starts its
+  card read at once (`fetchDetails`), before the card opens. **Unverified live:** the size of the full item-parts read
+  (component 310 can be large) and how long the first definition prefetch takes on a big vault.
+
 **Rotators, round 3 (3 Oct 2026, owner: "bring everything up to date with seals.report"):** the tab now mirrors
 seals.report's Featured v0.58. `src/shell/d2/` holds unchanged copies of seals.report's rotations.js, rotators.js,
 featured-sections.js, live-rotations.js, **featured-week.js** (new on the site: the Featured page's "which cards this

@@ -55,6 +55,7 @@
     onState: (callback) => listen("state", (event) => callback(event.payload)),
     onStatus: (callback) => listen("status", (event) => callback(event.payload.id, event.payload.status)),
     onCommand: (callback) => listen("command", (event) => callback(event.payload)),
+    onProgress: (callback) => listen("progress", (event) => callback(event.payload)),
   };
 
   // MIDA's shortcuts while one of our pages has the keyboard. (Inside a module page, Windows

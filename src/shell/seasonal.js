@@ -40,7 +40,7 @@ const ELEMENT_TOKENS = ["arc", "solar", "void", "stasis", "strand", "kinetic"];
 const percent = (o) => (o.goal > 0 ? Math.min(100, Math.round((o.progress / o.goal) * 100)) : o.complete ? 100 : 0);
 const TIER_NAMES = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Uncommon", 2: "Common" };
 
-export function seasonalHub(ctx, container, { read, loadingView, problemView, until, characterPicker, questCard, lastCharacter }) {
+export function seasonalHub(ctx, container, { read, loadingView, problemView, progressBar, until, characterPicker, questCard, lastCharacter }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab tab--seasonal sh" });
   const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
@@ -51,6 +51,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
   let shownPass = null; // a past pass picked in the dropdown
   let claimScope = "current";
   const claiming = new Set();
+  let hubBar = null; // the progress bar shown while a character's hub is read
 
   const chosen = () => (activity.characters.some((c) => c.id === lastCharacter.seasonal) ? lastCharacter.seasonal : activity.characters[0]?.id);
 
@@ -576,6 +577,8 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
       "div",
       { class: "sh-main" },
       hub?.error ? el("p", { class: "tab__error", text: hub.error }) : null,
+      // While this character's hub is being read: one bar, kept across redraws so it doesn't restart.
+      hub === null ? (hubBar ??= el("div", { class: "sh-loading" }, progressBar(ctx, "seasonal", "Reading the hub from Bungie…"))) : ((hubBar = null), null),
       // The hub's daily and weekly objectives aren't in Bungie's public data (checked live through
       // every record tree, vendor and hidden item), so the top row is orders and weekly rewards.
       // The owner's layout (3 Oct 2026): Guardian Rank and the clan's week under the weekly rewards, the
@@ -602,7 +605,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
   paintBackdrop();
 
   async function load(fresh) {
-    if (!activity) container.replaceChildren(loadingView(ctx, "Reading this season from Bungie…"));
+    if (!activity) container.replaceChildren(loadingView(ctx, "Reading this season from Bungie…", "activity"));
     const result = await read(ctx, "activity", fresh);
     if (!result?.ok) return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
     activity = result.data;

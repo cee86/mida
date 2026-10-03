@@ -331,7 +331,9 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
           else openCard(item, event.currentTarget, true);
         },
         onpointerenter: (event) => {
-          if (event.pointerType !== "mouse" || card?.pinned) return;
+          if (event.pointerType !== "mouse") return;
+          fetchDetails(item);
+          if (card?.pinned) return;
           const target = event.currentTarget;
           clearTimeout(hoverTimer);
           hoverTimer = setTimeout(() => !card?.pinned && openCard(item, target, false), 260);
@@ -366,15 +368,19 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
 
   // ---------- The item card ----------
 
+  // Starts reading an item's card details once (on the first hover, before the card even opens).
+  function fetchDetails(item) {
+    if (!item.instance || itemDetails.has(item.instance)) return;
+    itemDetails.set(item.instance, null);
+    ctx.hub.d2Item(item.instance, item.hash).then((result) => {
+      itemDetails.set(item.instance, result?.ok ? result.data : { error: result?.error ?? "Couldn't read the details." });
+      if (card?.item.instance === item.instance) drawCard();
+    });
+  }
+
   function openCard(item, tileNode, pinned) {
     card = { item, tile: tileNode, pinned, picking: null };
-    if (item.instance && !itemDetails.has(item.instance)) {
-      itemDetails.set(item.instance, null);
-      ctx.hub.d2Item(item.instance, item.hash).then((result) => {
-        itemDetails.set(item.instance, result?.ok ? result.data : { error: result?.error ?? "Couldn't read the details." });
-        if (card?.item === item) drawCard();
-      });
-    }
+    fetchDetails(item);
     drawCard();
     if (pinned) markOpen();
   }
@@ -1039,13 +1045,23 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
   }
   window.addEventListener("mida-overlays", paintOverlays);
   // The loadout dock moved something: read again quietly (it already cleared the shared copy).
+  // While this tab is kept out of sight (another tab is open), the read waits until it's shown again.
+  let behind = false;
   window.addEventListener("mida-inventory-changed", (event) => {
-    if (event.detail !== root && data && document.body.contains(root)) load(false, true);
+    if (event.detail === root || !data) return;
+    if (document.body.contains(root)) load(false, true);
+    else behind = true;
   });
+  container.midaShown = () => {
+    if (behind && data) {
+      behind = false;
+      load(false, true);
+    }
+  };
   paintOverlays();
 
   async function load(fresh, quiet) {
-    if (!quiet) container.replaceChildren(loadingView(ctx, "Reading your gear from Bungie… (the first time also downloads Destiny's item list)"));
+    if (!quiet) container.replaceChildren(loadingView(ctx, "Reading your gear from Bungie…", "inventory"));
     const result = await read(ctx, "inventory", fresh);
     if (!result?.ok) {
       if (quiet) return say(result?.error ?? "Couldn't refresh.");
@@ -1321,7 +1337,7 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
   }
 
   async function load(fresh) {
-    if (!data) container.replaceChildren(loadingView(ctx, "Reading your loadout…"));
+    if (!data) container.replaceChildren(loadingView(ctx, "Reading your loadout…", "inventory"));
     const result = await read(ctx, "inventory", fresh);
     if (!result?.ok) {
       if (data) return (note.textContent = result?.error ?? "Couldn't refresh.");

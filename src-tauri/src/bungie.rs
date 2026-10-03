@@ -90,8 +90,9 @@ async fn post(path: &str, token: &str, body: Value) -> Result<Value, String> {
     unwrap(&res.bytes().await.map_err(|_| "Bungie's reply was cut off. Try again.".to_string())?)
 }
 
-async fn download(path: &str) -> Result<Vec<u8>, String> {
-    let res = client()
+/// Downloads one of Bungie's big definition files, reporting how far along it is between `from` and `to` (0 to 1).
+async fn download(path: &str, from: f64, to: f64) -> Result<Vec<u8>, String> {
+    let mut res = client()
         .get(format!("{ROOT}{path}"))
         .timeout(Duration::from_secs(180))
         .send()
@@ -100,7 +101,20 @@ async fn download(path: &str) -> Result<Vec<u8>, String> {
     if !res.status().is_success() {
         return Err("Couldn't download Destiny's item list from Bungie.".into());
     }
-    Ok(res.bytes().await.map_err(|_| "Destiny's item list download was cut off.".to_string())?.to_vec())
+    let total = res.content_length().unwrap_or(0) as f64;
+    let mut bytes = Vec::with_capacity(total as usize);
+    let mut last = 0.0;
+    while let Some(chunk) = res.chunk().await.map_err(|_| "Destiny's item list download was cut off.".to_string())? {
+        bytes.extend_from_slice(&chunk);
+        if total > 0.0 {
+            let done = bytes.len() as f64 / total;
+            if done - last > 0.02 {
+                last = done;
+                report("manifest", from + (to - from) * done, &format!("Downloading Destiny's game data ({:.0} of {:.0} MB)", bytes.len() as f64 / 1e6, total / 1e6));
+            }
+        }
+    }
+    Ok(bytes)
 }
 
 // ---------- The manifest (slimmed) ----------
@@ -225,6 +239,12 @@ pub async fn load_manifest(dir: &Path) -> Result<Manifest, String> {
     let folder = dir.join("manifest");
     // "-3": the slimmed format gained fields (v0.5, v0.6), so files saved by older versions of MIDA are read again.
     let file = folder.join(format!("{safe}-3.json"));
+    // This version's definitions folder (earlier versions' folders go with the old manifest below).
+    if !safe.is_empty() {
+        let entities = folder.join(format!("{safe}-entities"));
+        let _ = std::fs::create_dir_all(&entities);
+        *entity_dir().lock().unwrap() = Some(entities);
+    }
     if !safe.is_empty() {
         if let Ok(bytes) = std::fs::read(&file) {
             if let Ok(m) = serde_json::from_slice::<Manifest>(&bytes) {
@@ -232,16 +252,25 @@ pub async fn load_manifest(dir: &Path) -> Result<Manifest, String> {
             }
         }
     }
+    report("manifest", 0.0, "Downloading Destiny's game data (first time after a game update)");
     let paths = &info["jsonWorldComponentContentPaths"]["en"];
     let items_path = paths["DestinyInventoryItemLiteDefinition"].as_str().ok_or("Bungie didn't list the item definitions.")?;
     let objectives_path = paths["DestinyObjectiveDefinition"].as_str().ok_or("Bungie didn't list the objective definitions.")?;
     let manifest = Manifest {
         version,
-        items: slim_items(&download(items_path).await?)?,
-        objectives: slim_objectives(&download(objectives_path).await?)?,
+        items: slim_items(&download(items_path, 0.0, 0.85).await?)?,
+        objectives: slim_objectives(&download(objectives_path, 0.85, 1.0).await?)?,
     };
-    // Keep only this version's file.
-    let _ = std::fs::remove_dir_all(&folder);
+    // Keep only this version's file and definitions folder.
+    if let Ok(list) = std::fs::read_dir(&folder) {
+        for entry in list.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.starts_with(&format!("{safe}-")) {
+                let path = entry.path();
+                let _ = if path.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) };
+            }
+        }
+    }
     let _ = std::fs::create_dir_all(&folder);
     if let Ok(bytes) = serde_json::to_vec(&manifest) {
         let _ = std::fs::write(&file, bytes);
@@ -410,6 +439,26 @@ pub fn shape_inventory(profile: &Value, m: &Manifest) -> Value {
 
 // ---------- Single definitions (titles, emblems, stats, sets), remembered per run ----------
 
+/// Where loading progress goes (set once by lib.rs: an event the shell's loading bars listen to). `task` names what's
+/// loading ("manifest" for the game data, shared by every tab), `fraction` how far along it is (0 to 1).
+type Reporter = Box<dyn Fn(&str, f64, &str) + Send + Sync>;
+static REPORTER: std::sync::OnceLock<Reporter> = std::sync::OnceLock::new();
+pub fn set_reporter(f: Reporter) {
+    let _ = REPORTER.set(f);
+}
+fn report(task: &str, fraction: f64, label: &str) {
+    if let Some(f) = REPORTER.get() {
+        f(task, fraction.clamp(0.0, 1.0), label);
+    }
+}
+
+/// Definitions read one at a time are also kept on disk, per game version (manifest/<version>-entities/), so an item
+/// card's definitions load instantly the next time, even after a restart. Set when the manifest loads.
+fn entity_dir() -> &'static std::sync::Mutex<Option<std::path::PathBuf>> {
+    static DIR: std::sync::OnceLock<std::sync::Mutex<Option<std::path::PathBuf>>> = std::sync::OnceLock::new();
+    DIR.get_or_init(Default::default)
+}
+
 fn entity_cache() -> &'static std::sync::Mutex<HashMap<String, Value>> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, Value>>> = std::sync::OnceLock::new();
     CACHE.get_or_init(Default::default)
@@ -421,7 +470,18 @@ pub async fn entity(table: &str, hash: u64) -> Option<Value> {
     if let Some(v) = entity_cache().lock().unwrap().get(&key) {
         return Some(v.clone());
     }
+    // Only our own fixed table names reach the file name, plus a number.
+    let file = entity_dir().lock().unwrap().as_ref().map(|d| d.join(format!("{table}-{hash}.json")));
+    if let Some(Ok(bytes)) = file.as_ref().map(std::fs::read) {
+        if let Ok(v) = serde_json::from_slice::<Value>(&bytes) {
+            entity_cache().lock().unwrap().insert(key, v.clone());
+            return Some(v);
+        }
+    }
     let v = get(&format!("/Destiny2/Manifest/{table}/{hash}/"), None).await.ok()?;
+    if let (Some(file), Ok(bytes)) = (file, serde_json::to_vec(&v)) {
+        let _ = std::fs::write(file, bytes);
+    }
     entity_cache().lock().unwrap().insert(key, v.clone());
     Some(v)
 }
@@ -1706,6 +1766,84 @@ fn socket_kind(category: &str) -> &'static str {
 /// can switch to), mod sockets (with the mods you own), kill trackers and flavour text.
 /// `item` is Bungie's item endpoint answer (components 300,302,304,305,309,310); `plug_sets` the
 /// profile's and characters' plug sets (component 105), for mod choices.
+/// Every item's card details from one profile read (components 102, 201, 205, 300, 304, 305, 309, 310), kept so a card
+/// opens without asking Bungie about that item: { states: { instance: state }, instances, stats, sockets,
+/// reusablePlugs, plugObjectives } (the last five keyed by instance, as Bungie sends them).
+pub fn item_parts(profile: &Value) -> Value {
+    let mut states = Map::new();
+    let mut note = |section: &Value| {
+        for item in items_of(section) {
+            if let (Some(id), Some(state)) = (item["itemInstanceId"].as_str(), item["state"].as_i64()) {
+                states.insert(id.to_string(), json!(state));
+            }
+        }
+    };
+    note(&profile["profileInventory"]["data"]);
+    for key in ["characterInventories", "characterEquipment"] {
+        if let Some(chars) = profile[key]["data"].as_object() {
+            for section in chars.values() {
+                note(section);
+            }
+        }
+    }
+    let parts = &profile["itemComponents"];
+    json!({
+        "states": states,
+        "instances": parts["instances"]["data"],
+        "stats": parts["stats"]["data"],
+        "sockets": parts["sockets"]["data"],
+        "reusablePlugs": parts["reusablePlugs"]["data"],
+        "plugObjectives": parts["plugObjectives"]["data"],
+    })
+}
+
+/// One item in the shape Bungie's item endpoint answers with, from `item_parts` (None when it isn't there).
+pub fn item_from_parts(parts: &Value, instance: &str) -> Option<Value> {
+    if !parts["sockets"][instance].is_object() || !parts["instances"][instance].is_object() {
+        return None;
+    }
+    Some(json!({
+        "item": { "data": { "state": parts["states"][instance] } },
+        "instance": { "data": parts["instances"][instance] },
+        "stats": { "data": parts["stats"][instance] },
+        "sockets": { "data": parts["sockets"][instance] },
+        "reusablePlugs": { "data": parts["reusablePlugs"][instance] },
+        "plugObjectives": { "data": parts["plugObjectives"][instance] },
+    }))
+}
+
+/// Reads ahead (in the background) the definitions every weapon and armor card in the inventory needs, a few at a
+/// time; they're kept on disk, so this only costs anything the first time after a game update.
+pub async fn prefetch_cards(profile: &Value, m: &Manifest) {
+    let mut hashes: HashSet<u64> = HashSet::new();
+    let mut note = |section: &Value| {
+        for item in items_of(section) {
+            let Some(hash) = item["itemHash"].as_u64() else { continue };
+            if item["itemInstanceId"].is_string() && m.items.get(&(hash as u32)).is_some_and(|d| d.kind == 2 || d.kind == 3) {
+                hashes.insert(hash);
+            }
+        }
+    };
+    note(&profile["profileInventory"]["data"]);
+    for key in ["characterInventories", "characterEquipment"] {
+        if let Some(chars) = profile[key]["data"].as_object() {
+            for section in chars.values() {
+                note(section);
+            }
+        }
+    }
+    let list: Vec<u64> = hashes.into_iter().collect();
+    for chunk in list.chunks(40) {
+        let defs = entities("DestinyInventoryItemDefinition", chunk).await;
+        let groups: Vec<u64> = defs.values().filter_map(|d| d["stats"]["statGroupHash"].as_u64()).collect::<HashSet<_>>().into_iter().collect();
+        let cats: Vec<u64> = defs.values().flat_map(|d| d["sockets"]["socketCategories"].as_array().cloned().unwrap_or_default()).filter_map(|c| c["socketCategoryHash"].as_u64()).collect::<HashSet<_>>().into_iter().collect();
+        let group_defs = entities("DestinyStatGroupDefinition", &groups).await;
+        let stats: Vec<u64> = group_defs.values().flat_map(|g| g["scaledStats"].as_array().cloned().unwrap_or_default()).filter_map(|x| x["statHash"].as_u64()).collect::<HashSet<_>>().into_iter().collect();
+        entities("DestinyStatDefinition", &stats).await;
+        entities("DestinySocketCategoryDefinition", &cats).await;
+    }
+}
+
 pub async fn item_details(item: &Value, hash: u64, plug_sets: &Value, m: &Manifest) -> Value {
     let def = entity("DestinyInventoryItemDefinition", hash).await.unwrap_or(Value::Null);
     let mini = m.items.get(&(hash as u32)).cloned().unwrap_or_default();
@@ -1713,12 +1851,21 @@ pub async fn item_details(item: &Value, hash: u64, plug_sets: &Value, m: &Manife
     // Stats, in the stat group's order; numbers-only ones (RPM, magazine) without bars.
     let values = &item["stats"]["data"]["stats"];
     let mut stats = Vec::new();
-    if let Some(group) = def["stats"]["statGroupHash"].as_u64() {
-        if let Some(g) = entity("DestinyStatGroupDefinition", group).await {
+    // The stat group, then its stats and the socket categories, each batch read at once (and kept on disk).
+    let group = match def["stats"]["statGroupHash"].as_u64() {
+        Some(h) => entity("DestinyStatGroupDefinition", h).await,
+        None => None,
+    };
+    let stat_hashes: Vec<u64> = group.iter().flat_map(|g| g["scaledStats"].as_array().cloned().unwrap_or_default()).filter_map(|x| x["statHash"].as_u64()).collect();
+    let category_hashes: Vec<u64> = def["sockets"]["socketCategories"].as_array().into_iter().flatten().filter_map(|c| c["socketCategoryHash"].as_u64()).collect();
+    let stat_defs = entities("DestinyStatDefinition", &stat_hashes).await;
+    let category_defs = entities("DestinySocketCategoryDefinition", &category_hashes).await;
+    if let Some(g) = &group {
+        {
             for scaled in g["scaledStats"].as_array().into_iter().flatten() {
                 let Some(stat) = scaled["statHash"].as_u64() else { continue };
                 let Some(value) = values[stat.to_string()]["value"].as_i64() else { continue };
-                let Some(sd) = entity("DestinyStatDefinition", stat).await else { continue };
+                let Some(sd) = stat_defs.get(&stat) else { continue };
                 let name = sd["displayProperties"]["name"].as_str().unwrap_or("");
                 if name.is_empty() {
                     continue;
@@ -1746,10 +1893,7 @@ pub async fn item_details(item: &Value, hash: u64, plug_sets: &Value, m: &Manife
     let mut sockets = Vec::new();
     for category in def["sockets"]["socketCategories"].as_array().into_iter().flatten() {
         let Some(cat_hash) = category["socketCategoryHash"].as_u64() else { continue };
-        let cat_name = entity("DestinySocketCategoryDefinition", cat_hash)
-            .await
-            .and_then(|c| c["displayProperties"]["name"].as_str().map(str::to_string))
-            .unwrap_or_default();
+        let cat_name = category_defs.get(&cat_hash).and_then(|c| c["displayProperties"]["name"].as_str().map(str::to_string)).unwrap_or_default();
         let kind = socket_kind(&cat_name);
         for index in category["socketIndexes"].as_array().into_iter().flatten().filter_map(|i| i.as_u64()) {
             let socket = &current.get(index as usize).cloned().unwrap_or(Value::Null);

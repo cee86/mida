@@ -1343,3 +1343,13 @@ html[data-motion="reduce"] .toolbar__progress::before { left: 0; width: 100%; }
 .updating-bar { height: 6px; margin: 16px 0 12px; border-radius: 3px; background: var(--hover); overflow: hidden; }
 .updating-bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s ease; }
 .dialog--updating.is-installing .updating-bar span { animation: pulse 1s ease-in-out infinite; }
+
+/* Loading bars (tabs.js progressBar): a thin track with a fill in the accent colour, and what's happening under it. */
+.load { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(420px, 80%); margin: 6px auto 0; }
+.load-bar { position: relative; width: 100%; height: 4px; overflow: hidden; background: color-mix(in srgb, var(--cream) 14%, transparent); }
+.load-bar__fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.55); transition: width 0.12s linear; }
+.load-step { margin: 0; min-height: 1.2em; color: var(--mist); font-size: 0.82rem; text-align: center; }
+.sh-loading { padding: 14px 0 4px; }
+.sh-loading .load { margin: 0 auto; }
+/* A kept-alive tab's own box (tabs.js): it takes no space of its own, the tab inside lays out as before. */
+.tab-host { display: contents; }

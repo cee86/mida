@@ -222,18 +222,73 @@ function signIn(ctx, id) {
   );
 }
 
-// Data read from Bungie, shared by the tabs and kept for a minute.
+// Data read from Bungie, shared by the tabs and kept for five minutes (moves clear the inventory's copy).
 const cache = { inventory: null, activity: null };
 async function read(ctx, which, fresh) {
   const entry = cache[which];
-  if (!fresh && entry && Date.now() - entry.at < 60_000) return entry.result;
-  const result = await (which === "inventory" ? ctx.hub.d2Inventory() : ctx.hub.d2Activity());
-  cache[which] = { at: Date.now(), result };
+  // A read still on its way is shared too (Quests and the Seasonal Hub both want "activity").
+  if (!fresh && entry && Date.now() - entry.at < 5 * 60_000) return entry.promise;
+  const promise = which === "inventory" ? ctx.hub.d2Inventory() : ctx.hub.d2Activity();
+  cache[which] = { at: Date.now(), promise };
+  const result = await promise;
+  // Failures aren't kept: the next try asks again.
+  if (!result?.ok && cache[which]?.promise === promise) cache[which] = null;
   return result;
 }
 
-function loadingView(ctx, text) {
-  return ctx.el("div", { class: "tab tab--signin" }, ctx.el("div", { class: "signin" }, ctx.el("div", { class: "spinner", "aria-hidden": "true" }), ctx.el("p", { class: "tab__lede", text })));
+// The app's progress messages (lib.rs `progress`), passed on to every bar on screen.
+window.hub?.onProgress?.((p) => window.dispatchEvent(new CustomEvent("mida-progress", { detail: p })));
+
+// A loading bar with a line under it saying what's happening. It follows the app's progress messages for `task`
+// ("inventory", "activity", "seasonal", "vendors") and the game data download every tab shares ("manifest"), and in
+// between creeps forward on its own (never past 95%) so a slow answer still shows movement. It stops itself once
+// it's off the screen.
+function progressBar(ctx, task, text) {
+  const { el } = ctx;
+  const fill = el("span", { class: "load-bar__fill" });
+  const bar = el("div", { class: "load-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "0", "aria-label": text }, fill);
+  const step = el("p", { class: "load-step", text: text ?? "" });
+  const node = el("div", { class: "load" }, bar, step);
+  const born = performance.now();
+  let target = 0.04;
+  let since = born;
+  let shown = 0;
+  let download = null; // the game data download, while it runs
+  let seen = false;
+  const onProgress = (event) => {
+    const p = event.detail ?? {};
+    if (p.task === "manifest") {
+      download = p.fraction < 1 ? p : null;
+      if (download) step.textContent = p.label;
+    } else if (task && p.task === task && p.fraction > target) {
+      target = p.fraction;
+      since = performance.now();
+      if (!download) step.textContent = p.label;
+    }
+  };
+  const tick = () => {
+    if (node.isConnected) seen = true;
+    else if (seen || performance.now() - born > 3000) return stop();
+    // The download fills its own part of the bar (15% to 60%): it's the slow part the first time after an update.
+    const goal = download ? 0.15 + 0.45 * download.fraction : target;
+    const creep = Math.min(0.95, goal + (1 - goal) * 0.3 * (1 - Math.exp(-(performance.now() - since) / 5000)));
+    shown += (Math.max(shown, creep) - shown) * 0.25;
+    fill.style.width = `${(shown * 100).toFixed(1)}%`;
+    bar.setAttribute("aria-valuenow", String(Math.round(shown * 100)));
+  };
+  const timer = setInterval(tick, 100);
+  function stop() {
+    clearInterval(timer);
+    window.removeEventListener("mida-progress", onProgress);
+  }
+  window.addEventListener("mida-progress", onProgress);
+  tick();
+  return node;
+}
+
+function loadingView(ctx, text, task = null) {
+  const { el } = ctx;
+  return el("div", { class: "tab tab--signin" }, el("div", { class: "signin" }, el("p", { class: "tab__lede", text }), progressBar(ctx, task, "Starting…")));
 }
 
 function problemView(ctx, error, retry) {
@@ -321,7 +376,7 @@ function vendors(ctx, container) {
 // ---------- Seasonal Hub ----------
 
 function seasonal(ctx, container) {
-  seasonalHub(ctx, container, { read, loadingView, problemView, until, characterPicker, questCard, lastCharacter });
+  seasonalHub(ctx, container, { read, loadingView, problemView, progressBar, until, characterPicker, questCard, lastCharacter });
 }
 
 // ---------- Inventory (inventory.js) ----------
@@ -346,6 +401,7 @@ const accountKey = (ctx) => {
 
 // seals.report's answer for the Rotators tab: this week as the site works it out, its saved schedules and card art.
 let remoteRotators = null; // { saved, art, week } from d2_rotators
+const hosts = new Map(); // signed-in tab id -> { key, at, node, scrolls }: built tabs kept while another is open
 let rotatorsAskedAt = 0;
 
 window.midaTabs = {
@@ -354,8 +410,24 @@ window.midaTabs = {
     container.midaCtx = ctx;
     container.dataset.account = accountKey(ctx);
     if (SIGNED_IN[id]) {
-      if (ctx.state.account?.signedIn) SIGNED_IN[id](ctx, container);
-      else container.replaceChildren(signIn(ctx, id));
+      if (!ctx.state.account?.signedIn) return container.replaceChildren(signIn(ctx, id));
+      // Signed-in tabs stay built while another tab is open, so coming back is instant (scroll positions too).
+      // Each draws into its own host element, so a read that finishes after you've left lands in the right place.
+      // Rebuilt after half an hour or when the account changes; Refresh in each tab reads again any time.
+      const key = accountKey(ctx);
+      const kept = hosts.get(id);
+      if (kept && kept.key === key && Date.now() - kept.at < 30 * 60e3) {
+        container.replaceChildren(kept.node);
+        for (const [node, top] of kept.scrolls) if (kept.node.contains(node)) node.scrollTop = top;
+        kept.node.midaShown?.();
+        return;
+      }
+      const host = { key, at: Date.now(), node: ctx.el("div", { class: "tab-host" }), scrolls: new Map() };
+      // Scroll events don't bubble, but a capturing listener here still hears every scroller inside.
+      host.node.addEventListener("scroll", (event) => event.target instanceof Element && host.scrolls.set(event.target, event.target.scrollTop), true);
+      hosts.set(id, host);
+      container.replaceChildren(host.node);
+      SIGNED_IN[id](ctx, host.node);
       return;
     }
     container.replaceChildren((BUILDERS[id] ?? ((c) => signIn(c, id)))(ctx));
@@ -384,6 +456,7 @@ window.midaTabs = {
   update(id, container, ctx) {
     if (SIGNED_IN[id] && container.dataset.account !== accountKey(ctx)) {
       cache.inventory = cache.activity = null;
+      hosts.clear();
       this.mount(id, container, ctx);
     }
   },

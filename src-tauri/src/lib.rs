@@ -114,6 +114,7 @@ struct Hub {
     account_error: Mutex<Option<String>>,
     manifest: tokio::sync::Mutex<Option<Arc<bungie::Manifest>>>,
     plug_sets: Mutex<Option<(u64, Value)>>, // the account's plug sets and when they were read
+    item_parts: Mutex<Option<(u64, Value)>>, // every item's card details (bungie::item_parts) and when they were read
 }
 
 fn hub(app: &AppHandle) -> tauri::State<'_, Hub> {
@@ -202,6 +203,12 @@ fn ours(target: &EventTarget) -> bool {
 
 fn emit_state(app: &AppHandle) {
     let _ = app.emit_filter("state", public_state(app), ours);
+}
+
+/// How far along something the shell is waiting for is (its loading bars): `task` is what's loading ("inventory",
+/// "activity", "seasonal", "vendors", or "manifest" for the game data every tab shares), `fraction` 0 to 1.
+fn progress(app: &AppHandle, task: &str, fraction: f64, label: &str) {
+    let _ = app.emit_filter("progress", json!({ "task": task, "fraction": fraction, "label": label }), |t| matches!(t, EventTarget::Webview { label } if label == SHELL));
 }
 
 fn update_status(app: &AppHandle, id: &str, change: impl FnOnce(&mut Status)) {
@@ -1070,11 +1077,16 @@ async fn d2_inventory(webview: Webview, app: AppHandle) -> Value {
     }
     answer(
         async {
+            progress(&app, "inventory", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
+            progress(&app, "inventory", 0.15, "Reading Destiny's game data");
             let m = manifest(&app).await?;
+            progress(&app, "inventory", 0.35, "Reading your characters and vault from Bungie");
             let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,103,200,201,205,300,305").await?;
+            progress(&app, "inventory", 0.8, "Sorting your items");
             let mut data = bungie::shape_inventory(&profile, &m);
             bungie::decorate_inventory(&mut data).await;
+            read_cards_ahead(&app, &a, &m);
             Ok(data)
         }
         .await,
@@ -1088,9 +1100,13 @@ async fn d2_activity(webview: Webview, app: AppHandle) -> Value {
     }
     answer(
         async {
+            progress(&app, "activity", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
+            progress(&app, "activity", 0.15, "Reading Destiny's game data");
             let m = manifest(&app).await?;
+            progress(&app, "activity", 0.35, "Reading your quests and bounties from Bungie");
             let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,104,200,201,202,300,301").await?;
+            progress(&app, "activity", 0.7, "Reading quest details");
             let mut data = bungie::shape_activity(&profile, &m);
             bungie::enrich_quests(&mut data, &m).await;
             data["season"] = bungie::season(&profile, &a.access).await;
@@ -1148,6 +1164,32 @@ async fn plug_sets(app: &AppHandle, a: &auth::Account) -> Value {
     v
 }
 
+/// Right after the inventory loads, in the background: every item's card details in one profile read, the account's
+/// plug sets, and the definitions the weapon and armor cards need, so cards open without waiting on Bungie.
+fn read_cards_ahead(app: &AppHandle, a: &auth::Account, m: &Arc<bungie::Manifest>) {
+    let (app, a, m) = (app.clone(), a.clone(), m.clone());
+    tauri::async_runtime::spawn(async move {
+        let fresh = hub(&app).item_parts.lock().unwrap().as_ref().is_some_and(|(at, _)| auth::now() < at + 120);
+        if fresh {
+            return;
+        }
+        if let Ok(profile) = bungie::profile(a.membership_type, &a.membership_id, &a.access, "102,201,205,300,304,305,309,310").await {
+            *hub(&app).item_parts.lock().unwrap() = Some((auth::now(), bungie::item_parts(&profile)));
+            plug_sets(&app, &a).await;
+            bungie::prefetch_cards(&profile, &m).await;
+        }
+    });
+}
+
+/// After a lock or a perk/mod change, that item's saved details are out of date: the next card asks Bungie.
+fn forget_card(app: &AppHandle, instance: &str) {
+    if let Some((_, parts)) = hub(app).item_parts.lock().unwrap().as_mut() {
+        if let Some(sockets) = parts["sockets"].as_object_mut() {
+            sockets.remove(instance);
+        }
+    }
+}
+
 /// An item's card (hover/click in Inventory).
 #[tauri::command]
 async fn d2_item(webview: Webview, app: AppHandle, instance: String, hash: u32) -> Value {
@@ -1158,7 +1200,16 @@ async fn d2_item(webview: Webview, app: AppHandle, instance: String, hash: u32) 
         async {
             let a = account(&app).await?;
             let m = manifest(&app).await?;
-            let item = bungie::item(a.membership_type, &a.membership_id, &a.access, &instance).await?;
+            // From the profile read made right after the inventory loaded, when it has this item; else ask Bungie.
+            let cached = {
+                let state = hub(&app);
+                let parts = state.item_parts.lock().unwrap();
+                parts.as_ref().filter(|(at, _)| auth::now() < at + 900).and_then(|(_, p)| bungie::item_from_parts(p, &instance))
+            };
+            let item = match cached {
+                Some(item) => item,
+                None => bungie::item(a.membership_type, &a.membership_id, &a.access, &instance).await?,
+            };
             let sets = plug_sets(&app, &a).await;
             Ok(bungie::item_details(&item, hash as u64, &sets, &m).await)
         }
@@ -1175,6 +1226,7 @@ async fn d2_lock(webview: Webview, app: AppHandle, instance: String, character: 
         async {
             let a = account(&app).await?;
             bungie::set_lock(a.membership_type, &a.access, &instance, &character, locked).await?;
+            forget_card(&app, &instance);
             Ok(Value::Null)
         }
         .await,
@@ -1190,6 +1242,7 @@ async fn d2_plug(webview: Webview, app: AppHandle, instance: String, character: 
         async {
             let a = account(&app).await?;
             bungie::insert_plug(a.membership_type, &a.access, &instance, &character, socket as u64, plug as u64).await?;
+            forget_card(&app, &instance);
             Ok(Value::Null)
         }
         .await,
@@ -1241,10 +1294,15 @@ async fn d2_seasonal(webview: Webview, app: AppHandle, character: String) -> Val
     }
     answer(
         async {
+            progress(&app, "seasonal", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
+            progress(&app, "seasonal", 0.15, "Reading Destiny's game data");
             let m = manifest(&app).await?;
+            progress(&app, "seasonal", 0.3, "Reading your season from Bungie");
             let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,104,201,202,300,301,900").await?;
+            progress(&app, "seasonal", 0.55, "Reading the hub's vendors");
             let vendors = bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access).await.unwrap_or(Value::Null);
+            progress(&app, "seasonal", 0.8, "Putting the hub together");
             Ok(bungie::seasonal(&profile, &vendors, &character, &m).await)
         }
         .await,
@@ -1259,9 +1317,13 @@ async fn d2_vendors(webview: Webview, app: AppHandle, character: String) -> Valu
     }
     answer(
         async {
+            progress(&app, "vendors", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
+            progress(&app, "vendors", 0.15, "Reading Destiny's game data");
             let m = manifest(&app).await?;
+            progress(&app, "vendors", 0.3, "Reading the vendors from Bungie");
             let vendors = bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access).await?;
+            progress(&app, "vendors", 0.6, "Reading what they sell");
             Ok(bungie::vendor_screen(&vendors, &m).await)
         }
         .await,
@@ -1818,6 +1880,7 @@ pub fn run() {
                 account_error: Mutex::new(None),
                 manifest: tokio::sync::Mutex::new(None),
                 plug_sets: Mutex::new(None),
+                item_parts: Mutex::new(None),
                 dir: dir.clone(),
                 store: Mutex::new(Store::open(dir)),
                 statuses: Mutex::new(HashMap::new()),
@@ -1828,6 +1891,9 @@ pub fn run() {
                 creating: Mutex::new(()),
                 icon_tried: Mutex::new(HashSet::new()),
             });
+            // The game data download reports its progress to the shell's loading bars.
+            let reporter = app.handle().clone();
+            bungie::set_reporter(Box::new(move |task, fraction, label| progress(&reporter, task, fraction, label)));
             let handle = app.handle().clone();
             create_window(&handle)?;
 

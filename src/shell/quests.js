@@ -348,7 +348,7 @@ export function questsTab(ctx, container, { read: readData, loadingView, problem
   }
 
   async function load(fresh) {
-    container.replaceChildren(loadingView(ctx, "Reading your quests from Bungie…"));
+    container.replaceChildren(loadingView(ctx, "Reading your quests from Bungie…", "activity"));
     const result = await readData(ctx, "activity", fresh);
     if (!result?.ok) return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
     data = result.data;

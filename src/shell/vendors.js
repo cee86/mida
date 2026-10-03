@@ -215,7 +215,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
 
   async function load(fresh) {
     if (!characters.length || fresh) {
-      container.replaceChildren(loadingView(ctx, "Reading your characters from Bungie…"));
+      container.replaceChildren(loadingView(ctx, "Reading your characters from Bungie…", "activity"));
       const activity = await read(ctx, "activity", fresh);
       if (!activity?.ok) return container.replaceChildren(problemView(ctx, activity?.error ?? "Something went wrong.", () => load(true)));
       characters = activity.data.characters ?? [];
@@ -223,7 +223,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     const id = chosen();
     if (!id) return container.replaceChildren(problemView(ctx, "Bungie listed no characters on this account.", () => load(true)));
     if (fresh || !byCharacter[id]) {
-      container.replaceChildren(loadingView(ctx, "Reading the vendors from Bungie… (the first time takes a little longer)"));
+      container.replaceChildren(loadingView(ctx, "Reading the vendors from Bungie… (the first time takes a little longer)", "vendors"));
       const result = await ctx.hub.d2Vendors(id);
       if (!result?.ok) return container.replaceChildren(problemView(ctx, result?.error ?? "Something went wrong.", () => load(true)));
       byCharacter[id] = result.data;
