@@ -37,7 +37,7 @@
 .rt-card__strip {
   display: grid;
   place-items: center;
-  height: 64px;
+  height: 96px; /* the same with or without a picture, so cards in a row line up */
   margin: 0 -14px 4px;
   background:
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 9px),
@@ -86,3 +86,6 @@
   .rt-row__kicker, .rt-row__place { display: none; }
   .rt-row__body { padding-left: 0; }
 }
+
+/* A card with the activity's own art (from seals.report): the picture fills the strip, like its cards. */
+.rt-card .rt-card__strip.has-art { background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #111; }

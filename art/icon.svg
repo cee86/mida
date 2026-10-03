@@ -1,24 +1,42 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- MIDA's app icon: a ring of modules around a sun-orange star, in seals.report's colours. -->
+  <!-- MIDA's app icon: the MIDA Multi-Tool as a one-colour silhouette (from the owner's abstract drawing). The
+       cut-outs (grip holes, the seam between barrel and frame, the magazine's ribs) are see-through. -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1c1f24"/>
-      <stop offset="1" stop-color="#0d1624"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#f19a3f" stop-opacity="0.35"/>
-      <stop offset="1" stop-color="#f19a3f" stop-opacity="0"/>
-    </radialGradient>
+    <mask id="cuts">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g fill="#000">
+        <path d="M378 386c16 0 28 12 28 27 0 17-12 29-28 29-15 0-27-12-27-28 0-16 12-28 27-28z"/>
+        <rect x="352" y="498" width="58" height="76" rx="27"/>
+        <rect x="442" y="112" width="7" height="300" rx="3"/>
+        <rect x="453" y="270" width="7" height="140" rx="3"/>
+        <path d="M200 560l85-12 3 16-88 12z"/>
+        <path d="M195 600l92-10 3 16-95 11z"/>
+        <path d="M192 640l100-8 2 16-103 9z"/>
+        <circle cx="478" cy="368" r="9"/>
+        <circle cx="478" cy="650" r="9"/>
+      </g>
+    </mask>
   </defs>
-  <rect x="32" y="32" width="960" height="960" rx="200" fill="url(#bg)"/>
-  <rect x="32" y="32" width="960" height="960" rx="200" fill="none" stroke="#33383f" stroke-width="12"/>
-  <circle cx="512" cy="512" r="300" fill="url(#glow)"/>
-  <circle cx="512" cy="512" r="300" fill="none" stroke="#d9b867" stroke-opacity="0.85" stroke-width="30"/>
-  <circle cx="512" cy="512" r="236" fill="none" stroke="#d9b867" stroke-opacity="0.35" stroke-width="10"/>
-  <g fill="#f1e6d2">
-    <circle cx="512" cy="212" r="42"/>
-    <circle cx="772" cy="662" r="42"/>
-    <circle cx="252" cy="662" r="42"/>
+  <g fill="#f19a3f" mask="url(#cuts)" transform="translate(512 512) scale(1.2) translate(-377 -462)">
+    <!-- barrel, with its cap -->
+    <rect x="393" y="98" width="62" height="380" rx="6"/>
+    <rect x="414" y="78" width="32" height="30" rx="7"/>
+    <!-- frame: the long light piece, ending in a pointed tip at the top -->
+    <path d="M445 96h40l4-22 17-6 9 10v432l-15 40v228l-8 30h-47z"/>
+    <!-- sight and its mounts -->
+    <rect x="508" y="352" width="28" height="30" rx="4"/>
+    <rect x="508" y="446" width="28" height="26" rx="4"/>
+    <rect x="522" y="316" width="58" height="42" rx="10"/>
+    <rect x="531" y="350" width="40" height="128" rx="6"/>
+    <circle cx="549" cy="414" r="30"/>
+    <rect x="535" y="468" width="42" height="42" rx="8"/>
+    <!-- upper grip -->
+    <path d="M432 344H346c-26 6-38 30-30 58l12 32c4 24 18 38 40 38h64z"/>
+    <!-- lower body -->
+    <path d="M246 522l52-44 132-10h40v172l-48 62h-92l-26-58z"/>
+    <!-- magazine -->
+    <path d="M190 534l58-30 54 16 22 176-34 26-110-8-6-72z"/>
+    <!-- stock and foot -->
+    <path d="M330 690h92l30 70h44v90H304v-42l56-12z"/>
   </g>
-  <path d="M512 352 L548 476 L672 512 L548 548 L512 672 L476 548 L352 512 L476 476 Z" fill="#f19a3f"/>
 </svg>

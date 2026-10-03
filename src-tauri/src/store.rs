@@ -38,12 +38,18 @@ pub struct Profile {
     pub active_id: String,
     /// Built-in tabs switched on, in order (games that have them). None: all of them.
     pub tabs: Option<Vec<String>>,
+    /// Every built-in tab that existed when `tabs` was last saved: a tab added to MIDA later isn't in it, so it's
+    /// switched on once (added at the end) instead of staying hidden in a list saved before it existed.
+    pub tabs_known: Vec<String>,
     /// Two pages side by side: their ids, left then right (empty: one page). The open page is
     /// always one of them.
     pub panes: Vec<String>,
     /// The left pane's share of the width, in percent.
     pub split: u32,
 }
+
+/// The built-in tabs that existed before profiles noted which tabs they knew about (v0.8.5).
+const TABS_BEFORE_KNOWN: &[&str] = &["tab-inventory", "tab-seasonal", "tab-quests", "tab-rad", "tab-featured"];
 
 /// The built-in tabs a profile shows.
 pub fn enabled_tabs(game: &str, tabs: &Option<Vec<String>>) -> Vec<String> {
@@ -191,7 +197,23 @@ pub fn clean_profile(p: Profile) -> Option<Profile> {
         return None;
     }
     let game = if GAMES.iter().any(|g| g.id == p.game) { p.game } else { CUSTOM_GAME.to_string() };
-    let tabs = if tabs_for(&game).is_empty() { None } else { p.tabs.as_ref().map(|_| enabled_tabs(&game, &p.tabs)) };
+    let all_tabs = tabs_for(&game);
+    let tabs = if all_tabs.is_empty() {
+        None
+    } else {
+        p.tabs.as_ref().map(|_| {
+            let mut list = enabled_tabs(&game, &p.tabs);
+            // Files from before `tabs_known` (v0.8.5 and earlier) knew the tabs up to Rotators.
+            let known: Vec<&str> = if p.tabs_known.is_empty() { TABS_BEFORE_KNOWN.to_vec() } else { p.tabs_known.iter().map(String::as_str).collect() };
+            for t in &all_tabs {
+                if !known.contains(t) && !list.iter().any(|l| l == t) {
+                    list.push(t.to_string());
+                }
+            }
+            list
+        })
+    };
+    let tabs_known = all_tabs.iter().map(|t| t.to_string()).collect();
     let name = clean_text(&p.name, 32);
     let mut out = Profile {
         id: p.id,
@@ -202,6 +224,7 @@ pub fn clean_profile(p: Profile) -> Option<Profile> {
         modules: clean_modules(&p.modules),
         active_id: HOME.to_string(),
         tabs,
+        tabs_known,
         panes: Vec::new(),
         split: if (20..=80).contains(&p.split) { p.split } else { 50 },
     };
@@ -341,6 +364,17 @@ mod tests {
         // The old top-level fields are never written back.
         let saved: serde_json::Value = serde_json::to_value(&s).unwrap();
         assert!(saved.get("modules").is_none() && saved.get("activeId").is_none());
+    }
+
+    #[test]
+    fn new_tabs_appear_once() {
+        // A list saved before Vendors existed (no tabs_known): Vendors is added at the end, order kept.
+        let old = Profile { id: "p-1".into(), game: "destiny2".into(), tabs: Some(vec!["tab-featured".into(), "tab-inventory".into()]), ..Profile::default() };
+        let p = clean_profile(old).unwrap();
+        assert_eq!(p.tabs.as_deref().unwrap(), ["tab-featured", "tab-inventory", "tab-vendors"]);
+        // Hidden after that (it's known now): it stays hidden.
+        let hidden = Profile { tabs: Some(vec!["tab-featured".into()]), ..p };
+        assert_eq!(clean_profile(hidden).unwrap().tabs.as_deref().unwrap(), ["tab-featured"]);
     }
 
     #[test]

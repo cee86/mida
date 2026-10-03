@@ -5,7 +5,8 @@
 .qs-layout { display: grid; grid-template-columns: 64px minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
 
 /* Quest types: icons only, the name and count in a hover label like the collapsed sidebar. */
-.qs-nav { position: sticky; top: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: var(--glass); backdrop-filter: var(--glass-blur); border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); }
+/* z-index: the hover names reach past the column, over the tiles (which have their own blur layers). */
+.qs-nav { position: sticky; top: 0; z-index: 10; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: var(--glass); backdrop-filter: var(--glass-blur); border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); }
 .qs-nav__item { position: relative; display: grid; place-items: center; width: 50px; height: 50px; border: 1px solid transparent; background: transparent; color: var(--mist); cursor: pointer; }
 .qs-nav__item svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .qs-nav__item:hover, .qs-nav__item:focus-visible { background: var(--hover); color: var(--cream); }
@@ -89,3 +90,7 @@
   .qs-nav { position: static; flex-direction: row; flex-wrap: wrap; }
   .qs-nav__name { display: none; }
 }
+
+/* Expansion buttons under the types: the expansion's letters in a small frame. */
+.qs-nav__rule { display: block; height: 1px; margin: 4px 6px; background: color-mix(in srgb, var(--cream) 22%, transparent); }
+.qs-nav__dlc { display: grid; place-items: center; width: 32px; height: 24px; border: 1px solid currentColor; font-family: var(--font-display); font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; background: color-mix(in srgb, currentColor 12%, transparent); }

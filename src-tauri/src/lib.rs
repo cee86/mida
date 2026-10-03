@@ -1251,6 +1251,23 @@ async fn d2_seasonal(webview: Webview, app: AppHandle, character: String) -> Val
     )
 }
 
+/// The Vendors tab: every vendor the character can visit and what they sell.
+#[tauri::command]
+async fn d2_vendors(webview: Webview, app: AppHandle, character: String) -> Value {
+    if !from_shell(&webview) || !is_id(&character) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let m = manifest(&app).await?;
+            let vendors = bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access).await?;
+            Ok(bungie::vendor_screen(&vendors, &m).await)
+        }
+        .await,
+    )
+}
+
 /// A past (or current) season pass's track, for the Seasonal Hub's dropdown.
 #[tauri::command]
 async fn d2_pass(webview: Webview, app: AppHandle, character: String, pass: u64, season: u64) -> Value {
@@ -1300,16 +1317,35 @@ async fn d2_loadout(webview: Webview, app: AppHandle, character: String, index: 
     )
 }
 
-/// seals.report's rotator corrections for the Featured tab (public data; empty when offline).
+/// seals.report's rotator corrections and activity art for the Rotators tab (public data; empty when
+/// offline): `{ saved: {...}, art: { activity name: bungie.net picture address } }`.
 #[tauri::command]
 async fn d2_rotators(webview: Webview) -> Value {
+    let empty = json!({ "saved": {}, "art": {} });
     if !from_shell(&webview) {
-        return json!({});
+        return empty;
     }
     let res = reqwest::Client::new().get(format!("{}/api/mida/rotators", auth::SITE)).timeout(Duration::from_secs(10)).send().await;
-    let Ok(res) = res else { return json!({}) };
-    let Ok(bytes) = res.bytes().await else { return json!({}) };
-    serde_json::from_slice::<Value>(&bytes).ok().map(|v| v["saved"].clone()).filter(|v| v.is_object()).unwrap_or_else(|| json!({}))
+    let Ok(res) = res else { return empty };
+    let Ok(bytes) = res.bytes().await else { return empty };
+    let Ok(body) = serde_json::from_slice::<Value>(&bytes) else { return empty };
+    json!({
+        "saved": body["saved"].as_object().map(|o| Value::Object(o.clone())).unwrap_or_else(|| json!({})),
+        "art": rotator_art(&body["art"]),
+    })
+}
+
+/// Only Bungie picture addresses get through (the shell's security policy would block others anyway).
+fn rotator_art(art: &Value) -> Value {
+    let kept: serde_json::Map<String, Value> = art
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(name, url)| name.len() <= 120 && url.as_str().is_some_and(|u| u.starts_with("https://www.bungie.net/") && u.len() < 400 && !u.contains(['"', '\\', ')', '(', ' '])))
+        .take(300)
+        .map(|(name, url)| (name.clone(), url.clone()))
+        .collect();
+    Value::Object(kept)
 }
 
 #[tauri::command]
@@ -1364,7 +1400,10 @@ async fn set_split(webview: Webview, app: AppHandle, percent: u32) {
 #[tauri::command]
 async fn set_tabs(webview: Webview, app: AppHandle, ids: Vec<String>) {
     if from_shell(&webview) && ids.len() <= 16 {
-        hub(&app).store.lock().unwrap().update_profile(|p| p.tabs = Some(ids));
+        hub(&app).store.lock().unwrap().update_profile(|p| {
+            p.tabs = Some(ids);
+            p.tabs_known = modules::tabs_for(&p.game).iter().map(|t| t.to_string()).collect();
+        });
         ensure_pane_pages(&app);
         layout(&app);
         emit_state(&app);
@@ -1824,6 +1863,7 @@ pub fn run() {
             d2_plug,
             d2_loadout,
             d2_seasonal,
+            d2_vendors,
             d2_pass,
             d2_claim,
             d2_rotators,

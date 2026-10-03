@@ -51,6 +51,26 @@ const TIER_NAMES = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Uncommon", 2: "
 const clean = (text) => String(text ?? "").replace(/\[[^\]]*\]\s*/g, "").trim();
 const percent = (o) => (o.goal > 0 ? Math.min(100, Math.round((o.progress / o.goal) * 100)) : o.complete ? 100 : 0);
 
+// Destiny 2's expansions, newest first, for the DLC buttons under the types. A quest belongs to one when its trait
+// ids, quest line, name or text name it (Bungie has no expansion field on quests). Short = the button's letters.
+const DLCS = [
+  ["renegades", "Renegades", "RG", /renegades/],
+  ["edge-of-fate", "The Edge of Fate", "EF", /edge of fate|edge_of_fate|edgeoffate/],
+  ["final-shape", "The Final Shape", "FS", /final shape|final_shape|finalshape/],
+  ["lightfall", "Lightfall", "LF", /lightfall/],
+  ["witch-queen", "The Witch Queen", "WQ", /witch queen|witch_queen|witchqueen/],
+  ["beyond-light", "Beyond Light", "BL", /beyond light|beyond_light|beyondlight/],
+  ["shadowkeep", "Shadowkeep", "SK", /shadowkeep/],
+  ["forsaken", "Forsaken", "FK", /forsaken/],
+  ["warmind", "Warmind", "WM", /warmind/],
+  ["osiris", "Curse of Osiris", "CO", /curse of osiris|osiris/],
+  ["red-war", "The Red War", "RW", /red war|red_war|redwar/],
+];
+function dlcOf(q) {
+  const text = [...(q.traits ?? []), q.questLine, q.name, q.typeName, q.description, q.questLineDescription].filter(Boolean).join(" ").toLowerCase();
+  return DLCS.find(([, , , pattern]) => pattern.test(text))?.[0] ?? null;
+}
+
 // Bungie's category when the trait ids are missing (an older cache, or a definition that didn't load).
 function categoryOf(q) {
   if (q.category) return q.category;
@@ -263,24 +283,31 @@ export function questsTab(ctx, container, { read: readData, loadingView, problem
   function draw() {
     tip.hidden = true;
     const all = data.quests[chosen()] ?? [];
-    const counts = Object.fromEntries(CATEGORIES.map(([id]) => [id, id === "all" ? all.length : all.filter((q) => categoryOf(q) === id).length]));
+    // `category` is a type id ("exotic") or an expansion ("dlc:lightfall").
+    const matches = (id, q) => (id === "all" ? true : id.startsWith("dlc:") ? dlcOf(q) === id.slice(4) : categoryOf(q) === id);
+    const counts = {};
+    for (const [id] of CATEGORIES) counts[id] = all.filter((q) => matches(id, q)).length;
+    for (const [id] of DLCS) counts[`dlc:${id}`] = all.filter((q) => matches(`dlc:${id}`, q)).length;
     if (category !== "all" && !counts[category]) category = "all";
-    const shown = sorted(all.filter((q) => category === "all" || categoryOf(q) === category));
+    const shown = sorted(all.filter((q) => matches(category, q)));
     if (!shown.some((q) => q.id === picked)) picked = shown[0]?.id ?? null;
+    const button = (id, name, face) =>
+      el(
+        "button",
+        { class: "qs-nav__item", type: "button", "aria-label": `${name} (${counts[id]})`, "aria-current": String(category === id), onclick: () => ((category = id), write(CATEGORY_KEY, id), draw()) },
+        face,
+        el("span", { class: "qs-nav__name", text: name }),
+        el("span", { class: "qs-nav__count", text: String(counts[id]) }),
+      );
+    const dlcs = DLCS.filter(([id]) => counts[`dlc:${id}`]);
     const nav = el(
       "nav",
       { class: "qs-nav", "aria-label": "Quest types" },
-      ...CATEGORIES.filter(([id]) => id === "all" || counts[id]).map(([id, name, icon]) =>
-        el(
-          "button",
-          { class: "qs-nav__item", type: "button", title: name, "aria-label": `${name} (${counts[id]})`, "aria-current": String(category === id), onclick: () => ((category = id), write(CATEGORY_KEY, id), draw()) },
-          svg(icon),
-          el("span", { class: "qs-nav__name", text: name }),
-          el("span", { class: "qs-nav__count", text: String(counts[id]) }),
-        ),
-      ),
+      ...CATEGORIES.filter(([id]) => id === "all" || counts[id]).map(([id, name, icon]) => button(id, name, svg(icon))),
+      dlcs.length ? el("span", { class: "qs-nav__rule", "aria-hidden": "true" }) : null,
+      ...dlcs.map(([id, name, short]) => button(`dlc:${id}`, name, el("span", { class: "qs-nav__dlc", "aria-hidden": "true", text: short }))),
     );
-    const name = CATEGORIES.find(([id]) => id === category)?.[1] ?? "All quests";
+    const name = category.startsWith("dlc:") ? DLCS.find(([id]) => `dlc:${id}` === category)?.[1] : CATEGORIES.find(([id]) => id === category)?.[1] ?? "All quests";
     const ready = shown.filter((q) => q.complete).length;
     const main = el(
       "div",

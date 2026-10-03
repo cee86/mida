@@ -10,7 +10,7 @@
 // counted from known weeks (src/shell/d2, copied from seals.report) plus seals.report's saved
 // corrections; Bungie doesn't publish these schedules.
 
-import { featuredRotation, dreamingCityWeek, distortionSchedule } from "./d2/rotations.js";
+import { featuredRotation, dreamingCityWeek, distortionSchedule, distortionImages } from "./d2/rotations.js";
 import { ROTATORS, withSaved, rotatorNow } from "./d2/rotators.js";
 
 const VIEW_KEY = "mida-rot-view";
@@ -32,21 +32,25 @@ const write = (key, value) => {
   }
 };
 
+// The same views and icons as seals.report's Featured sidebar (Everything, Raids, Dungeons, Other activities).
 const VIEWS = [
-  ["all", "All", ["M12 3l3 3-3 3-3-3zM6 9l3 3-3 3-3-3zM18 9l3 3-3 3-3-3zM12 15l3 3-3 3-3-3z"]],
-  ["raids", "Raids", ["M6 21V4", "M6 4h11l-2.5 4L17 12H6"]],
-  ["dungeons", "Dungeons", ["M5 21V10a7 7 0 0 1 14 0v11", "M9 21v-6h6v6"]],
-  ["week", "This week", ["M4 6h16v14H4z", "M4 10h16M9 3v5M15 3v5"]],
-  ["today", "Today", ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7v5l3 2"]],
-  ["checklist", "Weekly checklist", ["M10 6h10M10 12h10M10 18h10", "M4 6l1.2 1.2L7.5 5M4 12l1.2 1.2L7.5 11M4 18l1.2 1.2L7.5 17"]],
+  ["all", "Everything", ["M12 3l3.6 3.6-3.6 3.6-3.6-3.6z", "M12 13.8l3.6 3.6-3.6 3.6-3.6-3.6z", "M6.6 8.4l3.6 3.6-3.6 3.6L3 12z", "M17.4 8.4L21 12l-3.6 3.6-3.6-3.6z"]],
+  ["raids", "Raids", ["M6 21V3", "M6 4.2h12l-3 4.2 3 4.2H6"]],
+  ["dungeons", "Dungeons", ["M4.8 21V10.8a7.2 7.2 0 0 1 14.4 0V21", "M9 21v-8.4a3 3 0 0 1 6 0V21", "M3 21h18"]],
+  ["other", "Other activities", ["M12 6.6a5.4 5.4 0 1 0 0 10.8 5.4 5.4 0 0 0 0-10.8z", "M2.42 15.49a10.2 3.12 -20 1 0 19.17-6.98a10.2 3.12 -20 1 0-19.17 6.98z"]],
 ];
+// Which sections each view shows (the grid's sections are seals.report's: Raids, Dungeons, This week, Today, checklist).
+const VIEW_SECTIONS = { all: null, raids: ["raids"], dungeons: ["dungeons"], other: ["week", "today", "checklist"] };
 const PIN = ["M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z", "M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"];
 const CLOCK = ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7v5l3 2"];
 
-export function rotatorsTab(ctx, { until, saved }) {
+export function rotatorsTab(ctx, { until, saved, art = () => ({}) }) {
   const { el, svg } = ctx;
   const now = Date.now();
   let view = read(VIEW_KEY, "all");
+  if (!(view in VIEW_SECTIONS)) view = "other"; // the old This week / Today / Checklist views
+  const pictures = art();
+  const distortionArt = distortionImages(pictures);
   let mode = read(MODE_KEY, "grid");
   let open = null; // the row opened from a card
 
@@ -67,6 +71,7 @@ export function rotatorsTab(ctx, { until, saved }) {
       place: a.destination,
       always: a.always,
       ends: a.ends,
+      image: pictures[a.name],
       note: a.always ? "Always featured." : `Next week: ${(a.kind === "raid" ? rotation.next.raids : rotation.next.dungeons).join(" and ")}.`,
     });
   }
@@ -80,6 +85,7 @@ export function rotatorsTab(ctx, { until, saved }) {
     name: city.ascendant.name,
     place: city.ascendant.location,
     detail: `Curse: ${city.curse.label}`,
+    image: pictures["The Dreaming City"],
     ends: city.weekEnd,
     note: "The Ascendant Challenge moves every week on a six-week loop; the curse grows over three weeks, then starts again.",
   });
@@ -91,6 +97,7 @@ export function rotatorsTab(ctx, { until, saved }) {
     name: distortion.destination,
     place: distortion.activity,
     ends: distortion.end,
+    image: distortionArt[distortion.activity],
     next: laterDistortions.map((d) => ({ when: localTime(d.start), name: `${d.destination} · ${d.activity}` })),
   });
   for (const def of ROTATORS) {
@@ -106,6 +113,8 @@ export function rotatorsTab(ctx, { until, saved }) {
       place: def.place,
       detail: at.current.detail,
       ends: at.ends,
+      // Like seals.report: the current entry's own activity (a strike, a mission) or one fixed activity.
+      image: pictures[def.art === "current" ? (at.unknown ? "" : at.current.name) : def.art ?? ""],
       unknown: at.unknown,
       next: at.next.map((n) => ({ when: localDate(n.starts), name: `${n.entry.name}${n.entry.detail ? ` · ${n.entry.detail}` : ""}` })),
       note: rotator.confirmed || def.reminder ? null : "Worked out from guide sites; may be off.",
@@ -124,6 +133,16 @@ export function rotatorsTab(ctx, { until, saved }) {
   const label = (title, extra) => el("div", { class: "sh-label" }, el("span", { class: "sh-label__text", text: title }), extra ? el("span", { class: "sh-label__count", text: extra }) : null);
   const timeLeft = (e) => (e.always ? el("span", { text: "Always featured" }) : e.ends ? until(ctx, e.ends) : el("span", { text: "" }));
 
+  // The picture strip: the activity's loading-screen art when seals.report has it, else a letter.
+  function strip(e) {
+    const node = el("span", { class: "rt-card__strip", "aria-hidden": "true" });
+    if (e.image) {
+      node.style.backgroundImage = `url("${e.image}")`;
+      node.classList.add("has-art");
+    } else node.append(el("span", { class: "rt-card__glyph", text: e.name.replace(/^The /, "").slice(0, 1) }));
+    return node;
+  }
+
   function cardFor(e) {
     return el(
       "button",
@@ -139,7 +158,7 @@ export function rotatorsTab(ctx, { until, saved }) {
           requestAnimationFrame(() => root.querySelector(`[data-row="${CSS.escape(e.id)}"]`)?.scrollIntoView({ block: "center" }));
         },
       },
-      el("span", { class: "rt-card__strip", "aria-hidden": "true" }, el("span", { class: "rt-card__glyph", text: e.name.replace(/^The /, "").slice(0, 1) })),
+      strip(e),
       el("span", { class: "rt-card__kicker", text: e.kicker }),
       el("span", { class: "rt-card__name", text: e.name }),
       e.place ? el("span", { class: "rt-card__place" }, svg(PIN), el("span", { text: e.place })) : null,
@@ -188,7 +207,7 @@ export function rotatorsTab(ctx, { until, saved }) {
   }
 
   function draw() {
-    const shown = SECTIONS.filter(([id]) => view === "all" || view === id);
+    const shown = SECTIONS.filter(([id]) => !VIEW_SECTIONS[view] || VIEW_SECTIONS[view].includes(id));
     const body = el("div", { class: "rt-main" });
     for (const [id, title] of shown) {
       const list = entries.filter((e) => e.section === id);

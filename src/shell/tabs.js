@@ -11,6 +11,7 @@ import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
 import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 import { seasonalHub } from "./seasonal.js";
 import { questsTab } from "./quests.js";
+import { vendorsTab } from "./vendors.js";
 import { rotatorsTab } from "./rotators.js";
 
 const CLOCK = ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"];
@@ -58,7 +59,7 @@ function head(ctx, title, lede) {
 // ---------- Rotators (was Featured; rotators.js) ----------
 
 function featured(ctx) {
-  return rotatorsTab(ctx, { until, saved: () => savedRotators });
+  return rotatorsTab(ctx, { until, saved: () => savedRotators, art: () => rotatorArt });
 }
 
 // ---------- RAD assistant ----------
@@ -186,6 +187,7 @@ const SIGN_IN = {
   "tab-inventory": "Your characters' gear and your vault, with quick moves between them. For deeper work (loadouts, sorting, tags), DIM can sit beside it as a module.",
   "tab-seasonal": "The season in one place: orders, daily and weekly objectives, weekly rewards and your season pass track (past passes too).",
   "tab-quests": "Every quest a character has picked up. Starts on the character you played last; switch any time.",
+  "tab-vendors": "Every vendor your character can visit: what they sell, what it costs, your rank with them and when their stock resets.",
 };
 const SHIELD = ["M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z", "M9 12l2 2 4-4"];
 
@@ -311,6 +313,11 @@ function quests(ctx, container) {
   questsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter });
 }
 
+// Every vendor the character can visit (vendors.js).
+function vendors(ctx, container) {
+  vendorsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter });
+}
+
 // ---------- Seasonal Hub ----------
 
 function seasonal(ctx, container) {
@@ -329,7 +336,7 @@ const BUILDERS = {
   "tab-featured": featured,
   "tab-rad": rad,
 };
-const SIGNED_IN = { "tab-inventory": inventoryTab, "tab-quests": quests, "tab-seasonal": seasonal };
+const SIGNED_IN = { "tab-inventory": inventoryTab, "tab-quests": quests, "tab-seasonal": seasonal, "tab-vendors": vendors };
 
 // What a sign-in tab depends on: remount when the account changes.
 const accountKey = (ctx) => {
@@ -339,6 +346,7 @@ const accountKey = (ctx) => {
 
 // seals.report's rotator corrections (fetched once a run), applied over the built-in defaults.
 let savedRotators = {};
+let rotatorArt = {}; // activity name -> Bungie picture (the art seals.report's Featured cards use)
 let rotatorsAsked = false;
 
 window.midaTabs = {
@@ -354,9 +362,10 @@ window.midaTabs = {
     container.replaceChildren((BUILDERS[id] ?? ((c) => signIn(c, id)))(ctx));
     if (id === "tab-featured" && !rotatorsAsked) {
       rotatorsAsked = true;
-      ctx.hub.d2Rotators().then((saved) => {
-        savedRotators = saved && typeof saved === "object" ? saved : {};
-        if (Object.keys(savedRotators).length && container.dataset.tab === id) this.mount(id, container, ctx);
+      ctx.hub.d2Rotators().then((reply) => {
+        savedRotators = reply?.saved && typeof reply.saved === "object" ? reply.saved : {};
+        rotatorArt = reply?.art && typeof reply.art === "object" ? reply.art : {};
+        if ((Object.keys(savedRotators).length || Object.keys(rotatorArt).length) && container.dataset.tab === id) this.mount(id, container, ctx);
       });
     }
   },

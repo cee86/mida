@@ -161,6 +161,40 @@ backdrop like the hub). Left: view icons (All, Raids, Dungeons, This week, Today
 Grid = cards in sections, a card opens its row in the list; List = `<details>` rows with "Coming up" and caveats
 (`mida-rot-mode`). The Ascendant Challenge rotator is folded into the Dreaming City card (which follows its saved index).
 
+**Rotators, round 2 (3 Oct 2026, owner):** views now match seals.report's Featured sidebar exactly (Everything,
+Raids, Dungeons, Other activities, same icons; old saved views fall back to Other), sections inside stay Raids,
+Dungeons, This week, Today, Weekly checklist. Cards show the activity's loading-screen art like seals.report:
+`d2_rotators` now returns `{ saved, art }`, `art` coming from seals.report's Redis `activity-art` via
+`/api/mida/rotators` (raids, dungeons, The Dreaming City, Distortions with their destination fallback, rotator
+activities by each rotator's `art` rule); only `https://www.bungie.net/` addresses pass (`rotator_art` in lib.rs).
+Every strip is 96px so rows line up; no art = the old patterned strip with a letter. Needs seals.report's endpoint
+change live (main) to show pictures.
+
+**Vendors** (src/shell/vendors.js + vendors.css, `tab-vendors`, 3 Oct 2026): `d2_vendors(character)` ->
+`vendor_screen` in bungie.rs from the character Vendors call (components 400, 401, 402, 301): vendors that are
+enabled, have a visible definition and something for sale (at most 80), with location (definition `locations`
+[`vendorLocationIndex`] -> destination name, `backgroundImagePath` as the banner), group (`groups[0]` ->
+DestinyVendorGroupDefinition `categoryName`), rank (component 400 `progression`), next reset (dates over 2 years
+dropped) and sale items by display category (costs from the slimmed manifest, `saleStatus` flags -> Owned / Can't
+afford / Locked / Sold out). Definitions are fetched 10 at a time (`entities`). Left: vendors grouped like the game;
+right: banner, then a box per category of item tiles with costs underneath and hover cards; search filters vendors
+and items; answers kept per character until Refresh. **Unverified live**: group names, which vendors Bungie marks
+enabled/visible, the status flags. **New tabs and saved tab lists:** profiles now keep `tabsKnown` (every tab that
+existed when the list was saved); a tab missing from it is added once at the end, so Vendors appears for people who
+reordered or hid tabs before (files without `tabsKnown` count as knowing the five tabs up to Rotators).
+
+**Quests round 2:** hover names sit above the tiles (nav z-index); DLC buttons under the types (letters in a small
+frame: RG, EF, FS, LF, WQ, BL, SK, FK, WM, CO, RW), shown only for expansions found in a quest's traits, quest line,
+name or text (Bungie has no expansion field on quests; a guess, tune on live data).
+
+**App icon (3 Oct 2026):** the owner's abstract "MIDA multi-tool" drawing redrawn as a one-colour sun-orange
+(#f19a3f) silhouette on a transparent background (art/icon.svg; the grip holes, barrel seam and magazine ribs are
+cut out with a mask). Icons regenerated with `npx tauri icon` from a 1024px render made in Chromium (ImageMagick
+drops the mask); only the five files tauri.conf.json lists, plus src/shell/icon.png (About), are kept.
+
+**Flyout sidebar:** opened over the page it now keeps the docked sidebar's own background (each theme's), not a
+solid panel colour.
+
 **Quests** (src/shell/quests.js + quests.css, 3 Oct 2026, after the game's Quests screen): title band (count, character
 picker, sort: game order / most progress / ready first / ending soonest / name, `mida-quest-sort`, Refresh), then an
 icon column of quest types (All, Exotic, Seasonal, Campaigns, Playlists, New Light, Past, Other; only types present;

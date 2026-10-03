@@ -12,7 +12,7 @@
 use crate::auth::api_key;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::Duration;
 
@@ -918,6 +918,139 @@ async fn hub_vendors(vendors: &Value, m: &Manifest) -> Vec<Value> {
         }));
     }
     out
+}
+
+/// Bungie definitions for many hashes at once, a few requests at a time (each is memory-cached by `entity`).
+async fn entities(table: &'static str, hashes: &[u64]) -> HashMap<u64, Value> {
+    let mut out = HashMap::new();
+    for chunk in hashes.chunks(10) {
+        let tasks: Vec<_> = chunk.iter().map(|&h| tauri::async_runtime::spawn(async move { (h, entity(table, h).await) })).collect();
+        for task in tasks {
+            if let Ok((h, Some(v))) = task.await {
+                out.insert(h, v);
+            }
+        }
+    }
+    out
+}
+
+/// Why a sale item can't be bought right now (Bungie's VendorItemStatus flags), in a word or two.
+fn sale_status(flags: u64) -> Option<&'static str> {
+    if flags & 4096 != 0 {
+        Some("Owned")
+    } else if flags & 2 != 0 {
+        Some("Can't afford")
+    } else if flags & 8192 != 0 {
+        None // shown for information only
+    } else if flags & (4 | 8 | 32 | 64) != 0 {
+        Some("Locked")
+    } else if flags & 16 != 0 {
+        Some("Sold out")
+    } else {
+        None
+    }
+}
+
+/// Every vendor a character can visit (component 400 enabled, a visible definition, something for sale), for the
+/// Vendors tab: name, location, group (Tower, destinations...), background art, rank, reset time, and the items
+/// for sale by category with their costs and whether they can be bought. At most 80 vendors.
+pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
+    let empty = json!({ "vendors": [] });
+    let (Some(states), Some(sales)) = (vendors["vendors"]["data"].as_object(), vendors["sales"]["data"].as_object()) else { return empty };
+    let keys: Vec<u64> = states
+        .iter()
+        .filter(|(k, v)| v["enabled"].as_bool() != Some(false) && sales.get(*k).and_then(|s| s["saleItems"].as_object()).is_some_and(|o| !o.is_empty()))
+        .filter_map(|(k, _)| k.parse().ok())
+        .take(80)
+        .collect();
+    let defs = entities("DestinyVendorDefinition", &keys).await;
+    let location_of = |hash: u64, def: &Value| {
+        let index = states[&hash.to_string()]["vendorLocationIndex"].as_u64().unwrap_or(0) as usize;
+        def["locations"].as_array().and_then(|l| l.get(index).or(l.first())).cloned().unwrap_or(Value::Null)
+    };
+    let destinations: Vec<u64> = defs.iter().filter_map(|(h, d)| location_of(*h, d)["destinationHash"].as_u64()).filter(|h| *h != 0).collect::<HashSet<_>>().into_iter().collect();
+    let groups: Vec<u64> = defs.values().filter_map(|d| d["groups"][0]["vendorGroupHash"].as_u64()).collect::<HashSet<_>>().into_iter().collect();
+    let destination_defs = entities("DestinyDestinationDefinition", &destinations).await;
+    let group_defs = entities("DestinyVendorGroupDefinition", &groups).await;
+    let horizon = years_later(&chrono_now(), 2);
+    let mut out = Vec::new();
+    for hash in keys {
+        let Some(def) = defs.get(&hash) else { continue };
+        let name = def["displayProperties"]["name"].as_str().unwrap_or("");
+        if name.is_empty() || def["visible"].as_bool() == Some(false) {
+            continue;
+        }
+        let key = hash.to_string();
+        let state = &states[&key];
+        let location = location_of(hash, def);
+        let destination = location["destinationHash"].as_u64().and_then(|h| destination_defs.get(&h)).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or("");
+        let group = def["groups"][0]["vendorGroupHash"].as_u64().and_then(|h| group_defs.get(&h)).and_then(|g| g["categoryName"].as_str()).unwrap_or("");
+        let display = def["displayCategories"].as_array().cloned().unwrap_or_default();
+        let sale_items = sales[&key]["saleItems"].as_object().cloned().unwrap_or_default();
+        let objectives_of = &vendors["itemComponents"][&key]["objectives"]["data"];
+        let mut categories = Vec::new();
+        for cat in vendors["categories"]["data"][&key]["categories"].as_array().into_iter().flatten() {
+            let index = cat["displayCategoryIndex"].as_u64().unwrap_or(0) as usize;
+            let cat_name = display.get(index).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or("").to_string();
+            let mut items = Vec::new();
+            for i in cat["itemIndexes"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()).take(120) {
+                let index_key = i.to_string();
+                let Some(sale) = sale_items.get(&index_key) else { continue };
+                let Some(item_hash) = sale["itemHash"].as_u64() else { continue };
+                let Some(d) = m.items.get(&(item_hash as u32)) else { continue };
+                if d.name.is_empty() {
+                    continue;
+                }
+                let costs: Vec<Value> = sale["costs"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|c| {
+                        let cost = m.items.get(&(c["itemHash"].as_u64()? as u32))?;
+                        Some(json!({ "name": cost.name, "icon": icon_url(&cost.icon), "quantity": c["quantity"] }))
+                    })
+                    .collect();
+                let objs = objectives(&objectives_of[&index_key]["objectives"], m);
+                items.push(json!({
+                    "hash": item_hash,
+                    "name": d.name,
+                    "icon": icon_url(&d.icon),
+                    "watermark": icon_url(&d.watermark),
+                    "typeName": d.type_name,
+                    "description": d.description,
+                    "tier": d.tier,
+                    "kind": d.kind,
+                    "classType": d.class,
+                    "quantity": sale["quantity"],
+                    "costs": costs,
+                    "status": sale_status(sale["saleStatus"].as_u64().unwrap_or(0)),
+                    "objectives": objs,
+                }));
+            }
+            if !items.is_empty() {
+                categories.push(json!({ "name": cat_name, "items": items }));
+            }
+        }
+        if categories.is_empty() {
+            continue;
+        }
+        let refresh = state["nextRefreshDate"].as_str().filter(|d| *d < horizon.as_str()).map(str::to_string);
+        let progression = &state["progression"];
+        out.push(json!({
+            "hash": hash,
+            "name": name,
+            "subtitle": def["displayProperties"]["subtitle"],
+            "description": def["displayProperties"]["description"],
+            "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
+            "art": icon_url(location["backgroundImagePath"].as_str().unwrap_or("")),
+            "destination": destination,
+            "group": group,
+            "refresh": refresh,
+            "rank": if progression.is_object() { json!({ "level": progression["level"], "progress": progression["progressToNextLevel"], "next": progression["nextLevelAt"], "resets": progression["currentResetCount"] }) } else { Value::Null },
+            "categories": categories,
+        }));
+    }
+    json!({ "vendors": out })
 }
 
 pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Manifest) -> Value {

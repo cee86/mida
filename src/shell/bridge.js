@@ -30,6 +30,7 @@
     d2Plug: (instance, character, socket, plug) => invoke("d2_plug", { instance, character, socket, plug }),
     d2Loadout: (character, index) => invoke("d2_loadout", { character, index }),
     d2Seasonal: (character) => invoke("d2_seasonal", { character }),
+    d2Vendors: (character) => invoke("d2_vendors", { character }),
     d2Pass: (character, pass, season) => invoke("d2_pass", { character, pass, season }),
     d2Claim: (character, season, index) => invoke("d2_claim", { character, season, index }),
     d2Rotators: () => invoke("d2_rotators"),
