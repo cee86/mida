@@ -1,4 +1,4 @@
-# Mida
+# MIDA
 
 AIO companion site/app compiler. Built on tauri. Primarily intended for use with Destiny 2.
 
