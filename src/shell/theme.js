@@ -43,9 +43,19 @@ function foundryWay(prefs) {
 // Retro keeps Destiny 1's white-on-night look whatever the colorway.
 const RETRO = { name: "Retro", accent: "#f2f4f6", colors: ["#111a26", "#0b1119", "#070a0f"], angle: 180 };
 
+// The themes in themes.css, each with its own accent and background.
+const THEME_WAYS = {
+  pyramid: { name: "Pyramid", accent: "#d6468c", colors: ["#0a080d", "#050407", "#0d0510"], angle: 180 },
+  vex: { name: "Vex network", accent: "#e1fff8", colors: ["#052421", "#031614", "#021110"], angle: 170 },
+  traveler: { name: "Traveler's light", accent: "#d9b867", colors: ["#0c1834", "#070d1f", "#050916"], angle: 180 },
+  cabal: { name: "Cabal", accent: "#c9a14a", colors: ["#1a0e0b", "#0d0807", "#180908"], angle: 180 },
+  neomuna: { name: "Neomuna neon", accent: "#3ff0ff", colors: ["#070a2a", "#04061a", "#0a0420"], angle: 170 },
+};
+
 function colorwayOf(prefs) {
   if (prefs.theme === "foundry") return foundryWay(prefs);
   if (prefs.theme === "retro") return RETRO;
+  if (THEME_WAYS[prefs.theme]) return THEME_WAYS[prefs.theme];
   if (prefs.colorway === "custom") {
     const colors = prefs.customColors?.length >= 2 ? prefs.customColors : COLORWAYS.sunrise.colors;
     return { accent: prefs.customAccent || COLORWAYS.sunrise.accent, colors, angle: prefs.customAngle ?? 160 };

@@ -1612,7 +1612,14 @@ const THEMES = [
   ["light", "Light", ["#e6e1d7", "#f5f2ec"]],
   ["foundry", "Foundry", ["#f8f9f9", "#e3e7e8"]],
   ["retro", "Retro (D1)", ["#0d1117", "#1a2230"]],
+  ["pyramid", "Pyramid", ["#0b090e", "#050407"]],
+  ["vex", "Vex network", ["#06201d", "#031614"]],
+  ["traveler", "Traveler's light", ["#0a1226", "#060b1a"]],
+  ["cabal", "Cabal", ["#2a1a15", "#0d0807"]],
+  ["neomuna", "Neomuna neon", ["#080b24", "#04061a"]],
 ];
+// Themes with their own colours (theme.js THEME_WAYS), so the colorway doesn't apply.
+const FIXED_THEMES = ["retro", "pyramid", "vex", "traveler", "cabal", "neomuna"];
 
 // Shown open when the player picks "Custom" in Foundry's colours (before they change anything).
 let foundryCustomOpen = false;
@@ -1774,8 +1781,8 @@ function personalizationPanel() {
     setting("Theme", null, themes),
     ...(p.theme === "foundry"
       ? foundrySettings(p)
-      : p.theme === "retro"
-        ? [setting("Colorway", "Retro keeps Destiny 1's own colours. Pick another theme to use a colorway.", el("div", {}, swatches), { disabled: true })]
+      : FIXED_THEMES.includes(p.theme)
+        ? [setting("Colorway", `${THEMES.find(([id]) => id === p.theme)?.[1] ?? "This theme"} keeps its own colours. Pick Dark, Black or Light to use a colorway.`, el("div", {}, swatches), { disabled: true })]
         : [setting("Colorway", "The background gradient and accent colour.", el("div", {}, swatches, editor))]),
     backdropSetting(),
     backdropSetting("mida-sh-backdrop", "Seasonal Hub backdrop", "A picture behind the Seasonal Hub, darkened and blurred. Without one it uses the Inventory's picture. It stays on this computer.", "Using the Inventory's backdrop."),

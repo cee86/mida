@@ -1,0 +1,248 @@
+/* Five more themes, each our own CSS (no game art): Pyramid, Vex network, Traveler's light, Cabal and Neomuna.
+   Like Retro, each keeps its own colours whatever the colorway (theme.js THEME_WAYS sets the accent); everything else
+   comes from the variables in shell.css. Loaded after shell.css, foundry.css and retro.css. */
+
+/* Shared: themes that draw a layer behind the page. */
+html[data-theme="pyramid"] .app,
+html[data-theme="vex"] .app,
+html[data-theme="traveler"] .app,
+html[data-theme="cabal"] .app,
+html[data-theme="neomuna"] .app { isolation: isolate; }
+/* The game tabs' built-in backdrop steps aside so the theme's own background shows (a player's picture still wins). */
+html[data-theme="pyramid"] .inv-backdrop:not(.has-picture),
+html[data-theme="vex"] .inv-backdrop:not(.has-picture),
+html[data-theme="traveler"] .inv-backdrop:not(.has-picture),
+html[data-theme="cabal"] .inv-backdrop:not(.has-picture),
+html[data-theme="neomuna"] .inv-backdrop:not(.has-picture) { display: none; }
+html[data-contrast="high"] .app::before,
+html[data-contrast="high"] .app::after { display: none; }
+
+/* ---------- Pyramid: obsidian, triangular linework, a red-violet glow ---------- */
+
+html[data-theme="pyramid"] {
+  --ink: #050407;
+  --char: #0b090e;
+  --ash: #120f16;
+  --ash-raised: #1a1620;
+  --ash-fill: #29222f;
+  --rule: #2c2432;
+  --cream: #ece4ee;
+  --mist: #a597ab;
+  --mist-dim: #6d6172;
+  --danger: #ff6f7d;
+  --ornament: rgba(214, 70, 140, 0.55);
+  --on-accent: #0b090e;
+  --panel: rgba(10, 8, 13, 0.74);
+  --glass: rgba(6, 4, 8, 0.6);
+  --panel-solid: #0b090e;
+  --popup: rgba(12, 9, 15, 0.94);
+  --hover: rgba(214, 70, 140, 0.08);
+  --selected: rgba(214, 70, 140, 0.14);
+  color-scheme: dark;
+}
+html[data-theme="pyramid"] .app {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='139'%3E%3Cg fill='none' stroke='rgba%28214,70,140,0.10%29' stroke-width='1'%3E%3Cpath d='M0 139L80 0l80 139z'/%3E%3Cpath d='M40 69.5h80M80 139L40 69.5M80 139l40-69.5'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 160px 139px,
+    radial-gradient(ellipse 60% 45% at 50% 108%, rgba(214, 70, 140, 0.32), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 85% -5%, rgba(120, 40, 120, 0.25), transparent 70%),
+    linear-gradient(180deg, #0a080d, #050407 60%, #0d0510);
+}
+html[data-theme="pyramid"] .sidebar { background: rgba(4, 3, 6, 0.7); border-right: 1px solid rgba(214, 70, 140, 0.25); }
+html[data-theme="pyramid"] .sh-label::before { transform: none; clip-path: polygon(50% 0, 100% 100%, 0 100%); width: 9px; height: 8px; }
+html[data-theme="pyramid"] .sh-box,
+html[data-theme="pyramid"] .card,
+html[data-theme="pyramid"] .tile { clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+html[data-theme="pyramid"] .sh-box::before { display: none; }
+html[data-theme="pyramid"] .sh-box { border-color: rgba(214, 70, 140, 0.22); box-shadow: inset 0 0 30px rgba(214, 70, 140, 0.06); }
+html[data-theme="pyramid"] .mod[aria-current="page"] { box-shadow: inset 0 0 0 1px rgba(214, 70, 140, 0.5), 0 0 16px rgba(214, 70, 140, 0.18); }
+html[data-theme="pyramid"] .btn--primary { box-shadow: 0 0 14px rgba(214, 70, 140, 0.35); }
+.theme-card__preview--pyramid { position: relative; }
+.theme-card__preview--pyramid::after { content: ""; position: absolute; inset: 0 0 0 26%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='35'%3E%3Cpath d='M0 35L20 0l20 35z' fill='none' stroke='rgba%28214,70,140,0.5%29'/%3E%3C/svg%3E") 0 0 / 20px 17px, radial-gradient(ellipse 70% 60% at 50% 120%, rgba(214, 70, 140, 0.55), transparent 70%); }
+
+/* ---------- Vex network: milky white on deep teal, hexagonal circuits that pulse ---------- */
+
+html[data-theme="vex"] {
+  --ink: #031614;
+  --char: #06201d;
+  --ash: #0a2a26;
+  --ash-raised: #0f3530;
+  --ash-fill: #17463f;
+  --rule: #1d4a44;
+  --cream: #eef8f4;
+  --mist: #a6c4bd;
+  --mist-dim: #6c8c85;
+  --danger: #ff8a7a;
+  --ornament: rgba(225, 255, 248, 0.5);
+  --on-accent: #042622;
+  --panel: rgba(5, 30, 27, 0.72);
+  --glass: rgba(2, 18, 16, 0.58);
+  --panel-solid: #06201d;
+  --popup: rgba(6, 32, 29, 0.94);
+  --hover: rgba(225, 255, 248, 0.07);
+  --selected: rgba(225, 255, 248, 0.12);
+  color-scheme: dark;
+}
+html[data-theme="vex"] .app {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='146'%3E%3Cg fill='none' stroke='rgba%28200,255,240,0.09%29' stroke-width='1'%3E%3Cpath d='M42 0l42 24v49L42 97 0 73V24z'/%3E%3Cpath d='M42 97v49M0 24L-42 0M84 24l42-24'/%3E%3C/g%3E%3Ccircle cx='42' cy='0' r='2' fill='rgba%28220,255,245,0.25%29'/%3E%3Ccircle cx='0' cy='73' r='2' fill='rgba%28220,255,245,0.25%29'/%3E%3Ccircle cx='84' cy='73' r='2' fill='rgba%28220,255,245,0.25%29'/%3E%3C/svg%3E") 0 0 / 84px 146px,
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(120, 230, 210, 0.16), transparent 70%),
+    linear-gradient(170deg, #052421, #031614 55%, #021110);
+}
+/* The circuit lines that light up and fade, slowly. */
+html[data-theme="vex"] .app::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='146'%3E%3Cg fill='none' stroke='rgba%28225,255,248,0.35%29' stroke-width='1.2'%3E%3Cpath d='M42 97v49M84 24V73'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 84px 146px;
+  -webkit-mask-image: radial-gradient(circle at 30% 40%, #000, transparent 45%), radial-gradient(circle at 75% 70%, #000, transparent 40%);
+  animation: vex-pulse 7s ease-in-out infinite;
+}
+@keyframes vex-pulse { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.85; } }
+html[data-theme="vex"] .sidebar { background: rgba(2, 16, 14, 0.66); border-right: 1px solid rgba(225, 255, 248, 0.14); }
+html[data-theme="vex"] .sh-label::before { transform: none; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 2px var(--accent), 0 0 8px rgba(225, 255, 248, 0.6); }
+html[data-theme="vex"] .sh-box { border-color: rgba(225, 255, 248, 0.16); border-radius: 2px; }
+html[data-theme="vex"] .mod[aria-current="page"] { box-shadow: inset 0 0 0 1px rgba(225, 255, 248, 0.45), 0 0 14px rgba(160, 255, 230, 0.15); }
+.theme-card__preview--vex { position: relative; }
+.theme-card__preview--vex::after { content: ""; position: absolute; inset: 0 0 0 26%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='146'%3E%3Cg fill='none' stroke='rgba%28200,255,240,0.09%29' stroke-width='1'%3E%3Cpath d='M42 0l42 24v49L42 97 0 73V24z'/%3E%3Cpath d='M42 97v49M0 24L-42 0M84 24l42-24'/%3E%3C/g%3E%3Ccircle cx='42' cy='0' r='2' fill='rgba%28220,255,245,0.25%29'/%3E%3Ccircle cx='0' cy='73' r='2' fill='rgba%28220,255,245,0.25%29'/%3E%3Ccircle cx='84' cy='73' r='2' fill='rgba%28220,255,245,0.25%29'/%3E%3C/svg%3E") 0 0 / 21px 36.5px; }
+
+/* ---------- Traveler's light: pearl and gold on navy, concentric arcs from above ---------- */
+
+html[data-theme="traveler"] {
+  --ink: #060b1a;
+  --char: #0a1226;
+  --ash: #0f1a33;
+  --ash-raised: #15223f;
+  --ash-fill: #20304f;
+  --rule: #263552;
+  --cream: #f6f1e6;
+  --mist: #b0aea8;
+  --mist-dim: #767a85;
+  --danger: #f08b76;
+  --ornament: rgba(217, 184, 103, 0.6);
+  --on-accent: #0a1226;
+  --panel: rgba(10, 18, 38, 0.72);
+  --glass: rgba(5, 10, 24, 0.56);
+  --panel-solid: #0a1226;
+  --popup: rgba(10, 18, 38, 0.94);
+  --hover: rgba(246, 241, 230, 0.07);
+  --selected: rgba(217, 184, 103, 0.14);
+  color-scheme: dark;
+}
+html[data-theme="traveler"] .app {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1600' viewBox='0 0 1600 1600'%3E%3Cg fill='none' stroke='rgba%28217,184,103,0.22%29' stroke-width='1'%3E%3Ccircle cx='800' cy='-80' r='420'/%3E%3Ccircle cx='800' cy='-80' r='560'/%3E%3Ccircle cx='800' cy='-80' r='700' stroke-dasharray='2 10'/%3E%3Ccircle cx='800' cy='-80' r='860'/%3E%3Ccircle cx='800' cy='-80' r='1040' stroke='rgba%28243,238,228,0.12%29'/%3E%3Ccircle cx='800' cy='-80' r='1240' stroke-dasharray='1 14'/%3E%3Cpath d='M800 -80V1600M800 -80L120 1600M800 -80L1480 1600' stroke='rgba%28243,238,228,0.04%29'/%3E%3C/g%3E%3C/svg%3E") 50% 0 / max(1600px, 120vw) auto no-repeat,
+    radial-gradient(ellipse 50% 32% at 50% -6%, rgba(246, 241, 230, 0.32), rgba(217, 184, 103, 0.12) 45%, transparent 75%),
+    linear-gradient(180deg, #0c1834, #070d1f 55%, #050916);
+}
+html[data-theme="traveler"] .sidebar { background: rgba(4, 8, 20, 0.62); border-right: 1px solid rgba(217, 184, 103, 0.2); }
+html[data-theme="traveler"] .sh-label::before { transform: none; border-radius: 50%; background: radial-gradient(circle, #fff 0 30%, var(--accent) 31% 60%, transparent 61%); width: 9px; height: 9px; }
+html[data-theme="traveler"] .sh-box { border-color: rgba(217, 184, 103, 0.2); border-radius: 10px; }
+html[data-theme="traveler"] .sh-box::before { inset: -5px; border-radius: 14px; background: none; border: 1px solid rgba(246, 241, 230, 0.06); }
+html[data-theme="traveler"] .mod[aria-current="page"] { box-shadow: inset 0 0 0 1px rgba(217, 184, 103, 0.5); }
+html[data-theme="traveler"] .btn--primary { background: linear-gradient(180deg, #f3dc9a, #d9b867); color: #0a1226; }
+.theme-card__preview--traveler { position: relative; }
+.theme-card__preview--traveler::after { content: ""; position: absolute; inset: 0 0 0 26%; background: repeating-radial-gradient(circle at 50% -20%, transparent 0 9px, rgba(217, 184, 103, 0.5) 9px 10px), radial-gradient(circle at 50% -10%, rgba(246, 241, 230, 0.6), transparent 50%); }
+
+/* ---------- Cabal: brass and crimson, chunky bevelled frames ---------- */
+
+html[data-theme="cabal"] {
+  --ink: #0d0807;
+  --char: #160d0b;
+  --ash: #1f1310;
+  --ash-raised: #2a1a15;
+  --ash-fill: #3a251d;
+  --rule: #4a3222;
+  --cream: #f1e2c8;
+  --mist: #b49f86;
+  --mist-dim: #7b6a58;
+  --danger: #ff6a5c;
+  --ornament: rgba(201, 161, 74, 0.65);
+  --on-accent: #1a0d08;
+  --panel: rgba(24, 14, 11, 0.8);
+  --glass: rgba(16, 9, 7, 0.66);
+  --panel-solid: #160d0b;
+  --popup: rgba(24, 14, 11, 0.95);
+  --hover: rgba(201, 161, 74, 0.09);
+  --selected: rgba(168, 32, 42, 0.22);
+  --bevel: inset 1px 1px 0 rgba(255, 220, 150, 0.22), inset -1px -1px 0 rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+html[data-theme="cabal"] .app {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 119px, rgba(201, 161, 74, 0.05) 119px 121px),
+    radial-gradient(ellipse 70% 50% at 50% 110%, rgba(168, 32, 42, 0.35), transparent 70%),
+    linear-gradient(180deg, #1a0e0b, #0d0807 60%, #180908);
+}
+html[data-theme="cabal"] .sidebar { background: linear-gradient(90deg, rgba(20, 11, 8, 0.86), rgba(28, 15, 11, 0.8)); border-right: 3px solid #7a5a26; box-shadow: inset -1px 0 0 rgba(255, 220, 150, 0.2); }
+html[data-theme="cabal"] .sh-box,
+html[data-theme="cabal"] .card,
+html[data-theme="cabal"] .tile {
+  border: 2px solid #8a6a2e;
+  box-shadow: var(--bevel), 0 3px 0 rgba(0, 0, 0, 0.5);
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+}
+html[data-theme="cabal"] .sh-box::before { display: none; }
+html[data-theme="cabal"] .sh-label::before { transform: none; width: 10px; height: 8px; background: #a8202a; box-shadow: inset 0 0 0 1px #c9a14a; }
+html[data-theme="cabal"] .sh-label__text,
+html[data-theme="cabal"] .band { color: #e2c37a; }
+html[data-theme="cabal"] .btn { border-width: 2px; border-color: #8a6a2e; box-shadow: var(--bevel); }
+html[data-theme="cabal"] .btn--primary { background: linear-gradient(180deg, #d7b25a, #9c7a32); border-color: #6a4f1e; color: #1a0d08; }
+html[data-theme="cabal"] .mod[aria-current="page"] { background: rgba(168, 32, 42, 0.28); box-shadow: inset 0 0 0 2px #8a6a2e; }
+html[data-theme="cabal"] .segmented button[aria-pressed="true"] { background: #a8202a; color: #f6e6c6; }
+.theme-card__preview--cabal { position: relative; }
+.theme-card__preview--cabal::after { content: ""; position: absolute; inset: 10px 10px 10px calc(26% + 10px); border: 3px solid #a8802e; box-shadow: inset 0 0 0 2px #a8202a; }
+
+/* ---------- Neomuna neon: night blues, cyan and magenta, scan lines ---------- */
+
+html[data-theme="neomuna"] {
+  --ink: #04061a;
+  --char: #080b24;
+  --ash: #0d1130;
+  --ash-raised: #13183d;
+  --ash-fill: #1d2452;
+  --rule: #232b5c;
+  --cream: #e9f4ff;
+  --mist: #9fb0d4;
+  --mist-dim: #67739a;
+  --danger: #ff6f9a;
+  --ornament: rgba(63, 240, 255, 0.55);
+  --on-accent: #04061a;
+  --panel: rgba(8, 11, 36, 0.72);
+  --glass: rgba(4, 6, 24, 0.58);
+  --panel-solid: #080b24;
+  --popup: rgba(8, 11, 36, 0.94);
+  --hover: rgba(63, 240, 255, 0.07);
+  --selected: rgba(255, 79, 216, 0.14);
+  --neon-2: #ff4fd8;
+  color-scheme: dark;
+}
+html[data-theme="neomuna"] .app {
+  background:
+    linear-gradient(rgba(63, 240, 255, 0.05) 1px, transparent 1px) 0 0 / 100% 64px,
+    radial-gradient(ellipse 50% 40% at 15% 110%, rgba(255, 79, 216, 0.28), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 90% -10%, rgba(63, 240, 255, 0.22), transparent 70%),
+    linear-gradient(170deg, #070a2a, #04061a 55%, #0a0420);
+}
+/* Scan lines over everything, faint enough to read through, drifting down slowly. */
+html[data-theme="neomuna"] .app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 3px);
+  animation: neo-scan 12s linear infinite;
+}
+@keyframes neo-scan { to { background-position: 0 120px; } }
+html[data-theme="neomuna"] .sidebar { background: rgba(3, 5, 20, 0.66); border-right: 1px solid rgba(63, 240, 255, 0.25); box-shadow: 1px 0 12px rgba(63, 240, 255, 0.08); }
+html[data-theme="neomuna"] .sh-label::before { background: var(--neon-2); box-shadow: 0 0 8px var(--neon-2); }
+html[data-theme="neomuna"] .sh-box { border-color: rgba(63, 240, 255, 0.2); box-shadow: 0 0 18px rgba(63, 240, 255, 0.05); }
+html[data-theme="neomuna"] .sh-box::before { --c: rgba(255, 79, 216, 0.7); }
+html[data-theme="neomuna"] .sh-top__title,
+html[data-theme="neomuna"] .tab__title { text-shadow: 0 0 12px rgba(63, 240, 255, 0.45); }
+html[data-theme="neomuna"] .mod[aria-current="page"] { box-shadow: inset 2px 0 0 var(--neon-2), inset 0 0 0 1px rgba(63, 240, 255, 0.35); }
+html[data-theme="neomuna"] .btn--primary { box-shadow: 0 0 12px rgba(63, 240, 255, 0.4); }
+.theme-card__preview--neomuna { position: relative; }
+.theme-card__preview--neomuna::after { content: ""; position: absolute; inset: 0 0 0 26%; background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 3px), linear-gradient(135deg, transparent 40%, rgba(255, 79, 216, 0.55) 41% 43%, transparent 44%), linear-gradient(135deg, transparent 55%, rgba(63, 240, 255, 0.6) 56% 58%, transparent 59%); }
