@@ -53,21 +53,21 @@ fn unwrap(bytes: &[u8]) -> Result<Value, String> {
     match body["ErrorCode"].as_i64() {
         Some(1) => Ok(body["Response"].clone()),
         Some(5) => Err("Bungie's API is down for maintenance. Try again once the game servers are back.".into()),
-        Some(36) | Some(51) => Err("Bungie asked Mida to slow down. Wait a moment and try again.".into()),
-        Some(2101) => Err("Bungie rejected Mida's API key (Bungie error 2101: invalid or expired key).".into()),
-        Some(2102) => Err("Bungie says Mida's request had no API key (Bungie error 2102).".into()),
+        Some(36) | Some(51) => Err("Bungie asked MIDA to slow down. Wait a moment and try again.".into()),
+        Some(2101) => Err("Bungie rejected MIDA's API key (Bungie error 2101: invalid or expired key).".into()),
+        Some(2102) => Err("Bungie says MIDA's request had no API key (Bungie error 2102).".into()),
         // Bungie's own wording plus the code, so a problem can be told apart from another.
         Some(12) => Err(format!(
-            "Bungie hasn't given Mida permission for this: Mida's app settings on bungie.net are missing a permission (Bungie error 12: {}).",
+            "Bungie hasn't given MIDA permission for this: MIDA's app settings on bungie.net are missing a permission (Bungie error 12: {}).",
             body["Message"].as_str().unwrap_or("")
         )),
-        Some(99) => Err("Bungie didn't accept Mida's sign-in for this (Bungie error 99). Sign out in Settings > Tabs and sign in again.".into()),
+        Some(99) => Err("Bungie didn't accept MIDA's sign-in for this (Bungie error 99). Sign out in Settings > Tabs and sign in again.".into()),
         code => Err(format!("{} (Bungie error {})", body["Message"].as_str().unwrap_or("Bungie couldn't do that."), code.unwrap_or(0))),
     }
 }
 
 pub async fn get(path: &str, token: Option<&str>) -> Result<Value, String> {
-    let key = api_key().ok_or("This copy of Mida can't talk to Bungie (it was built without an API key).")?;
+    let key = api_key().ok_or("This copy of MIDA can't talk to Bungie (it was built without an API key).")?;
     let mut req = client().get(format!("{ROOT}/Platform{path}")).header("X-API-Key", key);
     if let Some(token) = token {
         req = req.bearer_auth(token);
@@ -77,7 +77,7 @@ pub async fn get(path: &str, token: Option<&str>) -> Result<Value, String> {
 }
 
 async fn post(path: &str, token: &str, body: Value) -> Result<Value, String> {
-    let key = api_key().ok_or("This copy of Mida can't talk to Bungie (it was built without an API key).")?;
+    let key = api_key().ok_or("This copy of MIDA can't talk to Bungie (it was built without an API key).")?;
     let res = client()
         .post(format!("{ROOT}/Platform{path}"))
         .header("X-API-Key", key)
@@ -223,7 +223,7 @@ pub async fn load_manifest(dir: &Path) -> Result<Manifest, String> {
     let version = info["version"].as_str().unwrap_or("").to_string();
     let safe: String = version.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-').collect();
     let folder = dir.join("manifest");
-    // "-3": the slimmed format gained fields (v0.5, v0.6), so files saved by older Midas are read again.
+    // "-3": the slimmed format gained fields (v0.5, v0.6), so files saved by older versions of MIDA are read again.
     let file = folder.join(format!("{safe}-3.json"));
     if !safe.is_empty() {
         if let Ok(bytes) = std::fs::read(&file) {

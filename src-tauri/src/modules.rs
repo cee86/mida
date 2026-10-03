@@ -10,7 +10,7 @@ pub struct Game {
     pub name: &'static str,
 }
 
-/// Games Mida knows. A profile for any other game is "custom": it gets no recommendations.
+/// Games MIDA knows. A profile for any other game is "custom": it gets no recommendations.
 pub const GAMES: &[Game] = &[Game { id: "destiny2", name: "Destiny 2" }];
 pub const CUSTOM_GAME: &str = "custom";
 
@@ -24,7 +24,7 @@ pub struct CatalogueEntry {
     pub starter: bool,
 }
 
-/// Mida's own built-in tabs (drawn by the app itself, not websites), per game. Each can be
+/// MIDA's own built-in tabs (drawn by the app itself, not websites), per game. Each can be
 /// switched off per profile. `sign_in`: needs a Bungie sign-in to show anything.
 #[derive(Serialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]

@@ -56,7 +56,7 @@
     onCommand: (callback) => listen("command", (event) => callback(event.payload)),
   };
 
-  // Mida's shortcuts while one of our pages has the keyboard. (Inside a module page, Windows
+  // MIDA's shortcuts while one of our pages has the keyboard. (Inside a module page, Windows
   // passes them to the app directly.) Only these keys are taken; typing is untouched.
   const isShortcut = (e, ctrl) =>
     (ctrl && !e.altKey && /^(b|r|tab|[1-9]|,)$/i.test(e.key)) ||

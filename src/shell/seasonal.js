@@ -483,7 +483,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
             "details",
             { class: "sh-more sh-check" },
             el("summary", { text: "Data check (for tuning this tab)" }),
-            note("What Mida found in Bungie's data for this season. If a section above is empty or wrong, a screenshot of this helps fix it."),
+            note("What MIDA found in Bungie's data for this season. If a section above is empty or wrong, a screenshot of this helps fix it."),
             el("h3", { text: `Season: ${hub.season?.name ?? "?"}${hub.eventCard ? ` · Event card: ${hub.eventCard}` : ""}` }),
             el("h3", { text: "Presentation nodes looked at" }),
             list(k.nodes.map((n) => `${n.name || "(no name)"} · ${n.nodes} sub-nodes · ${n.records} records`), `None. Roots: ${k.roots.map((r) => r.from).join(", ") || "none"}`),

@@ -1,10 +1,10 @@
-//! Mida: game companion sites in one window.
+//! MIDA: game companion sites in one window.
 //!
 //! The window has layers. The "shell" (src/shell) is our own page: sidebar, toolbar, home page,
 //! menus and dialogs. Each module (companion site) of the current profile gets its own page laid
 //! over the shell's stage area; the optional floating site controls ("controls", used when the
 //! address bar is hidden) sit above the pages. Pages use Windows' built-in browser engine
-//! (WebView2), so Mida doesn't carry a browser of its own. A module loads the first time it's
+//! (WebView2), so MIDA doesn't carry a browser of its own. A module loads the first time it's
 //! opened and then stays alive in the background, so switching back is instant. Switching
 //! profile closes the other profile's pages.
 //!
@@ -782,7 +782,7 @@ fn shortcut_action(key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<Box<
 }
 
 /// Shared by our own pages (reported by src/shell/bridge.js) and, on Windows, module pages
-/// (src-tauri/src/win.rs). Returns true when the keys were a Mida shortcut.
+/// (src-tauri/src/win.rs). Returns true when the keys were a MIDA shortcut.
 pub(crate) fn shortcut(app: &AppHandle, key: &str, ctrl: bool, shift: bool, alt: bool) -> bool {
     let Some(action) = shortcut_action(&key.to_lowercase(), ctrl, shift, alt) else { return false };
     let app = app.clone();
@@ -818,11 +818,11 @@ fn apply_prefs(app: &AppHandle, before: &Prefs) {
 
 // ---------- Updates ----------
 //
-// New versions are published as GitHub releases of cee86/mida, signed with Mida's update key
+// New versions are published as GitHub releases of cee86/mida, signed with MIDA's update key
 // (the public half is in tauri.conf.json, so a download that isn't ours is refused). The app
 // only *checks* by itself, at start and every few hours; nothing downloads or installs until the
-// user chooses Update. Then it downloads with progress (shown in Mida's own window), installs
-// silently into the same folder and Mida reopens. Only the installed app checks; running from the code never does.
+// user chooses Update. Then it downloads with progress (shown in MIDA's own window), installs
+// silently into the same folder and MIDA reopens. Only the installed app checks; running from the code never does.
 
 fn set_update(app: &AppHandle, info: Option<UpdateInfo>) {
     *hub(app).update.lock().unwrap() = info;
@@ -889,8 +889,8 @@ async fn download_update_now(app: AppHandle) {
             return;
         }
     };
-    // Downloaded and checked: say so in Mida's own window for a moment, then the installer runs
-    // silently (installMode "quiet" in tauri.conf.json) and reopens Mida.
+    // Downloaded and checked: say so in MIDA's own window for a moment, then the installer runs
+    // silently (installMode "quiet" in tauri.conf.json) and reopens MIDA.
     set_update(&app, Some(UpdateInfo { status: "ready", version: version.clone(), percent: 100 }));
     tokio::time::sleep(Duration::from_millis(1500)).await;
     if let Err(err) = update.install(bytes) {
@@ -924,7 +924,7 @@ async fn sign_in_now(app: AppHandle) {
         return;
     }
     if auth::api_key().is_none() {
-        set_account_status(&app, false, Some("This copy of Mida was built without a Bungie API key, so it can't sign in.".into()));
+        set_account_status(&app, false, Some("This copy of MIDA was built without a Bungie API key, so it can't sign in.".into()));
         return;
     }
     set_account_status(&app, true, None);
@@ -1676,7 +1676,7 @@ fn create_window(app: &AppHandle) -> tauri::Result<()> {
     let saved = hub(app).store.lock().unwrap().get().window;
     let (width, height) = saved.map(|w| (w.width, w.height)).unwrap_or((1440.0, 900.0));
     let mut builder = WindowBuilder::new(app, WINDOW)
-        .title("Mida")
+        .title("MIDA")
         .inner_size(width, height)
         .min_inner_size(760.0, 520.0)
         .background_color(BACKGROUND)
@@ -1706,7 +1706,7 @@ fn create_window(app: &AppHandle) -> tauri::Result<()> {
     let shell = WebviewBuilder::new(SHELL, WebviewUrl::App("index.html".into()))
         .background_color(BACKGROUND)
         .zoom_hotkeys_enabled(false)
-        // Lets the sidebar's own drag and drop (reordering modules) work; Mida takes no file drops.
+        // Lets the sidebar's own drag and drop (reordering modules) work; MIDA takes no file drops.
         .disable_drag_drop_handler()
         // The shell never goes anywhere but our own page.
         .on_navigation(|url| url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost"))
@@ -1855,5 +1855,5 @@ pub fn run() {
             add_custom,
         ])
         .run(tauri::generate_context!())
-        .expect("Mida couldn't start");
+        .expect("MIDA couldn't start");
 }

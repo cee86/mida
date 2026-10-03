@@ -1,8 +1,8 @@
 //! Settings saved on this computer only (settings.json in the app's data folder). Everything
 //! read back is cleaned, so a damaged or hand-edited file can't break the app.
 //!
-//! Version 2 (Mida 0.2): modules live inside profiles (one per game), plus app preferences.
-//! Version 1 files (Mida 0.1: one list of modules) are moved into a Destiny 2 profile.
+//! Version 2 (MIDA 0.2): modules live inside profiles (one per game), plus app preferences.
+//! Version 1 files (MIDA 0.1: one list of modules) are moved into a Destiny 2 profile.
 
 use crate::modules::{clean_image, clean_modules, clean_text, tabs_for, Module, CUSTOM_GAME, GAMES, MAX_PICTURE};
 use serde::{Deserialize, Serialize};
@@ -221,7 +221,7 @@ pub fn clean_profile(p: Profile) -> Option<Profile> {
 }
 
 fn clean(mut s: Settings) -> Settings {
-    // Mida 0.1 kept one list of modules: move it into a Destiny 2 profile (all its sites were).
+    // MIDA 0.1 kept one list of modules: move it into a Destiny 2 profile (all its sites were).
     if s.profiles.is_empty() && (s.first_run_done || !s.modules.is_empty()) {
         let active = s.active_id.clone().unwrap_or_else(|| HOME.to_string());
         s.profiles.push(Profile {

@@ -1,10 +1,10 @@
 //! Windows only: things WebView2 (Windows' browser engine) can do that Tauri doesn't expose.
-//! - Mida's shortcuts (Ctrl+B, Ctrl+1-9, Ctrl+Tab, Ctrl+,) while a module page has the keyboard.
+//! - MIDA's shortcuts (Ctrl+B, Ctrl+1-9, Ctrl+Tab, Ctrl+,) while a module page has the keyboard.
 //!   Browser keys (reload, back/forward, zoom) are handled by the page itself.
-//! - Whether a page loaded, so Mida can show its own "couldn't load" panel instead of the
+//! - Whether a page loaded, so MIDA can show its own "couldn't load" panel instead of the
 //!   browser's error page, and notice when a page crashes.
 //! - Which page was clicked into, so side by side the open page follows the one in use.
-//! - A picture of the page, shown behind Mida's menus and pop-ups (pages always sit above the
+//! - A picture of the page, shown behind MIDA's menus and pop-ups (pages always sit above the
 //!   app's own screen, so the app hides the page and shows this picture in its place).
 //! - Telling the engine a page is in the background, so it gives memory back while unseen.
 

@@ -362,7 +362,7 @@ const ERRORS = {
   "not-found": { icon: "alert", title: (n) => `Couldn't find ${n}`, text: "The site's address couldn't be found. It may be down, or the address may have changed." },
   timeout: { icon: "alert", title: (n) => `${n} took too long`, text: "The site didn't answer in time. It may be busy; try again in a moment." },
   unreachable: { icon: "alert", title: (n) => `Couldn't connect to ${n}`, text: "The site isn't answering right now. It may be down for a moment." },
-  certificate: { icon: "alert", title: (n) => `${n} isn't safe to open`, text: "The site's security certificate isn't valid, so Mida didn't open it." },
+  certificate: { icon: "alert", title: (n) => `${n} isn't safe to open`, text: "The site's security certificate isn't valid, so MIDA didn't open it." },
   server: { icon: "alert", title: (n) => `${n} is having problems`, text: "The site answered with an error. This is on the site's side; try again in a moment.", anyway: true },
   crashed: { icon: "alert", title: (n) => `${n} stopped working`, text: "The page crashed. Reload it to carry on." },
   other: { icon: "alert", title: (n) => `Couldn't load ${n}`, text: "Something went wrong loading the site. Try again, or open it in your browser." },
@@ -376,7 +376,7 @@ function renderActive() {
   $("title").textContent = mod ? status?.title || mod.name : pageName(state.activeId);
   $("url").textContent = mod ? status?.url || mod.url : "";
   $("progress").dataset.on = String(Boolean(status?.loading));
-  document.title = state.activeId !== HOME ? `${pageName(state.activeId)} · Mida` : "Mida";
+  document.title = state.activeId !== HOME ? `${pageName(state.activeId)} · MIDA` : "MIDA";
   renderStage();
 }
 
@@ -769,11 +769,11 @@ $("notes-clear").addEventListener("click", () => {
 let lastAccountError = null;
 function noticeFromState() {
   const u = state.update;
-  if (u?.status === "available") notify({ key: `update-${u.version}`, kind: "update", title: `Mida ${u.version} is available`, detail: `You're using ${state.version}. Update from here or the banner at the bottom of the sidebar.` });
+  if (u?.status === "available") notify({ key: `update-${u.version}`, kind: "update", title: `MIDA ${u.version} is available`, detail: `You're using ${state.version}. Update from here or the banner at the bottom of the sidebar.` });
   if (u?.status === "error") notify({ key: `update-error-${u.version}-${new Date().toDateString()}`, kind: "error", title: "The update didn't download", detail: "Click the banner at the bottom of the sidebar to try again." });
   try {
     const seen = localStorage.getItem("mida-last-version");
-    if (seen && seen !== state.version) notify({ key: `updated-${state.version}`, kind: "update", title: `Updated to Mida ${state.version}`, detail: `From ${seen}.`, link: "releases" });
+    if (seen && seen !== state.version) notify({ key: `updated-${state.version}`, kind: "update", title: `Updated to MIDA ${state.version}`, detail: `From ${seen}.`, link: "releases" });
     if (seen !== state.version) localStorage.setItem("mida-last-version", state.version);
   } catch {
     // Only a convenience.
@@ -1041,7 +1041,7 @@ $("menu").addEventListener("keydown", (event) => {
     closeMenu();
   }
 });
-// Close menus when Mida loses the keyboard to another program. Opening a menu over a site hands
+// Close menus when MIDA loses the keyboard to another program. Opening a menu over a site hands
 // the keyboard to our screen, which can blur it for a moment on Windows: only a lasting blur counts.
 window.addEventListener("blur", () => setTimeout(() => !document.hasFocus() && closeMenu(), 150));
 
@@ -1113,7 +1113,7 @@ function profileMenu() {
             icon: "remove",
             danger: true,
             action: () =>
-              confirmDialog(`Delete ${current.name}?`, "Its modules and settings are removed from Mida. Your sign-ins on the sites aren't affected.", "Delete profile", () =>
+              confirmDialog(`Delete ${current.name}?`, "Its modules and settings are removed from MIDA. Your sign-ins on the sites aren't affected.", "Delete profile", () =>
                 hub.deleteProfile(current.id),
               ),
           },
@@ -1143,7 +1143,7 @@ function squarePicture(file) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("That file isn't a picture Mida can read."));
+      reject(new Error("That file isn't a picture MIDA can read."));
     };
     img.src = url;
   });
@@ -1154,7 +1154,7 @@ function squarePicture(file) {
 const BACKDROP_KEY = "mida-inv-backdrop";
 function backdropPicture(file, maxWidth = 1920) {
   return new Promise((resolve, reject) => {
-    const fail = () => reject(new Error("That file isn't a picture Mida can read."));
+    const fail = () => reject(new Error("That file isn't a picture MIDA can read."));
     if (!file.type.startsWith("image/")) return fail();
     const reader = new FileReader();
     reader.onerror = fail;
@@ -1214,7 +1214,7 @@ function overlaysSetting() {
 }
 
 // A backdrop picture for a tab: `key` in this computer's storage, `title` and `help` for Settings.
-function backdropSetting(key = BACKDROP_KEY, title = "Inventory backdrop", help = "A picture from your computer behind the Inventory tab, darkened and blurred. It stays on this computer.", none = "Using Mida's own dark backdrop.") {
+function backdropSetting(key = BACKDROP_KEY, title = "Inventory backdrop", help = "A picture from your computer behind the Inventory tab, darkened and blurred. It stays on this computer.", none = "Using MIDA's own dark backdrop.") {
   let saved = null;
   try {
     saved = localStorage.getItem(key);
@@ -1361,7 +1361,7 @@ function renderWizard() {
   $("wizard-back").textContent = wizard.step === 1 ? "Cancel" : "Back";
   $("wizard-back").hidden = first && wizard.step === 1;
   if (wizard.step === 1) {
-    $("wizard-title").textContent = first ? "Welcome to Mida" : "New profile";
+    $("wizard-title").textContent = first ? "Welcome to MIDA" : "New profile";
     $("wizard-lede").textContent = first
       ? "Your game's companion sites in one window. Start with a profile: one for each game you play."
       : "A profile keeps the modules for one game. Switch profiles from the top of the sidebar.";
@@ -1375,7 +1375,7 @@ function renderWizard() {
   const recommended = state.catalogue.filter((c) => c.game === p.game);
   if (!recommended.length) {
     $("wizard-title").textContent = "Almost done";
-    $("wizard-lede").textContent = `Mida doesn't have suggested sites for ${p.gameName || "this game"} yet.`;
+    $("wizard-lede").textContent = `MIDA doesn't have suggested sites for ${p.gameName || "this game"} yet.`;
     $("wizard-body").replaceChildren(
       el("p", { class: "note", text: "Add the sites you use with “Add a module” in the sidebar: any https site works. Your profile starts on its Home page." }),
     );
@@ -1760,7 +1760,7 @@ function personalizationPanel() {
 
   return [
     el("h2", { text: "Personalization" }),
-    el("p", { text: "How Mida looks. Changes show straight away." }),
+    el("p", { text: "How MIDA looks. Changes show straight away." }),
     setting("Theme", null, themes),
     ...(p.theme === "foundry"
       ? foundrySettings(p)
@@ -1789,9 +1789,9 @@ function accessibilityPanel() {
   );
   return [
     el("h2", { text: "Accessibility" }),
-    el("p", { text: "Make Mida easier to see and use." }),
+    el("p", { text: "Make MIDA easier to see and use." }),
     setting("Reduce motion", "Turns off animations such as the loading sweep and pop-up slides.", segmented("motion", [["system", "Follow Windows"], ["on", "On"], ["off", "Off"]], p.reduceMotion, (v) => updatePrefs({ reduceMotion: v }), "Reduce motion")),
-    setting("Interface size", "Makes Mida's own sidebar, bars and pop-ups bigger or smaller (not the sites).", segmented("scale", [[90, "90%"], [100, "100%"], [110, "110%"], [125, "125%"], [150, "150%"]], p.uiScale, (v) => updatePrefs({ uiScale: v }), "Interface size")),
+    setting("Interface size", "Makes MIDA's own sidebar, bars and pop-ups bigger or smaller (not the sites).", segmented("scale", [[90, "90%"], [100, "100%"], [110, "110%"], [125, "125%"], [150, "150%"]], p.uiScale, (v) => updatePrefs({ uiScale: v }), "Interface size")),
     setting("High contrast", "Stronger borders and text, and solid panels instead of see-through ones.", toggle("contrast", p.highContrast, (v) => updatePrefs({ highContrast: v }), "High contrast"), { row: true }),
     setting("Site zoom", `How big sites start. ${modKey()} + and ${modKey()} − still zoom one site on its own.`, zoom, { row: true }),
   ];
@@ -1818,8 +1818,8 @@ function aboutPanel() {
     },
   });
   return [
-    el("div", { class: "about-mark" }, el("img", { src: "icon.png", alt: "" }), el("div", {}, el("strong", { text: "Mida" }), el("div", { class: "setting__help", text: `Version ${state.version}` }))),
-    setting("Updates", "Mida checks by itself when it starts and every few hours, and always asks before updating.", el("div", {}, check, status)),
+    el("div", { class: "about-mark" }, el("img", { src: "icon.png", alt: "" }), el("div", {}, el("strong", { text: "MIDA" }), el("div", { class: "setting__help", text: `Version ${state.version}` }))),
+    setting("Updates", "MIDA checks by itself when it starts and every few hours, and always asks before updating.", el("div", {}, check, status)),
     setting(
       "More",
       null,
@@ -1830,14 +1830,14 @@ function aboutPanel() {
         el("button", { class: "btn btn--small", type: "button", text: "Project page", onclick: () => hub.openLink("project") }),
       ),
     ),
-    el("p", { class: "dialog__fine", text: "Mida shows each site with Windows' own browser engine (WebView2). Not affiliated with Bungie or any of the sites it shows." }),
+    el("p", { class: "dialog__fine", text: "MIDA shows each site with Windows' own browser engine (WebView2). Not affiliated with Bungie or any of the sites it shows." }),
   ];
 }
 
 // Settings → Tabs: which built-in tabs this profile shows.
 function tabsPanel() {
   const all = state.tabCatalogue.filter((t) => t.game === state.profile?.game);
-  const intro = [el("h2", { text: "Tabs" }), el("p", { text: "Mida's own pages, in the sidebar above your modules. Switch any of them off for this profile." })];
+  const intro = [el("h2", { text: "Tabs" }), el("p", { text: "MIDA's own pages, in the sidebar above your modules. Switch any of them off for this profile." })];
   if (all.length === 0) return [...intro, el("p", { class: "note", text: "Built-in tabs are available on Destiny 2 profiles." })];
   const set = (id, on) => {
     const next = all.map((t) => t.id).filter((t) => (t === id ? on : state.tabs.includes(t)));
@@ -1851,7 +1851,7 @@ function tabsPanel() {
       ? `Signed in as ${a.name}. Inventory, Quests and Seasonal Hub read this account. The sign-in is kept on this computer only, encrypted by Windows.`
       : a.available
         ? "Sign in for Inventory, Quests and Seasonal Hub. Signing in happens in your browser, on bungie.net."
-        : "This copy of Mida was built without a Bungie key, so it can't sign in.",
+        : "This copy of MIDA was built without a Bungie key, so it can't sign in.",
     a.signedIn
       ? el("button", { class: "btn btn--small", type: "button", text: "Sign out", onclick: () => hub.signOut() })
       : el("button", { class: "btn btn--small btn--primary", type: "button", disabled: !a.available || a.busy || null, text: a.busy ? "Waiting…" : "Sign in", onclick: () => hub.signIn() }),
@@ -1909,7 +1909,7 @@ $("settings-close").addEventListener("click", () => $("settings").close());
 let announcedUpdate = null; // version the pop-up has already been shown for (this session)
 
 const UPDATE_TEXT = {
-  available: (u) => ["Update available", `Mida ${u.version} · Click to update`],
+  available: (u) => ["Update available", `MIDA ${u.version} · Click to update`],
   downloading: (u) => ["Downloading update", `${u.percent}% · Restarts when done`],
   ready: () => ["Restarting to update", "Just a moment"],
   error: () => ["Download failed", "Click to try again"],
@@ -1931,7 +1931,7 @@ function renderUpdate() {
   renderUpdating(update);
 }
 
-// While an update downloads and installs, Mida shows it in its own window (no installer window).
+// While an update downloads and installs, MIDA shows it in its own window (no installer window).
 function renderUpdating(update) {
   const dialog = $("updating-dialog");
   const busy = update && (update.status === "downloading" || update.status === "ready");
@@ -1940,8 +1940,8 @@ function renderUpdating(update) {
     return;
   }
   const ready = update.status === "ready";
-  $("updating-title").textContent = ready ? "Installing the update" : "Updating Mida";
-  $("updating-text").textContent = ready ? `Mida ${update.version} is downloaded. Installing it now; Mida reopens in a moment.` : `Downloading Mida ${update.version}… ${update.percent ?? 0}%`;
+  $("updating-title").textContent = ready ? "Installing the update" : "Updating MIDA";
+  $("updating-text").textContent = ready ? `MIDA ${update.version} is downloaded. Installing it now; MIDA reopens in a moment.` : `Downloading MIDA ${update.version}… ${update.percent ?? 0}%`;
   $("updating-progress").setAttribute("aria-valuenow", String(update.percent ?? 0));
   $("updating-fill").style.width = `${ready ? 100 : update.percent ?? 0}%`;
   $("updating-dialog").classList.toggle("is-installing", ready);
@@ -1957,7 +1957,7 @@ $("updating-dialog").addEventListener("cancel", (event) => event.preventDefault(
 function maybeAnnounce() {
   if (!state?.update || state.update.status !== "available" || anythingOpen() || !state.firstRunDone) return;
   announcedUpdate = state.update.version;
-  $("update-dialog-text").textContent = `Mida ${state.update.version} is available. You're using ${state.version}.`;
+  $("update-dialog-text").textContent = `MIDA ${state.update.version} is available. You're using ${state.version}.`;
   openDialog($("update-dialog"));
 }
 

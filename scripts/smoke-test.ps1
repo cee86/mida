@@ -1,4 +1,4 @@
-# Windows smoke test (run by GitHub Actions after each build): opens the freshly built Mida with
+# Windows smoke test (run by GitHub Actions after each build): opens the freshly built MIDA with
 # real sites, clicks and presses shortcuts like a person would, and saves screenshots, so we can
 # see the real app working. Nothing here ships in the app.
 param([string]$Exe = "src-tauri/target/release/mida.exe", [string]$Out = "smoke")
@@ -8,7 +8,7 @@ $config = Join-Path $env:APPDATA "report.seals.mida"
 New-Item -ItemType Directory -Force $config | Out-Null
 
 # A returning user: one Destiny 2 profile with four modules (the last one can't load, to show
-# Mida's own error panel), seals.report open, window in the top-left corner.
+# MIDA's own error panel), seals.report open, window in the top-left corner.
 function Settings($addressBar, $theme = "dark", $expanded = $true, $page = '"activeId": "seals-report", "tabs": []') {
   $open = if ($expanded) { "true" } else { "false" }
   $bar = if ($addressBar) { "true" } else { "false" }
@@ -70,14 +70,14 @@ function Shot($name) {
   $g.Dispose(); $bmp.Dispose()
 }
 
-function Start-Mida($addressBar, $theme = "dark", $expanded = $true, $page = '"activeId": "seals-report", "tabs": []') {
+function Start-MIDA($addressBar, $theme = "dark", $expanded = $true, $page = '"activeId": "seals-report", "tabs": []') {
   [IO.File]::WriteAllText((Join-Path $config "settings.json"), (Settings $addressBar $theme $expanded $page))
   $app = Start-Process -FilePath $Exe -PassThru
   Start-Sleep -Seconds 20
   # The app's own window (by process; PowerShell turns $null into "" for FindWindow, which fails).
   $hwnd = (Get-Process -Id $app.Id).MainWindowHandle
-  if ($hwnd -eq [IntPtr]::Zero) { $hwnd = [Input]::FindWindow([NullString]::Value, "Mida") }
-  Write-Host "Mida window found: $($hwnd -ne [IntPtr]::Zero)"
+  if ($hwnd -eq [IntPtr]::Zero) { $hwnd = [Input]::FindWindow([NullString]::Value, "MIDA") }
+  Write-Host "MIDA window found: $($hwnd -ne [IntPtr]::Zero)"
   [Input]::SetForegroundWindow($hwnd) | Out-Null
   return @($app, $hwnd)
 }
@@ -85,7 +85,7 @@ function Start-Mida($addressBar, $theme = "dark", $expanded = $true, $page = '"a
 # Sidebar rows (client pixels, sidebar expanded): Home 128, modules from 208, 44 apart.
 $HOME_Y = 128; $ROW = @(208, 252, 296, 340)
 
-$app, $hwnd = Start-Mida $true
+$app, $hwnd = Start-MIDA $true
 Shot "01-seals-report-80pct"
 
 [Input]::Click($hwnd, 110, $ROW[1], $false)       # light.gg
@@ -109,7 +109,7 @@ Shot "05-settings-over-site"
 [Input]::Keys(0, 0x1B)
 Start-Sleep -Seconds 1
 
-[Input]::Click($hwnd, 110, $ROW[3], $false)       # the broken site: Mida's own error panel
+[Input]::Click($hwnd, 110, $ROW[3], $false)       # the broken site: MIDA's own error panel
 Start-Sleep -Seconds 8
 Shot "06-error-panel"
 
@@ -136,14 +136,14 @@ Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 # Again with the address bar hidden: floating site controls in the top-right corner.
-$app, $hwnd = Start-Mida $false
+$app, $hwnd = Start-MIDA $false
 Shot "08-floating-controls"
 Write-Host "Still running: $(-not $app.HasExited)"
 Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 # The Foundry theme: a site in its frame, a menu, and settings.
-$app, $hwnd = Start-Mida $true "foundry"
+$app, $hwnd = Start-MIDA $true "foundry"
 Shot "09-foundry-site"
 [Input]::Click($hwnd, 110, $ROW[1], $true)        # right-click light.gg
 Start-Sleep -Seconds 2
@@ -164,7 +164,7 @@ Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 # Collapsed sidebar (Foundry, dark): pointing at it opens the flyout over the site.
-$app, $hwnd = Start-Mida $true "foundry" $false
+$app, $hwnd = Start-MIDA $true "foundry" $false
 Shot "13-collapsed"
 [Input]::SetCursorPos(0, 0) | Out-Null
 $p = New-Object Input+POINT; $p.X = 30; $p.Y = 300; [Input]::ClientToScreen($hwnd, [ref]$p) | Out-Null
@@ -178,7 +178,7 @@ Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 # Built-in tabs (all shown): Featured beside seals.report, in Foundry.
-$app, $hwnd = Start-Mida $true "foundry" $true '"activeId": "tab-featured", "panes": ["seals-report", "tab-featured"], "split": 55'
+$app, $hwnd = Start-MIDA $true "foundry" $true '"activeId": "tab-featured", "panes": ["seals-report", "tab-featured"], "split": 55'
 Start-Sleep -Seconds 4
 Shot "15-tab-beside-site"
 [Input]::Click($hwnd, 110, 208, $false)            # the Inventory tab (first tab row): signed out, it offers sign-in

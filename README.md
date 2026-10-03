@@ -5,7 +5,7 @@ AIO companion site/app compiler. Built on tauri. Primarily intended for use with
 
 ## Getting the app (no tools needed)
 
-Download the installer (`Mida-Setup-<version>.exe`) from the latest release:
+Download the installer (`MIDA_<version>_x64-setup.exe`) from the latest release:
 https://github.com/cee86/mida/releases/latest. Windows will warn that the app is from an unknown
 publisher. Choose "More info" then "Run anyway".
 
@@ -18,7 +18,7 @@ a test installer (Actions > "Build" > the run > Artifacts > `mida-windows`).
 
 ## Running from the code
 
-Mida is built with Tauri and uses Windows' own browser engine (WebView2)..
+MIDA is built with Tauri and uses Windows' own browser engine (WebView2)..
 
 ```bash
 npm install
@@ -41,4 +41,4 @@ Ctrl+= / Ctrl+- / Ctrl+0 zoom the current site.
 
 ## Credits
 
-Destiny 2 is a trademark of Bungie; Mida is not affiliated with Bungie.
+Destiny 2 is a trademark of Bungie; MIDA is not affiliated with Bungie.

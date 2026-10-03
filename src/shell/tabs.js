@@ -1,4 +1,4 @@
-// Mida's built-in Destiny 2 tabs, drawn by the app itself (not websites). Loaded as a module
+// MIDA's built-in Destiny 2 tabs, drawn by the app itself (not websites). Loaded as a module
 // after shell.js, which calls window.midaTabs.mount(id, container, ctx) when a tab is shown and
 // update(...) when the app's state changes. ctx gives the shell's helpers (el, svg) and state.
 //
@@ -194,10 +194,10 @@ function signIn(ctx, id) {
   const tab = state.tabCatalogue.find((t) => t.id === id);
   const account = state.account ?? {};
   const note = !account.available
-    ? "This copy of Mida was built without a Bungie key, so it can't sign in."
+    ? "This copy of MIDA was built without a Bungie key, so it can't sign in."
     : account.busy
       ? "Finish signing in in your browser, then come back here. (Closed the tab? Wait a moment and try again.)"
-      : "Sign in with Bungie in your browser. Mida keeps the sign-in on this computer only, encrypted by Windows, and can sign out any time from Settings.";
+      : "Sign in with Bungie in your browser. MIDA keeps the sign-in on this computer only, encrypted by Windows, and can sign out any time from Settings.";
   return el(
     "div",
     { class: "tab tab--signin" },

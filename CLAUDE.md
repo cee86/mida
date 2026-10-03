@@ -1,4 +1,4 @@
-# CLAUDE.md — Mida
+# CLAUDE.md — MIDA
 
 Handoff for any Claude working on this repository. Read all of it before changing anything. When you finish a
 meaningful change, update the relevant section (especially "Decisions log", "Known limitations" and "Roadmap").
@@ -7,12 +7,12 @@ meaningful change, update the relevant section (especially "Decisions log", "Kno
 
 ## 1. What this is
 
-**Mida** is a locally run Windows desktop app that shows game companion websites in one window, so players don't
+**MIDA** is a locally run Windows desktop app that shows game companion websites in one window, so players don't
 need a browser full of tabs: a toggleable sidebar of **modules** on the left, the chosen site (or the profile's Home
-page) on the right. Since v0.2 everything is organised in **profiles**, one per game: Destiny 2 profiles get Mida's
+page) on the right. Since v0.2 everything is organised in **profiles**, one per game: Destiny 2 profiles get MIDA's
 recommended sites; profiles for any other game start empty and add their own. It was started on 30 Sep 2026 by the owner of **seals.report** (https://d2-seals-report.vercel.app,
 repo `cee86/d2-seals-report`), one of the starter modules. It began life in that repo's `desktop/` folder as
-"Companion Hub" and moved here, renamed **Mida** by the owner, the same day.
+"Companion Hub" and moved here, renamed **MIDA** by the owner, the same day.
 
 The app is **not affiliated with Bungie** or with any of the sites it shows. Keep it that way; don't imply official
 status or use other sites' artwork as our own.
@@ -51,7 +51,7 @@ status or use other sites' artwork as our own.
   `https://github.com/cee86/mida/releases/latest/download/latest.json` at start and every 4 hours (installed app only).
   New version → pop-up ("Update available", Update now / Later; once per version per session, never over another
   dialog) + a sidebar banner until updated. Update = download in the app with %, **signature checked** against the
-  public key in `tauri.conf.json` (`plugins.updater.pubkey`), then the installer runs in passive mode and Mida reopens.
+  public key in `tauri.conf.json` (`plugins.updater.pubkey`), then the installer runs in passive mode and MIDA reopens.
 * **Update signing key:** the private half lives only in the repo secret **`TAURI_SIGNING_PRIVATE_KEY`** (no
   password). Never commit it or paste it in chat. Losing it means installed copies can't update (they'd need one manual
   reinstall of a build with a new key). Anyone who has it could sign an update, but could only deliver it through a
@@ -114,7 +114,7 @@ src-tauri/src/modules.rs  GAMES, per-game CATALOGUE and pure checks with tests: 
                           is_sign_in, is_web.
 src-tauri/src/store.rs    settings.json in %APPDATA%\report.seals.mida, version 2: { firstRunDone, profiles[{ id, name,
                           image, game, gameName, modules, activeId ("home" or a module) }], defaultProfile,
-                          currentProfile, sidebarExpanded, window, prefs }. Version 1 files (Mida 0.1) become a
+                          currentProfile, sidebarExpanded, window, prefs }. Version 1 files (MIDA 0.1) become a
                           "My profile" Destiny 2 profile. Prefs (clean_prefs): theme dark|black|light, colorway preset or
                           custom (2-3 colours, accent, angle), showAddressBar, controlsCorner, controlsAutohide,
                           reduceMotion system|on|off, uiScale 90-150, highContrast, siteZoom 50-150 (default 80).
@@ -132,7 +132,7 @@ src/shell/index.html etc. The app's own screen. shell.js: sidebar (profile chip 
                           `style: {...}` does this).
 scripts/smoke-test.ps1    CI only: runs the built app on Windows and takes screenshots.
 scripts/check-windows.sh  Type-checks the Windows build from Linux.
-art/icon.svg              Mida's icon source. Regenerate src-tauri/icons with `npx tauri icon art/icon.svg` (keep only the
+art/icon.svg              MIDA's icon source. Regenerate src-tauri/icons with `npx tauri icon art/icon.svg` (keep only the
                           ones tauri.conf lists); src/shell/icon.png is the 128px one.
 ```
 
@@ -152,7 +152,7 @@ Settings -> Tabs, or "Hide this tab"): drawn by the shell itself from `src/shell
 rotators) and the RAD assistant (every raid/dungeon: encounters with their loot, armor, exotic; empty "Tips"/"Map"
 places and an asset-pack note for content to come) work offline. `src/shell/d2/` holds **unchanged copies** of
 seals.report's lib/rotations.js, rotators.js and loot-tables.js: copy them again when seals.report changes them (the
-admin's rotator corrections live in seals.report's Redis and don't reach Mida yet; a small public endpoint could fix
+admin's rotator corrections live in seals.report's Redis and don't reach MIDA yet; a small public endpoint could fix
 that; Featured now asks seals.report's `/api/mida/rotators` once a run through `d2_rotators`).
 
 **Rotators** (was Featured; tab id still `tab-featured`, src/shell/rotators.js + rotators.css, 3 Oct 2026): seals.report's
@@ -179,13 +179,13 @@ height, hidden with `color: transparent` / `visibility: hidden`); built-in tabs 
 document in the capture phase, a pointer move also ends a stale drag, and the sidebar doesn't re-render mid-drag, which
 used to detach the dragged row so `dragend` never fired).
 
-**Bungie sign-in** (src/auth.rs, v0.4): Mida's own Bungie app (Confidential; redirect
+**Bungie sign-in** (src/auth.rs, v0.4): MIDA's own Bungie app (Confidential; redirect
 `https://d2-seals-report.vercel.app/api/mida/callback`; scopes: read Destiny 2 inventory/vault, move or equip gear). Its
-client secret lives only in seals.report's Vercel env (`MIDA_CLIENT_ID`/`MIDA_CLIENT_SECRET`). Flow: Mida listens once
+client secret lives only in seals.report's Vercel env (`MIDA_CLIENT_ID`/`MIDA_CLIENT_SECRET`). Flow: MIDA listens once
 on 127.0.0.1:<random port> (`auth::listen`/`wait_for_code`, 5 min, only `/callback` with the matching random state),
 opens `seals.report/api/mida/login?port&state` in the system browser -> Bungie -> `/api/mida/callback` -> redirect to the
-listener with the code -> Mida POSTs it to `/api/mida/token` (the server swaps it with the secret, stores nothing) ->
-the public `/User/GetMembershipsById/{membership_id}/254/` (the Bungie.net id the token response carries; v0.4.0 used `GetMembershipsForCurrentUser`, which needs a permission Mida's app doesn't have, and every sign-in failed) -> `auth::pick_membership` (primary / cross save). Bungie errors show their code (12 = a permission missing from the app on bungie.net). Tokens: `account.bin` next to
+listener with the code -> MIDA POSTs it to `/api/mida/token` (the server swaps it with the secret, stores nothing) ->
+the public `/User/GetMembershipsById/{membership_id}/254/` (the Bungie.net id the token response carries; v0.4.0 used `GetMembershipsForCurrentUser`, which needs a permission MIDA's app doesn't have, and every sign-in failed) -> `auth::pick_membership` (primary / cross save). Bungie errors show their code (12 = a permission missing from the app on bungie.net). Tokens: `account.bin` next to
 settings.json, encrypted with Windows DPAPI for the current user (memory only on non-Windows test builds); refreshed
 through `/api/mida/token` when within 60 s of expiry; signed out when the refresh ends. The shell never sees a token.
 API key: `option_env!("MIDA_BUNGIE_API_KEY")`, from the repo secret of that name in the build workflow (builds without
@@ -247,7 +247,7 @@ measured from our layout, so sites shrink to make room. Dock and Inventory tab s
 other about moves (`mida-inventory-changed`). Esc closes the item card from anywhere; a quick click no longer un-pins it
 (the hover timer is cleared).
 **Notifications** (v0.7, owner): a bell at the bottom of the sidebar (above Settings) with an unread count opens a list
-(`#notes-dialog`, frozen like other dialogs): a new version (with "Update now"), a failed download, "Updated to Mida X"
+(`#notes-dialog`, frozen like other dialogs): a new version (with "Update now"), a failed download, "Updated to MIDA X"
 after an update (with "What's new"; compares `mida-last-version`), Bungie sign-in errors, and anything Bungie refused in
 the Inventory or dock (`ctx.notify`, `fail()` in inventory.js). Kept in localStorage `mida-notifications` (newest
 first, at most 60); `key` stops the same news being added twice; marked read when the list opens (the "new" marks stay
@@ -366,7 +366,7 @@ stop), Ctrl+, settings, Alt+Left/Right and mouse side buttons back/forward, Ctrl
 
 * Module pages can't call the app: every command checks the caller is our own page ("shell"; the floating "controls"
   only for get_state, nav and key), Tauri refuses IPC from remote origins anyway, and the only capability
-  (`shell.json`) is for those two pages. open_link only opens fixed Mida URLs.
+  (`shell.json`) is for those two pages. open_link only opens fixed MIDA URLs.
 * Site icons are fetched only over https, only images, size-limited, and shown with <img> (SVG can't run anything
   there). Profile pictures never leave the computer (resized in the page, stored in settings.json).
 * Every permission request (camera, mic, location, notifications, clipboard read, USB...) is refused
@@ -378,7 +378,7 @@ stop), Ctrl+, settings, Alt+Left/Right and mouse side buttons back/forward, Ctrl
 * The shell has a strict CSP (tauri.conf.json: own files, data: images, IPC only) and never inserts site text as HTML.
 * All pages share WebView2's one profile, like tabs in one browser: sign in to Bungie once; sites still can't read each
   other's data. WebView2 presents itself as Edge, so sites and sign-in pages treat it as a normal browser.
-* Updates are signature-checked (see §3); single-instance: opening Mida again focuses the existing window.
+* Updates are signature-checked (see §3); single-instance: opening MIDA again focuses the existing window.
 
 ## 6. Design
 
@@ -392,7 +392,7 @@ panels solid and borders/text stronger, reduce motion stops animations. Menus an
 Pop-ups sit over a blurred picture of the site. The collapsed sidebar is an icon strip.
 
 **Foundry theme** (`src/shell/foundry.css`, everything scoped to `html[data-theme="foundry"]`, also loaded by
-controls.html): Mida as the weapons foundry of the lore, from the owner's Deep Stone Crypt / Clovis Bray references.
+controls.html): MIDA as the weapons foundry of the lore, from the owner's Deep Stone Crypt / Clovis Bray references.
 Light (pearl) or Dark (graphite) via prefs.foundryMode -> `data-foundry`; the lights (`--glow`, prefs.foundryGlow) and
 markings (`--mark`, prefs.foundryMark) are the player's colours (presets in theme.js FOUNDRY_COLOURS, or Custom).
 Markings are CSS masks coloured by `--mark`, so every chevron/glyph follows the chosen colour. On the light version the
@@ -429,9 +429,9 @@ contents (`data-fit`).
   updating Tauri.
 * Back/forward buttons are always enabled (Tauri doesn't report history).
 * Moving from the Electron build (0.3.0) to the Tauri one can't happen through the old updater (it looks for latest.yml,
-  and its releases were deleted), so anyone on it uninstalls "Mida" and installs the Tauri v0.1.0 by hand once. Different
+  and its releases were deleted), so anyone on it uninstalls "MIDA" and installs the Tauri v0.1.0 by hand once. Different
   install folders:
-  Electron `%LOCALAPPDATA%\Programs\mida`, Tauri `%LOCALAPPDATA%\Mida`.
+  Electron `%LOCALAPPDATA%\Programs\mida`, Tauri `%LOCALAPPDATA%\MIDA`.
 * Unsigned installer (SmartScreen warning on first install).
 * Memory grows with each opened module (they stay alive by design).
 
@@ -441,7 +441,7 @@ contents (`data-fit`).
 
 * Electron 0.1: Electron over Tauri (its several-pages-per-window support was mature; Tauri's was experimental); modules load on first open and stay alive; one shared
   browser profile; first-run picker with seals.report, light.gg and DIM ticked; custom https sites allowed; moved from
-  `cee86/d2-seals-report/desktop` to its own repo at the owner's request; the owner named the app **Mida** (the repo name).
+  `cee86/d2-seals-report/desktop` to its own repo at the owner's request; the owner named the app **MIDA** (the repo name).
 * Electron 0.2.0: auto-update from GitHub releases; the owner chose to make the repo public for it. Never
   published (its release build failed: GitHub needs the tag to exist first, now fixed in the workflow).
 * Electron 0.3.0: updates ask first (pop-up + sidebar banner until updated) instead of downloading and installing
@@ -457,7 +457,7 @@ contents (`data-fit`).
 
 * v0.2.0 (30 Sep 2026, owner's batch): profiles per game (+ default), Home page, settings pop-up (Personalization,
   Accessibility, About), themes/colorways incl. custom gradient, hide the address bar with floating corner controls
-  (optionally hover-only), themed menus, site icons, rename, drag to reorder, 80% default site zoom, Mida's own error
+  (optionally hover-only), themed menus, site icons, rename, drag to reorder, 80% default site zoom, MIDA's own error
   panel. Claude's calls: pages show a picture of themselves under menus/pop-ups (pages always sit above the app's
   screen); 503 isn't treated as an error; profiles share sign-ins. The `tauri` branch was to be removed (the owner
   deletes it on GitHub; the session's git access can't delete branches).
@@ -468,15 +468,20 @@ contents (`data-fit`).
   rail, add a dark mode and colour choices incl. the accents ("don't want to force someone to look at white"), add
   geometric detail to the sidebar. Same batch: sidebar flyout on hover (default on), fit-to-contents sidebar, and a
   Destiny 1 retro theme.
-* Owner's larger plan (Sep 30 2026): Bungie sign-in in Mida; Destiny 2 profiles get toggleable built-in tabs (Inventory
+* Owner's larger plan (Sep 30 2026): Bungie sign-in in MIDA; Destiny 2 profiles get toggleable built-in tabs (Inventory
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* Branding (3 Oct 2026, owner): the app is **MIDA** (all capitals) everywhere people see it: window title, sidebar,
+  dialogs, sign-in page, installer and Start menu (`productName` "MIDA" in tauri.conf.json and package.json). Windows
+  treats "Mida" and "MIDA" as the same name for folders, registry keys and shortcuts, so the update installs over the old
+  copy rather than beside it. Code names stay lower case (`mida` crate, `cee86/mida`, `mida-*` storage keys,
+  `/api/mida/*`). The release step finds the installer by pattern, so the name's case doesn't matter there.
 * v0.8.5 (3 Oct 2026, owner's round): Seasonal Hub without the hub objectives / bonuses boxes, with a weekly
   checklist, Guardian Rank and clan weekly; Featured rebuilt as **Rotators**; Quests like the game's Quests screen with
   bounties on the right; sidebar alignment, tab reordering and cancelled-drag fixes.
 * v0.8.3 (owner): updates install silently (`plugins.updater.windows.installMode` "quiet" = NSIS `/S /R`, per-user so no
-  admin prompt; the installer relaunches Mida) after an in-app "Updating Mida" window (`#updating-dialog`, can't be
+  admin prompt; the installer relaunches MIDA) after an in-app "Updating MIDA" window (`#updating-dialog`, can't be
   dismissed) shows the download percentage and then "Installing"; the Rust side now downloads, shows "ready" for 1.5 s,
   then installs (`download` + `install` instead of `download_and_install`). The first update *to* this version still
   shows the old installer window (the installed app's config decides). Memory: WebView2 runs pages in its own
@@ -493,8 +498,8 @@ contents (`data-fit`).
   Bungie concept art kept out of the repo, see §4), equal-height toolbar buttons.
 * v0.4.0 (part 3, released 1 Oct 2026): Bungie sign-in, Inventory, Quests, Seasonal hub; seals.report gained
   `/api/mida/login|callback|token|rotators` (live on main).
-* Sign-in plan the owner agreed to: a separate Bungie app for Mida (Confidential), its client secret kept on the
-  seals.report server, which exchanges and refreshes tokens for Mida and stores nothing; Mida keeps the tokens on the
+* Sign-in plan the owner agreed to: a separate Bungie app for MIDA (Confidential), its client secret kept on the
+  seals.report server, which exchanges and refreshes tokens for MIDA and stores nothing; MIDA keeps the tokens on the
   PC encrypted by Windows. Needs the owner to register the app and add two Vercel env vars (steps to come).
 
 ## 9. Roadmap

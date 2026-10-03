@@ -1,4 +1,4 @@
-/* Mida's own screen. Palette and feel from seals.report: charcoal night, cream text, and an
+/* MIDA's own screen. Palette and feel from seals.report: charcoal night, cream text, and an
    accent colour for focus and the current choice. Every colour comes from the variables below,
    which the theme (dark / black / light), the colorway (theme.js) and high contrast change.
    System fonts, so nothing loads from the web. */

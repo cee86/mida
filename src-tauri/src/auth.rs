@@ -1,16 +1,16 @@
 //! Bungie sign-in, for the Destiny 2 tabs that read the player's own characters.
 //!
 //! How it works (and why):
-//! - Mida has its own Bungie app. Its client secret can't be kept safe inside a program anyone can
+//! - MIDA has its own Bungie app. Its client secret can't be kept safe inside a program anyone can
 //!   download, so it lives only on the seals.report server, which swaps codes and refresh tokens for
-//!   Mida (`/api/mida/token`) and stores nothing.
-//! - Signing in happens in the player's normal browser (they can see it's really bungie.net). Mida
+//!   MIDA (`/api/mida/token`) and stores nothing.
+//! - Signing in happens in the player's normal browser (they can see it's really bungie.net). MIDA
 //!   listens once on this computer only (127.0.0.1, a random port) for the one-time code Bungie hands
-//!   back through seals.report, and checks it carries the random `state` Mida made.
+//!   back through seals.report, and checks it carries the random `state` MIDA made.
 //! - The tokens are kept in `account.bin` next to settings.json, encrypted by Windows for this
 //!   Windows user (DPAPI), so other users and copied files can't read them. Elsewhere (Linux test
 //!   builds) they're only kept in memory.
-//! - The API key (identifies Mida to Bungie, not a password) is built in from the
+//! - The API key (identifies MIDA to Bungie, not a password) is built in from the
 //!   MIDA_BUNGIE_API_KEY build secret; builds without it can't sign in.
 
 use base64::Engine;
@@ -29,7 +29,7 @@ pub const API_KEY: Option<&str> = option_env!("MIDA_BUNGIE_API_KEY");
 pub fn api_key() -> Option<&'static str> {
     API_KEY.map(str::trim).filter(|k| !k.is_empty())
 }
-/// How long the browser sign-in may take before Mida stops listening.
+/// How long the browser sign-in may take before MIDA stops listening.
 const SIGN_IN_WAIT: Duration = Duration::from_secs(300);
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -135,7 +135,7 @@ pub fn listen() -> Option<(TcpListener, u16)> {
 
 fn reply(stream: &mut TcpStream, status: &str, title: &str, text: &str) {
     let body = format!(
-        "<!doctype html><meta charset=\"utf-8\"><title>Mida</title>\
+        "<!doctype html><meta charset=\"utf-8\"><title>MIDA</title>\
          <body style=\"font:16px system-ui;background:#111416;color:#e6ecee;display:grid;place-items:center;height:100vh;margin:0\">\
          <div style=\"text-align:center\"><h1 style=\"font-weight:400\">{title}</h1><p>{text}</p></div>"
     );
@@ -172,12 +172,12 @@ pub fn wait_for_code(listener: TcpListener, state: &str) -> Result<String, Strin
         }
         let get = |key: &str| url.query_pairs().find(|(k, _)| k == key).map(|(_, v)| v.into_owned());
         if get("state").as_deref() != Some(state) {
-            reply(&mut stream, "400 Bad Request", "That sign-in didn't match", "Close this tab and sign in again from Mida.");
+            reply(&mut stream, "400 Bad Request", "That sign-in didn't match", "Close this tab and sign in again from MIDA.");
             continue;
         }
         return match get("code") {
             Some(code) if !code.is_empty() && code.len() <= 512 => {
-                reply(&mut stream, "200 OK", "Signed in to Mida", "You can close this tab and go back to Mida.");
+                reply(&mut stream, "200 OK", "Signed in to MIDA", "You can close this tab and go back to MIDA.");
                 Ok(code)
             }
             _ => {
