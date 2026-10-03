@@ -605,6 +605,7 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.8.10 (3 Oct 2026, owner): the app icon in grey (taskbar and window icons too).
 * v0.8.9 (3 Oct 2026, owner's picks from Claude's ideas): Weekly planner, Triumphs (seals, triumphs, collections),
   Armor optimizer and Clan tabs; inventory tags/notes, Compare and Make room; in-app reminders; Keep on top; themes
   Pyramid, Vex network, Traveler's light, Cabal and Neomuna neon.
