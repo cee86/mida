@@ -21,7 +21,9 @@ const percent = (o) => (o.goal > 0 ? Math.min(100, Math.round((o.progress / o.go
 const byCharacter = {}; // character id -> the d2_vendors answer, kept until Refresh
 let picked = null; // the chosen vendor's hash
 
-export function vendorsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter }) {
+// `only` (optional): show just the vendors it accepts, under `title` (the Director's season page uses it for the
+// Tenets), with `empty` when none match.
+export function vendorsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter, only = null, title = "Vendors", empty = null }) {
   const { el } = ctx;
   const root = el("div", { class: "tab vd sh" });
   const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
@@ -145,7 +147,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
   function draw() {
     hideTip();
     const data = byCharacter[chosen()];
-    const all = data?.vendors ?? [];
+    const all = (data?.vendors ?? []).filter((v) => !only || only(v));
     const visible = all.filter((v) => !search || v.name.toLowerCase().includes(search) || v.categories.some((c) => c.items.some(matches)));
     if (!visible.some((v) => v.hash === picked)) picked = visible[0]?.hash ?? null;
     // Grouped like the game's vendor list: the vendor group (Tower, destinations, seasonal...), else "Other".
@@ -169,7 +171,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
           ),
         ),
       ]),
-      visible.length ? null : el("p", { class: "tab__note", text: search ? "No vendor matches your search." : "Bungie listed no vendors for this character." }),
+      visible.length ? null : el("p", { class: "tab__note", text: search ? "No vendor matches your search." : (empty ?? "Bungie listed no vendors for this character.") }),
     );
     // The Inventory's search box (inv-search in inventory.css).
     const searchBox = el(
@@ -194,7 +196,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     const top = el(
       "header",
       { class: "sh-top" },
-      el("div", { class: "sh-top__text" }, el("span", { class: "sh-top__kicker", text: `${all.length} you can visit · ${ctx.state.account?.name ?? ""}` }), el("h1", { class: "sh-top__title", text: "Vendors" })),
+      el("div", { class: "sh-top__text" }, el("span", { class: "sh-top__kicker", text: `${all.length} you can visit · ${ctx.state.account?.name ?? ""}` }), el("h1", { class: "sh-top__title", text: title })),
       el(
         "div",
         { class: "sh-top__tools" },

@@ -2,7 +2,7 @@
 //!
 //! Bungie's presentation node, record and collectible tables are large, so they're downloaded once per game update
 //! (only when this tab is first opened), slimmed to what the tab shows and saved beside the main manifest
-//! (`manifest/<version>-records-1.json`, cleaned up with it). Player data comes from profile components 200
+//! (`manifest/<version>-records-2.json`, cleaned up with it). Player data comes from profile components 200
 //! (characters, for the title's gender), 700 (node progress), 800 (collectibles) and 900 (records).
 
 use crate::bungie::{self, Manifest};
@@ -19,6 +19,7 @@ pub struct Node {
     pub nodes: Vec<u32>,
     pub records: Vec<u32>,
     pub collectibles: Vec<u32>,
+    pub metrics: Vec<u32>,
     pub completion: u32, // a seal's title record
     pub parent: u32,
 }
@@ -34,6 +35,16 @@ pub struct Record {
     pub gilding: bool,           // counts toward gilding the title, not earning it
     pub titles: Vec<String>,     // [male, female] when it awards a title
     pub gildable: bool,
+    pub toast: i64,              // completionInfo.toastStyle: 8 = a weapon pattern unlocked (DIM's method)
+    pub parent: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct Metric {
+    pub name: String,
+    pub description: String,
+    pub icon: String,
+    pub lower_is_better: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -52,6 +63,10 @@ pub struct Roots {
     pub legacy_triumphs: u32,
     pub collections: u32,
     pub badges: u32,
+    pub catalysts: u32,
+    pub lore: u32,
+    pub metrics: u32,
+    pub medals: u32,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -61,6 +76,7 @@ pub struct Records {
     pub nodes: HashMap<u32, Node>,
     pub records: HashMap<u32, Record>,
     pub collectibles: HashMap<u32, Collectible>,
+    pub metrics: HashMap<u32, Metric>,
 }
 
 // ---------- Slimming Bungie's tables ----------
@@ -90,10 +106,16 @@ struct ChildCollectible {
 }
 #[derive(Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
+struct ChildMetric {
+    metric_hash: u32,
+}
+#[derive(Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
 struct RawChildren {
     presentation_nodes: Vec<ChildNode>,
     records: Vec<ChildRecord>,
     collectibles: Vec<ChildCollectible>,
+    metrics: Vec<ChildMetric>,
 }
 #[derive(Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
@@ -121,6 +143,8 @@ struct RawIntervalInfo {
 struct RawCompletion {
     #[serde(rename = "ScoreValue")]
     score_value: i64,
+    #[serde(rename = "toastStyle")]
+    toast_style: i64,
 }
 #[derive(Deserialize, Default)]
 #[serde(default)]
@@ -146,6 +170,15 @@ struct RawRecord {
     completion_info: RawCompletion,
     for_title_gilding: bool,
     title_info: RawTitleInfo,
+    parent_node_hashes: Vec<u32>,
+    redacted: bool,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct RawMetric {
+    display_properties: RawDisplay,
+    lower_value_is_better: bool,
     redacted: bool,
 }
 
@@ -180,10 +213,15 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
     let paths = &info["jsonWorldComponentContentPaths"]["en"];
     let path = |table: &str| paths[table].as_str().map(str::to_string).ok_or_else(|| format!("Bungie didn't list {table}."));
     let (nodes_path, records_path, collectibles_path) = (path("DestinyPresentationNodeDefinition")?, path("DestinyRecordDefinition")?, path("DestinyCollectibleDefinition")?);
+    let metrics_path = path("DestinyMetricDefinition").ok();
     bungie::report("manifest", 0.0, "Downloading triumphs and collections (first time after a game update)");
     let raw_nodes: HashMap<u32, RawNode> = parse(&bungie::download(&nodes_path, 0.0, 0.2).await?, "presentation nodes")?;
     let raw_records: HashMap<u32, RawRecord> = parse(&bungie::download(&records_path, 0.2, 0.75).await?, "triumphs")?;
-    let raw_collectibles: HashMap<u32, RawCollectible> = parse(&bungie::download(&collectibles_path, 0.75, 1.0).await?, "collections")?;
+    let raw_collectibles: HashMap<u32, RawCollectible> = parse(&bungie::download(&collectibles_path, 0.75, 0.95).await?, "collections")?;
+    let raw_metrics: HashMap<u32, RawMetric> = match metrics_path {
+        Some(p) => parse(&bungie::download(&p, 0.95, 1.0).await?, "stat trackers").unwrap_or_default(),
+        None => HashMap::new(),
+    };
 
     let nodes = raw_nodes
         .into_iter()
@@ -198,6 +236,7 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
                     nodes: n.children.presentation_nodes.iter().map(|c| c.presentation_node_hash).collect(),
                     records: n.children.records.iter().map(|c| c.record_hash).collect(),
                     collectibles: n.children.collectibles.iter().map(|c| c.collectible_hash).collect(),
+                    metrics: n.children.metrics.iter().map(|c| c.metric_hash).collect(),
                     completion: n.completion_record_hash.unwrap_or(0),
                     parent: n.parent_node_hashes.first().copied().unwrap_or(0),
                 },
@@ -223,6 +262,8 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
                     gilding: r.for_title_gilding,
                     titles,
                     gildable: r.title_info.gilding_tracking_record_hash.is_some_and(|h| h != 0),
+                    toast: r.completion_info.toast_style,
+                    parent: r.parent_node_hashes.first().copied().unwrap_or(0),
                 },
             )
         })
@@ -231,6 +272,11 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
         .into_iter()
         .filter(|(_, c)| !c.redacted && !c.display_properties.name.is_empty())
         .map(|(h, c)| (h, Collectible { name: c.display_properties.name, icon: c.display_properties.icon, source: c.source_string, item: c.item_hash }))
+        .collect();
+    let metrics = raw_metrics
+        .into_iter()
+        .filter(|(_, m)| !m.redacted && !m.display_properties.name.is_empty())
+        .map(|(h, m)| (h, Metric { name: m.display_properties.name, description: m.display_properties.description, icon: m.display_properties.icon, lower_is_better: m.lower_value_is_better }))
         .collect();
 
     let settings = bungie::get("/Settings/", None).await.unwrap_or(Value::Null);
@@ -243,8 +289,12 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
         legacy_triumphs: root("legacyTriumphsRootNodeHash"),
         collections: root("collectionRootNode"),
         badges: root("badgesRootNode"),
+        catalysts: root("exoticCatalystsRootNodeHash"),
+        lore: root("loreRootNodeHash"),
+        metrics: if root("metricsRootNodeHash") != 0 { root("metricsRootNodeHash") } else { root("metricsRootNode") },
+        medals: if root("medalsRootNodeHash") != 0 { root("medalsRootNodeHash") } else { root("medalsRootNode") },
     };
-    let mut r = Records { version: version.to_string(), roots: Roots::default(), nodes, records, collectibles };
+    let mut r = Records { version: version.to_string(), roots: Roots::default(), nodes, records, collectibles, metrics };
     // The badges node, when the settings don't name it: the node called "Badges" under the collections root.
     if roots.badges == 0 {
         roots.badges = r.nodes.get(&roots.collections).and_then(|c| c.nodes.iter().copied().find(|h| r.nodes.get(h).is_some_and(|n| n.name.eq_ignore_ascii_case("badges")))).unwrap_or(0);
@@ -437,6 +487,66 @@ impl View<'_> {
         }))
     }
 
+    fn metric(&self, hash: u32) -> Option<Value> {
+        let d = self.r.metrics.get(&hash)?;
+        let state = &self.profile["metrics"]["data"]["metrics"][hash.to_string()];
+        if state["invisible"].as_bool() == Some(true) {
+            return None;
+        }
+        Some(json!({
+            "hash": hash,
+            "name": d.name,
+            "description": d.description,
+            "icon": bungie::icon_url(&d.icon),
+            "value": state["objectiveProgress"]["progress"],
+            "lowerIsBetter": d.lower_is_better,
+        }))
+    }
+
+    /// Weapon patterns: every record that unlocks a crafting pattern (toast style 8), grouped by its parent node,
+    /// shown as one page with a section per group.
+    pub fn patterns(&self) -> Value {
+        let mut groups: HashMap<u32, Vec<u32>> = HashMap::new();
+        for (h, r) in &self.r.records {
+            if r.toast == 8 {
+                groups.entry(r.parent).or_default().push(*h);
+            }
+        }
+        let mut sections: Vec<Value> = groups
+            .into_iter()
+            .map(|(parent, mut hashes)| {
+                hashes.sort_by_key(|h| self.r.records.get(h).map(|r| r.name.clone()).unwrap_or_default());
+                let records: Vec<Value> = hashes.iter().filter_map(|h| self.record(*h)).collect();
+                let done = records.iter().filter(|r| r["complete"].as_bool() == Some(true)).count();
+                let node = self.r.nodes.get(&parent);
+                json!({
+                    "hash": parent,
+                    "name": node.map(|n| n.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| "Other patterns".into()),
+                    "icon": bungie::icon_url(node.map(|n| n.icon.as_str()).unwrap_or("")),
+                    "progress": done,
+                    "goal": records.len(),
+                    "complete": done == records.len() && !records.is_empty(),
+                    "records": records,
+                })
+            })
+            .filter(|g| g["goal"].as_u64().unwrap_or(0) > 0)
+            .collect();
+        sections.sort_by_key(|g| g["name"].as_str().unwrap_or("").to_string());
+        let done: u64 = sections.iter().map(|g| g["progress"].as_u64().unwrap_or(0)).sum();
+        let total: u64 = sections.iter().map(|g| g["goal"].as_u64().unwrap_or(0)).sum();
+        json!({
+            "node": { "hash": 0, "name": "Weapon patterns", "description": "Every craftable weapon's pattern, by weapon group.", "icon": null, "progress": done, "goal": total, "complete": total > 0 && done == total },
+            "section": "patterns",
+            "legacy": false,
+            "crumbs": [],
+            "children": [],
+            "groups": sections,
+            "records": [],
+            "collectibles": [],
+            "metrics": [],
+        })
+    }
+
     fn roots(&self) -> [u32; 5] {
         let r = &self.r.roots;
         [r.active_seals, r.legacy_seals, r.active_triumphs, r.legacy_triumphs, r.collections]
@@ -453,6 +563,7 @@ impl View<'_> {
             "seals": { "active": self.summaries(&kids(r.active_seals)), "legacy": self.summaries(&kids(r.legacy_seals)) },
             "triumphs": { "active": self.summaries(&kids(r.active_triumphs)), "legacy": self.summaries(&kids(r.legacy_triumphs)) },
             "collections": { "categories": self.summaries(&collections), "badges": self.summaries(&kids(r.badges)), "badgesHash": r.badges },
+            "roots": { "catalysts": r.catalysts, "lore": r.lore, "metrics": r.metrics, "medals": r.medals },
         })
     }
 
@@ -496,6 +607,7 @@ impl View<'_> {
             "children": self.summaries(&n.nodes),
             "records": n.records.iter().filter_map(|h| self.record(*h)).collect::<Vec<_>>(),
             "collectibles": n.collectibles.iter().filter_map(|h| self.collectible(*h)).collect::<Vec<_>>(),
+            "metrics": n.metrics.iter().filter_map(|h| self.metric(*h)).collect::<Vec<_>>(),
         }))
     }
 }

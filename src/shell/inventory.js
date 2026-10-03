@@ -1326,11 +1326,21 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     if (document.body.contains(root)) load(false, true);
     else behind = true;
   });
+  // The Guardian tab's Postmaster shortcut: opens this tab, then asks for the postmaster panel (now, or once loaded).
+  const postmasterAsked = () => {
+    if (!window.midaOpenPostmaster || !data) return;
+    window.midaOpenPostmaster = false;
+    overlay = "postmaster";
+    closeCard();
+    draw();
+  };
+  window.addEventListener("mida-open-postmaster", () => document.body.contains(root) && postmasterAsked());
   container.midaShown = () => {
     if (behind && data) {
       behind = false;
       load(false, true);
     }
+    postmasterAsked();
   };
   paintOverlays();
 
@@ -1353,6 +1363,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     if (card) card = { ...card, item: data.items.find((i) => i.id === card.item.id) ?? card.item };
     draw();
     if (!container.contains(root)) container.replaceChildren(root);
+    postmasterAsked();
   }
   load(false);
 }

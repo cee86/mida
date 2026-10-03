@@ -232,6 +232,38 @@ button, and the loadout dock uses the same grid. `character_details` now returns
   window, applied at start and when changed.
 * **Themes:** Pyramid, Vex network, Traveler's light, Cabal, Neomuna neon (see §6).
 
+**Guardian and Director (3 Oct 2026, owner's new organisation, modelled on the Companion app):** the sidebar's
+Destiny 2 tabs are now Guardian, Director, Inventory, Armor optimizer, Weekly planner, Rotators, RAD. Triumphs moved into
+Guardian; the Seasonal Hub, Quests, Vendors and Clan into Director; their screens are unchanged and open as pages inside
+the tab (subpages.js: a back bar "‹ Director · Vendors" over the screen; each page built once and kept). Saved sidebar
+lists are migrated in place (store.rs `clean_profile`: tab-records → tab-guardian; tab-seasonal/quests/vendors/clan →
+tab-director, once).
+* **Guardian** (guardian.js; `d2_guardian`, `d2_recent`, and the `d2_records` overview, each filling in on arrival):
+  characters (hubs.rs `guardian`: emblem, power, race, equipped title, the emblem's stat tracker = the emblem item's
+  `metricHash` / `metricObjective` from component 205); Gear shortcuts (Inventory and Postmaster switch to the Inventory
+  tab with `hub.select`; Postmaster sets `window.midaOpenPostmaster` + "mida-open-postmaster", which inventory.js answers
+  by opening its panel; Armor optimizer opens inside Guardian); Journey: Guardian Rank and the next rank's steps
+  (`bungie::guardian_rank`, shared with the Seasonal Hub), commendations (component 1400: total and each category node's
+  score, percent and colour), "Recently earned seals" (Bungie keeps no dates: `mida-seals-seen` notes when MIDA first
+  sees each earned title; the first look counts everything as before MIDA), a Triumphs shortcut with the active score;
+  Collections: Items, Weapon patterns, Lore, Stat trackers, Medals, Exotic catalysts (the owner listed "weapon patterns"
+  and "patterns & catalysts"; read as patterns + catalysts), each the Triumphs screen started at a node (records.js
+  `start`; roots from core settings, now kept in records.rs `Roots`; stat trackers = node `metrics` with
+  `DestinyMetricDefinition` and component 1100; patterns = records with toast style 8 grouped by parent, `View::patterns`,
+  node "patterns"; the records file is now `-records-2.json`); Recent games (activity history, 10 per character, newest 12).
+* **Director** (director.js; `d2_director`, `d2_portal`, `d2_friends`): section shortcuts (Seasonal Hub, Vendors, Quests,
+  Friends); the season's banner (season definition's art, description, end) opening a page with Seal and triumphs (the
+  Triumphs screen at the season's `sealPresentationNodeHash`) | Tenets (the Vendors screen filtered to vendors whose
+  name/subtitle/group mentions "Tenet", vendors.js `only`); the reward pass rank and XP (`bungie::season`); a Clan banner.
+  **Vanguard alerts** = the Portal's featured activities: component 204's `availableActivities[].isFocusedActivity`
+  ("in the Portal's featured carousel" per Bungie's spec), each card with `visibleRewards` (weapons as "Focused weapon",
+  engrams by name, the rest as icons), matchmaking (`matchmaking.isMatchmade`) and power. **Ops** cards (Arena, Fireteam,
+  Solo, Pinnacle) open a grid of every activity whose traits (`DestinyTraitDefinition` names) mention that Ops; the first
+  Portal read looks up every available activity's definition (~300, kept on disk per game version). Friends =
+  /Social/Friends/ (needs the "read Bungie.net friends" scope on MIDA's Bungie app; a friendly message explains when it's
+  missing). A data check lists the trait names Bungie gave and what's featured. **Unverified live:** whether the featured
+  flag, traits and visible rewards look like the game's Portal, how the Tenets are named, and the friends scope.
+
 **Event challenges (3 Oct 2026, owner: "the Companion app tracks daily/weekly event challenges"):** Bungie's API spec
 gives `DestinyEventCardDefinition.weeklyChallengesPresentationNodeHash`, and core settings name the season's own card
 (`seasonalHubEventCardHash`; MIDA had only read the profile's `activeEventCardHash`, which is empty outside events, and

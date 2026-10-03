@@ -18,7 +18,9 @@ const VIEWS = [
 const number = (n) => (n == null ? "–" : Number(n).toLocaleString());
 const pct = (p, g) => (g > 0 ? Math.min(100, Math.round((p / g) * 100)) : 0);
 
-export function recordsTab(ctx, container, { loadingView, problemView }) {
+// `start`: open at a view ({ view: "triumphs" }) or at one node ({ node: hash | "patterns" }); a node start hides the
+// Seals | Triumphs | Collections switch and its crumbs begin at that node (the Guardian tab's collection pages).
+export function recordsTab(ctx, container, { loadingView, problemView, start: startAt = null }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab rc sh" });
   const backdrop = el("div", { class: "inv-backdrop sh-backdrop", "aria-hidden": "true" });
@@ -32,8 +34,9 @@ export function recordsTab(ctx, container, { loadingView, problemView }) {
     // The built-in backdrop shows.
   }
   let home = null;
-  let view = "seals";
-  let path = []; // node hashes opened, outermost first
+  let view = startAt?.view ?? "seals";
+  const base = startAt?.node ? [startAt.node] : [];
+  let path = base.slice(); // node hashes opened, outermost first
   let pick = {}; // node hash → the section chosen inside it
   let item = null; // the collectible picked in a collections node
   let showDone = true;
@@ -54,7 +57,7 @@ export function recordsTab(ctx, container, { loadingView, problemView }) {
     draw();
   };
   const back = (depth) => {
-    path = path.slice(0, depth);
+    path = depth === 0 ? base.slice() : path.slice(0, depth);
     item = null;
     toTop = true;
     draw();
@@ -198,8 +201,13 @@ export function recordsTab(ctx, container, { loadingView, problemView }) {
   // ---------- One node ----------
 
   function crumbs(data) {
-    const parts = [el("button", { class: "linkish", type: "button", text: VIEWS.find(([id]) => id === view)[1], onclick: () => back(0) })];
+    if (base.length && path.length === 1) return null;
+    const parts = base.length ? [] : [el("button", { class: "linkish", type: "button", text: VIEWS.find(([id]) => id === view)[1], onclick: () => back(0) })];
     path.forEach((h, i) => {
+      if (i === 0 && base.length) {
+        parts.push(el("button", { class: "linkish", type: "button", text: nodes.get(h)?.node?.name ?? "Back", onclick: () => back(0) }));
+        return;
+      }
       const d = nodes.get(h);
       parts.push(el("span", { class: "rc-crumbs__sep", text: "›" }));
       if (i === path.length - 1) parts.push(el("span", { text: d?.node?.name ?? data?.node?.name ?? "" }));
@@ -256,6 +264,30 @@ export function recordsTab(ctx, container, { loadingView, problemView }) {
     );
   }
 
+  // Stat trackers: the number big, like the game's.
+  function metricGrid(list) {
+    if (!list?.length) return null;
+    return el(
+      "div",
+      { class: "rc-metrics" },
+      ...list.map((m) =>
+        el(
+          "div",
+          { class: "rc-metric", title: m.description || m.name },
+          el("span", { class: "rc-metric__icon" }, m.icon ? el("img", { src: m.icon, alt: "", loading: "lazy" }) : null),
+          el("span", { class: "rc-metric__name", text: m.name }),
+          el("strong", { class: "rc-metric__value", text: m.value == null ? "–" : number(m.value) }),
+          m.lowerIsBetter ? el("span", { class: "rc-tag", text: "Lower is better" }) : null,
+        ),
+      ),
+    );
+  }
+  const contents = (d, deeper) => [
+    d.collectibles.length ? itemGrid(d.collectibles) : null,
+    metricGrid(d.metrics),
+    ...(d.records.length || (!d.collectibles.length && !d.metrics?.length && !deeper) ? recordGroups(d.records) : []),
+  ];
+
   // A category (triumphs or collections): sections down the left, the chosen one's contents in the middle.
   function categoryPage(d) {
     const n = d.node;
@@ -268,7 +300,25 @@ export function recordsTab(ctx, container, { loadingView, problemView }) {
     );
     const collections = d.section === "collections" || d.section === "badge" || d.collectibles.length > 0;
     let content;
-    if (d.children.length) {
+    if (d.groups) {
+      // Weapon patterns: one page, a section per weapon group, already read.
+      const chosen = d.groups.some((g) => g.hash === pick.patterns) ? pick.patterns : d.groups[0]?.hash;
+      const group = d.groups.find((g) => g.hash === chosen);
+      const sections = el(
+        "nav",
+        { class: "sh-box rc-sections", "aria-label": "Sections" },
+        ...d.groups.map((g) =>
+          el(
+            "button",
+            { class: `rc-section${g.hash === chosen ? " is-on" : ""}${g.complete ? " is-done" : ""}`, type: "button", "aria-pressed": String(g.hash === chosen), onclick: () => ((pick = { ...pick, patterns: g.hash }), draw()) },
+            g.icon ? el("img", { src: g.icon, alt: "" }) : null,
+            el("span", { class: "rc-section__name", text: g.name }),
+            el("span", { class: "rc-section__count", text: `${number(g.progress)}/${number(g.goal)}` }),
+          ),
+        ),
+      );
+      content = el("div", { class: "rc-browse" }, sections, el("section", { class: "sh-box rc-middle" }, ...(group ? recordGroups(group.records) : [el("p", { class: "tab__note", text: "No weapon patterns found." })])));
+    } else if (d.children.length) {
       const chosen = d.children.some((c) => c.hash === pick[n.hash]) ? pick[n.hash] : d.children[0].hash;
       const inner = nodes.get(chosen);
       if (!inner) fetchNode(chosen);
@@ -292,11 +342,11 @@ export function recordsTab(ctx, container, { loadingView, problemView }) {
         const deeper = inner.children.length
           ? el("div", { class: "rc-deeper" }, ...inner.children.map((c) => el("button", { class: "rc-chip", type: "button", onclick: () => open(c.hash) }, el("span", { text: c.name }), c.goal ? el("small", { text: `${number(c.progress)}/${number(c.goal)}` }) : null)))
           : null;
-        body = el("div", { class: "rc-inner" }, deeper, inner.collectibles.length ? itemGrid(inner.collectibles) : null, ...(inner.records.length || (!inner.collectibles.length && !deeper) ? recordGroups(inner.records) : []));
+        body = el("div", { class: "rc-inner" }, deeper, ...contents(inner, deeper));
       }
       content = el("div", { class: `rc-browse${collections ? " has-detail" : ""}` }, sections, el("section", { class: "sh-box rc-middle" }, body), collections ? itemDetail(item) : null);
     } else {
-      content = el("div", { class: `rc-browse rc-browse--flat${collections ? " has-detail" : ""}` }, el("section", { class: "sh-box rc-middle" }, d.collectibles.length ? itemGrid(d.collectibles) : null, ...(d.records.length || !d.collectibles.length ? recordGroups(d.records) : [])), collections ? itemDetail(item) : null);
+      content = el("div", { class: `rc-browse rc-browse--flat${collections ? " has-detail" : ""}` }, el("section", { class: "sh-box rc-middle" }, ...contents(d, null)), collections ? itemDetail(item) : null);
     }
     return [head, content];
   }
@@ -323,13 +373,14 @@ export function recordsTab(ctx, container, { loadingView, problemView }) {
         el("button", { class: `rc-view${view === id ? " is-on" : ""}`, type: "button", role: "tab", "aria-selected": String(view === id), text: name, onclick: () => ((view = id), (path = []), (item = null), (toTop = true), draw()) }),
       ),
     );
+    const title = base.length ? (nodes.get(base[0])?.node?.name ?? startAt.title ?? "Triumphs") : "Triumphs";
     const top = el(
       "header",
       { class: "sh-top" },
-      el("div", { class: "sh-top__text" }, el("span", { class: "sh-top__kicker", text: `Active score ${number(home.scores.active)} · Lifetime ${number(home.scores.lifetime)}` }), el("h1", { class: "sh-top__title", text: "Triumphs" })),
-      el("div", { class: "sh-top__tools" }, views, el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => start(true) })),
+      el("div", { class: "sh-top__text" }, el("span", { class: "sh-top__kicker", text: `Active score ${number(home.scores.active)} · Lifetime ${number(home.scores.lifetime)}` }), el("h1", { class: "sh-top__title", text: title })),
+      el("div", { class: "sh-top__tools" }, base.length ? null : views, el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => start(true) })),
     );
-    const screen = path.length ? nodeScreen() : view === "seals" ? sealsScreen() : view === "triumphs" ? triumphsScreen() : collectionsScreen();
+    const screen = path.length ? nodeScreen().filter(Boolean) : view === "seals" ? sealsScreen() : view === "triumphs" ? triumphsScreen() : collectionsScreen();
     const scroll = toTop ? 0 : (root.querySelector(".sh-body")?.scrollTop ?? 0);
     toTop = false;
     const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, ...screen.filter(Boolean)));

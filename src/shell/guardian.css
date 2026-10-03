@@ -1,0 +1,88 @@
+/* The Guardian tab (guardian.js) and the pages opened inside a tab (subpages.js), on the Seasonal Hub's look. */
+
+/* A page inside a tab: back bar, then the screen. */
+.sub { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.sub__bar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 12px; border-bottom: 1px solid var(--rule); background: var(--glass); backdrop-filter: var(--glass-blur); flex-shrink: 0; }
+.sub__back { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px 4px 2px; border: 0; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; }
+.sub__back:hover { background: var(--hover); }
+.sub__back svg { width: 18px; height: 18px; }
+.sub__sep { color: var(--mist-dim); }
+.sub__title { color: var(--cream); font-weight: 600; }
+.sub__host { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.sub__host > * { height: 100%; }
+.sub__host > .tab:not(.sh) { overflow: auto; }
+
+.gd { --gold: #d9b867; }
+.gd-sub { margin-bottom: 8px; color: var(--mist); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* Characters and gear shortcuts. */
+.gd-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 16px; align-items: start; }
+.gd-char-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.gd-char { display: grid; grid-template-columns: 56px 1fr auto; grid-template-rows: auto auto; align-items: center; column-gap: 12px; row-gap: 8px; min-height: 76px; padding: 10px 12px 10px 10px; background: rgba(0, 0, 0, 0.45) center / cover no-repeat; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+.gd-char__emblem { display: block; width: 56px; height: 56px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(0, 0, 0, 0.3); }
+.gd-char__emblem img { width: 100%; height: 100%; object-fit: cover; }
+.gd-char__text { display: flex; flex-direction: column; min-width: 0; }
+.gd-char__class { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.gd-char__sub { overflow: hidden; color: rgba(255, 255, 255, 0.8); font-size: 0.8rem; white-space: nowrap; text-overflow: ellipsis; }
+.gd-char__light { font-family: var(--font-display); font-size: 1.5rem; color: #e6c75b; }
+.gd-char__light i { margin-right: 3px; font-size: 0.55em; font-style: normal; vertical-align: 0.5em; }
+.gd-char__tracker { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: rgba(0, 0, 0, 0.45); font-size: 0.8rem; }
+.gd-char__tracker img { width: 18px; height: 18px; object-fit: contain; }
+.gd-char__tracker span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gd-char__tracker strong { font-variant-numeric: tabular-nums; }
+.gd-shorts { display: flex; flex-direction: column; gap: 6px; }
+
+/* A shortcut button (gear, triumphs, collections). */
+.gd-short { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--cream) 12%, transparent); background: rgba(255, 255, 255, 0.04); color: var(--cream); text-align: left; cursor: pointer; }
+.gd-short:hover { border-color: var(--accent); background: var(--hover); }
+.gd-short__icon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--rule); color: var(--accent); }
+.gd-short__icon svg { width: 20px; height: 20px; }
+.gd-short__text { display: flex; flex-direction: column; min-width: 0; }
+.gd-short__text small { color: var(--mist); font-size: 0.78rem; }
+.gd-short--wide { width: 100%; margin-top: 14px; }
+.gd-short.is-off { opacity: 0.45; cursor: default; }
+.gd-short.is-off:hover { border-color: color-mix(in srgb, var(--cream) 12%, transparent); background: rgba(255, 255, 255, 0.04); }
+
+/* Journey. */
+.gd-journey__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.gd-rank__head { display: flex; align-items: center; gap: 12px; }
+.gd-rank__num { position: relative; display: grid; place-items: center; width: 56px; height: 56px; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; line-height: 1; }
+.gd-rank__num::before { content: ""; position: absolute; inset: 8px; border: 2px solid var(--accent); transform: rotate(45deg); }
+.gd-rank__head > div { display: flex; flex-direction: column; margin-left: 6px; }
+.gd-rank__head small, .gd-rank__next small { color: var(--mist); font-size: 0.78rem; }
+.gd-rank__next { display: block; margin-top: 12px; }
+.gd-rank__next ul { margin: 6px 0 4px; padding-left: 18px; font-size: 0.84rem; }
+.gd-rank__next li { margin: 2px 0; }
+.gd-com__total { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
+.gd-com__total strong { font-family: var(--font-display); font-size: 1.6rem; }
+.gd-com__total small { color: var(--mist); }
+.gd-com__row { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 8px; min-height: 24px; font-size: 0.82rem; }
+.gd-com__bar { position: relative; height: 6px; background: rgba(255, 255, 255, 0.1); }
+.gd-com__fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.gd-com__num { color: var(--mist); font-variant-numeric: tabular-nums; }
+.gd-seal-list { display: flex; gap: 10px; }
+.gd-seal { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 92px; padding: 4px; border: 0; background: transparent; color: var(--cream); cursor: pointer; text-align: center; }
+.gd-seal__art { display: grid; place-items: center; width: 64px; height: 75px; clip-path: polygon(50% 0, 100% 10%, 100% 62%, 50% 100%, 0 62%, 0 10%); background: linear-gradient(180deg, #5a4520, #2a1f0e); }
+.gd-seal__art img { width: 86%; height: 86%; object-fit: contain; }
+.gd-seal strong { color: var(--gold); font-size: 0.78rem; }
+.gd-seal small { color: var(--mist); font-size: 0.7rem; }
+
+/* Collections shortcuts. */
+.gd-coll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+
+/* Recent games. */
+.gd-game-list { display: flex; flex-direction: column; gap: 4px; }
+.gd-game { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto auto auto; align-items: center; gap: 14px; min-height: 52px; padding: 4px 12px 4px 4px; background: rgba(255, 255, 255, 0.04); font-size: 0.86rem; }
+.gd-game__art { display: block; width: 88px; height: 44px; background: rgba(255, 255, 255, 0.06) center / cover no-repeat; }
+.gd-game__text { display: flex; flex-direction: column; min-width: 0; }
+.gd-game__text strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gd-game__text small { overflow: hidden; color: var(--mist); font-size: 0.76rem; white-space: nowrap; text-overflow: ellipsis; }
+.gd-game__result { padding: 1px 8px; border: 1px solid var(--rule); color: var(--mist); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.gd-game__result.is-good { border-color: var(--accent); color: var(--accent); }
+.gd-game__stats, .gd-game__time { color: var(--mist); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .gd-top, .gd-journey__grid { grid-template-columns: 1fr; }
+  .gd-game { grid-template-columns: 72px minmax(0, 1fr) auto; }
+  .gd-game__stats, .gd-game__time { display: none; }
+}

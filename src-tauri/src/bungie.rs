@@ -284,7 +284,7 @@ pub(crate) fn icon_url(path: &str) -> Value {
     if path.is_empty() { Value::Null } else { json!(format!("{ROOT}{path}")) }
 }
 
-fn class_name(class: i64) -> &'static str {
+pub(crate) fn class_name(class: i64) -> &'static str {
     match class {
         0 => "Titan",
         1 => "Hunter",
@@ -294,7 +294,7 @@ fn class_name(class: i64) -> &'static str {
 }
 
 /// The characters, most recently played first.
-fn characters(profile: &Value) -> Vec<Value> {
+pub(crate) fn characters(profile: &Value) -> Vec<Value> {
     let mut list: Vec<Value> = profile["characters"]["data"]
         .as_object()
         .map(|m| {
@@ -322,7 +322,7 @@ fn characters(profile: &Value) -> Vec<Value> {
     list
 }
 
-fn items_of(section: &Value) -> impl Iterator<Item = &Value> {
+pub(crate) fn items_of(section: &Value) -> impl Iterator<Item = &Value> {
     section["items"].as_array().into_iter().flatten()
 }
 
@@ -486,7 +486,7 @@ pub async fn entity(table: &str, hash: u64) -> Option<Value> {
     Some(v)
 }
 
-fn race_name(race: i64) -> &'static str {
+pub(crate) fn race_name(race: i64) -> &'static str {
     match race {
         0 => "Human",
         1 => "Awoken",
@@ -879,8 +879,55 @@ fn claimable(track: &Value) -> Vec<Value> {
 }
 
 /// Records under a presentation node, a few levels down, with the node names on the way.
+/// Guardian Rank: the profile's current rank, and the records under the next rank's node in Bungie's Guardian Ranks
+/// tree (`root`, core settings `guardianRanksRootNodeHash`), done = objective flag clear.
+pub(crate) async fn guardian_rank(profile: &Value, character: &str, guardian_root: Option<u64>) -> Value {
+    let current_rank = profile["profile"]["data"]["currentGuardianRank"].as_i64().unwrap_or(0);
+    let highest_rank = profile["profile"]["data"]["lifetimeHighestGuardianRank"].as_i64().unwrap_or(0);
+    let mut guardian = Value::Null;
+    if let Some(root) = guardian_root {
+        if let Some(root_def) = entity("DestinyPresentationNodeDefinition", root).await {
+            let ranks: Vec<u64> = root_def["children"]["presentationNodes"].as_array().into_iter().flatten().filter_map(|c| c["presentationNodeHash"].as_u64()).collect();
+            let name_of = |def: &Value| def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+            let current = match ranks.get((current_rank.max(1) - 1) as usize) {
+                Some(h) => entity("DestinyPresentationNodeDefinition", *h).await,
+                None => None,
+            };
+            let mut next_json = Value::Null;
+            if let Some(next_hash) = ranks.get(current_rank.max(0) as usize) {
+                if let Some(next) = entity("DestinyPresentationNodeDefinition", *next_hash).await {
+                    let mut steps = Vec::new();
+                    for r in next["children"]["records"].as_array().into_iter().flatten().take(30) {
+                        let Some(rh) = r["recordHash"].as_u64() else { continue };
+                        let state = record_state_of(profile, character, rh);
+                        let Some(rdef) = entity("DestinyRecordDefinition", rh).await else { continue };
+                        let flags = state["state"].as_u64().unwrap_or(4);
+                        if flags & 16 != 0 {
+                            continue;
+                        }
+                        steps.push(json!({ "name": rdef["displayProperties"]["name"], "description": rdef["displayProperties"]["description"], "done": flags & 4 == 0 && !state.is_null() }));
+                    }
+                    next_json = json!({ "rank": current_rank + 1, "name": name_of(&next), "steps": steps });
+                }
+            }
+            guardian = json!({
+                "rank": current_rank,
+                "highest": highest_rank,
+                "name": current.as_ref().map(name_of).unwrap_or_default(),
+                "icon": current.as_ref().map(|d| icon_url(d["displayProperties"]["icon"].as_str().unwrap_or(""))).unwrap_or(Value::Null),
+                "max": ranks.len(),
+                "next": next_json,
+            });
+        }
+    }
+    if guardian.is_null() && current_rank > 0 {
+        guardian = json!({ "rank": current_rank, "highest": highest_rank, "name": "", "next": Value::Null });
+    }
+    guardian
+}
+
 /// A record's state for a character: its own copy, else the account's.
-fn record_state_of(profile: &Value, character: &str, hash: u64) -> Value {
+pub(crate) fn record_state_of(profile: &Value, character: &str, hash: u64) -> Value {
     let key = hash.to_string();
     let c = &profile["characterRecords"]["data"][character]["records"][&key];
     if c.is_object() {
@@ -1020,7 +1067,7 @@ async fn hub_vendors(vendors: &Value, m: &Manifest) -> Vec<Value> {
 }
 
 /// Bungie definitions for many hashes at once, a few requests at a time (each is memory-cached by `entity`).
-async fn entities(table: &'static str, hashes: &[u64]) -> HashMap<u64, Value> {
+pub(crate) async fn entities(table: &'static str, hashes: &[u64]) -> HashMap<u64, Value> {
     let mut out = HashMap::new();
     for chunk in hashes.chunks(10) {
         let tasks: Vec<_> = chunk.iter().map(|&h| tauri::async_runtime::spawn(async move { (h, entity(table, h).await) })).collect();
@@ -1654,49 +1701,7 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     // are complete). Same-named milestones are merged. Weekly Clan Engrams also feeds the clan box.
     let (milestones, checklist, clan_engrams) = weekly_checklist(profile, character, m).await;
 
-    // Guardian Rank: the profile's current rank, and the records under the next rank's node in
-    // Bungie's Guardian Ranks tree (done = objective flag clear).
-    let current_rank = profile["profile"]["data"]["currentGuardianRank"].as_i64().unwrap_or(0);
-    let highest_rank = profile["profile"]["data"]["lifetimeHighestGuardianRank"].as_i64().unwrap_or(0);
-    let mut guardian = Value::Null;
-    if let Some(root) = guardian_root {
-        if let Some(root_def) = entity("DestinyPresentationNodeDefinition", root).await {
-            let ranks: Vec<u64> = root_def["children"]["presentationNodes"].as_array().into_iter().flatten().filter_map(|c| c["presentationNodeHash"].as_u64()).collect();
-            let name_of = |def: &Value| def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
-            let current = match ranks.get((current_rank.max(1) - 1) as usize) {
-                Some(h) => entity("DestinyPresentationNodeDefinition", *h).await,
-                None => None,
-            };
-            let mut next_json = Value::Null;
-            if let Some(next_hash) = ranks.get(current_rank.max(0) as usize) {
-                if let Some(next) = entity("DestinyPresentationNodeDefinition", *next_hash).await {
-                    let mut steps = Vec::new();
-                    for r in next["children"]["records"].as_array().into_iter().flatten().take(30) {
-                        let Some(rh) = r["recordHash"].as_u64() else { continue };
-                        let state = record_state(rh);
-                        let Some(rdef) = entity("DestinyRecordDefinition", rh).await else { continue };
-                        let flags = state["state"].as_u64().unwrap_or(4);
-                        if flags & 16 != 0 {
-                            continue;
-                        }
-                        steps.push(json!({ "name": rdef["displayProperties"]["name"], "description": rdef["displayProperties"]["description"], "done": flags & 4 == 0 && !state.is_null() }));
-                    }
-                    next_json = json!({ "rank": current_rank + 1, "name": name_of(&next), "steps": steps });
-                }
-            }
-            guardian = json!({
-                "rank": current_rank,
-                "highest": highest_rank,
-                "name": current.as_ref().map(name_of).unwrap_or_default(),
-                "icon": current.as_ref().map(|d| icon_url(d["displayProperties"]["icon"].as_str().unwrap_or(""))).unwrap_or(Value::Null),
-                "max": ranks.len(),
-                "next": next_json,
-            });
-        }
-    }
-    if guardian.is_null() && current_rank > 0 {
-        guardian = json!({ "rank": current_rank, "highest": highest_rank, "name": "", "next": Value::Null });
-    }
+    let guardian = guardian_rank(profile, character, guardian_root).await;
 
     json!({
         "season": {

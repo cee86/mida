@@ -22,6 +22,7 @@
 
 mod auth;
 mod bungie;
+mod hubs;
 mod modules;
 mod records;
 mod store;
@@ -1371,7 +1372,7 @@ async fn d2_armor(webview: Webview, app: AppHandle, fresh: Option<bool>) -> Valu
 /// The Records tab (triumphs, seals, collections): the overview, or one node when `node` is given.
 #[tauri::command]
 async fn d2_records(webview: Webview, app: AppHandle, node: Option<String>, fresh: Option<bool>) -> Value {
-    if !from_shell(&webview) || node.as_deref().is_some_and(|n| !is_id(n)) {
+    if !from_shell(&webview) || node.as_deref().is_some_and(|n| !is_id(n) && n != "patterns") {
         return fail("Something went wrong.");
     }
     answer(
@@ -1398,7 +1399,7 @@ async fn d2_records(webview: Webview, app: AppHandle, node: Option<String>, fres
                 Some(p) => p,
                 None => {
                     progress(&app, "records", 0.6, "Reading your triumphs and collections from Bungie");
-                    let p = Arc::new(bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,700,800,900").await?);
+                    let p = Arc::new(bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,700,800,900,1100").await?);
                     *hub(&app).records_profile.lock().unwrap() = Some((auth::now(), p.clone()));
                     p
                 }
@@ -1408,10 +1409,110 @@ async fn d2_records(webview: Webview, app: AppHandle, node: Option<String>, fres
             }
             progress(&app, "records", 0.9, "Putting it together");
             let view = records::View { r: &defs, m: &m, profile: &profile };
+            if node.as_deref() == Some("patterns") {
+                return Ok(view.patterns());
+            }
             match node.and_then(|n| n.parse::<u32>().ok()) {
                 Some(h) => view.node(h).ok_or_else(|| "That section isn't in Destiny's data any more.".to_string()),
                 None => Ok(view.home()),
             }
+        }
+        .await,
+    )
+}
+
+/// The Guardian tab: characters (emblem tracker), Guardian Rank and commendations.
+#[tauri::command]
+async fn d2_guardian(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            progress(&app, "guardian", 0.1, "Checking your sign-in");
+            let a = account(&app).await?;
+            progress(&app, "guardian", 0.3, "Reading your Guardians from Bungie");
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,200,205,900,1400").await?;
+            progress(&app, "guardian", 0.7, "Reading ranks and commendations");
+            Ok(hubs::guardian(&profile).await)
+        }
+        .await,
+    )
+}
+
+/// The Guardian tab's recent games (activity history across the characters).
+#[tauri::command]
+async fn d2_recent(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100").await?;
+            let ids: Vec<String> = profile["profile"]["data"]["characterIds"].as_array().into_iter().flatten().filter_map(|c| c.as_str().map(str::to_string)).collect();
+            Ok(hubs::recent_games(a.membership_type, &a.membership_id, &ids, &a.access).await)
+        }
+        .await,
+    )
+}
+
+/// The Director: the season and reward pass.
+#[tauri::command]
+async fn d2_director(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            progress(&app, "director", 0.1, "Checking your sign-in");
+            let a = account(&app).await?;
+            progress(&app, "director", 0.4, "Reading the season from Bungie");
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,200,202").await?;
+            Ok(hubs::director(&profile, &a.access).await)
+        }
+        .await,
+    )
+}
+
+/// The Director's Vanguard alerts and Ops pages: the Portal's activities for a character (the latest played when
+/// none is given).
+#[tauri::command]
+async fn d2_portal(webview: Webview, app: AppHandle, character: Option<String>) -> Value {
+    if !from_shell(&webview) || character.as_deref().is_some_and(|c| !is_id(c)) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            progress(&app, "portal", 0.05, "Checking your sign-in");
+            let a = account(&app).await?;
+            progress(&app, "portal", 0.1, "Reading Destiny's game data");
+            let m = manifest(&app).await?;
+            progress(&app, "portal", 0.2, "Reading the Portal from Bungie");
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,204").await?;
+            let latest = profile["characters"]["data"]
+                .as_object()
+                .and_then(|c| c.values().max_by_key(|v| v["dateLastPlayed"].as_str().unwrap_or("").to_string()))
+                .and_then(|v| v["characterId"].as_str())
+                .unwrap_or("")
+                .to_string();
+            let who = character.unwrap_or(latest);
+            Ok(hubs::portal(&profile, &who, &m).await)
+        }
+        .await,
+    )
+}
+
+/// The Director's friends page: Bungie.net friends and who's online.
+#[tauri::command]
+async fn d2_friends(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let a = account(&app).await?;
+            hubs::friends(&a.access).await
         }
         .await,
     )
@@ -2073,6 +2174,11 @@ pub fn run() {
             d2_clan,
             d2_armor,
             d2_records,
+            d2_guardian,
+            d2_recent,
+            d2_director,
+            d2_portal,
+            d2_friends,
             d2_pass,
             d2_claim,
             d2_rotators,

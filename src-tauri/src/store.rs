@@ -204,8 +204,18 @@ pub fn clean_profile(p: Profile) -> Option<Profile> {
     let tabs = if all_tabs.is_empty() {
         None
     } else {
-        p.tabs.as_ref().map(|_| {
-            let mut list = enabled_tabs(&game, &p.tabs);
+        p.tabs.as_ref().map(|old| {
+            // v0.9: Triumphs became part of Guardian; the Seasonal Hub, Quests, Vendors and Clan part of Director. A saved
+            // list keeps its order with the new tab where the first old one was.
+            let renamed: Vec<String> = old
+                .iter()
+                .map(|t| match t.as_str() {
+                    "tab-records" => "tab-guardian".to_string(),
+                    "tab-seasonal" | "tab-quests" | "tab-vendors" | "tab-clan" => "tab-director".to_string(),
+                    _ => t.clone(),
+                })
+                .collect();
+            let mut list = enabled_tabs(&game, &Some(renamed));
             // Files from before `tabs_known` (v0.8.5 and earlier) knew the tabs up to Rotators.
             let known: Vec<&str> = if p.tabs_known.is_empty() { TABS_BEFORE_KNOWN.to_vec() } else { p.tabs_known.iter().map(String::as_str).collect() };
             for t in &all_tabs {
@@ -374,10 +384,14 @@ mod tests {
         // A list saved before Vendors existed (no tabs_known): the newer tabs are added at the end, order kept.
         let old = Profile { id: "p-1".into(), game: "destiny2".into(), tabs: Some(vec!["tab-featured".into(), "tab-inventory".into()]), ..Profile::default() };
         let p = clean_profile(old).unwrap();
-        assert_eq!(p.tabs.as_deref().unwrap(), ["tab-featured", "tab-inventory", "tab-planner", "tab-records", "tab-armor", "tab-clan", "tab-vendors"]);
+        assert_eq!(p.tabs.as_deref().unwrap(), ["tab-featured", "tab-inventory", "tab-guardian", "tab-director", "tab-armor", "tab-planner"]);
         // Hidden after that (it's known now): it stays hidden.
         let hidden = Profile { tabs: Some(vec!["tab-featured".into()]), ..p };
         assert_eq!(clean_profile(hidden).unwrap().tabs.as_deref().unwrap(), ["tab-featured"]);
+        // v0.9: the old tabs become Guardian and Director where they were, once each.
+        let known: Vec<String> = ["tab-inventory", "tab-seasonal", "tab-quests", "tab-records", "tab-clan", "tab-vendors", "tab-planner", "tab-armor", "tab-rad", "tab-featured"].iter().map(|t| t.to_string()).collect();
+        let before = Profile { id: "p-2".into(), game: "destiny2".into(), tabs: Some(["tab-seasonal", "tab-inventory", "tab-records", "tab-quests", "tab-featured"].iter().map(|t| t.to_string()).collect()), tabs_known: known, ..Profile::default() };
+        assert_eq!(clean_profile(before).unwrap().tabs.as_deref().unwrap(), ["tab-director", "tab-inventory", "tab-guardian", "tab-featured"]);
     }
 
     #[test]
