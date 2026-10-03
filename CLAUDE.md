@@ -274,8 +274,8 @@ reordered or hid tabs before (files without `tabsKnown` count as knowing the fiv
 frame: RG, EF, FS, LF, WQ, BL, SK, FK, WM, CO, RW), shown only for expansions found in a quest's traits, quest line,
 name or text (Bungie has no expansion field on quests; a guess, tune on live data).
 
-**App icon (3 Oct 2026):** the owner's abstract "MIDA multi-tool" drawing redrawn as a one-colour sun-orange
-(#f19a3f) silhouette on a transparent background (art/icon.svg; the grip holes, barrel seam and magazine ribs are
+**App icon (3 Oct 2026):** the owner's abstract "MIDA multi-tool" drawing redrawn as a one-colour silhouette (sun
+orange at first; grey #a3a8af since v0.8.10 at the owner's request) on a transparent background (art/icon.svg; the grip holes, barrel seam and magazine ribs are
 cut out with a mask). Icons regenerated with `npx tauri icon` from a 1024px render made in Chromium (ImageMagick
 drops the mask); only the five files tauri.conf.json lists, plus src/shell/icon.png (About), are kept.
 

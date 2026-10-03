@@ -17,7 +17,7 @@
       </g>
     </mask>
   </defs>
-  <g fill="#f19a3f" mask="url(#cuts)" transform="translate(512 512) scale(1.2) translate(-377 -462)">
+  <g fill="#a3a8af" mask="url(#cuts)" transform="translate(512 512) scale(1.2) translate(-377 -462)">
     <!-- barrel, with its cap -->
     <rect x="393" y="98" width="62" height="380" rx="6"/>
     <rect x="414" y="78" width="32" height="30" rx="7"/>
