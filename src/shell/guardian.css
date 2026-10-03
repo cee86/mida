@@ -15,9 +15,15 @@
 .gd { --gold: #d9b867; }
 .gd-sub { margin-bottom: 8px; color: var(--mist); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
 
+/* The page (the owner's sketch): a wide column and a narrow one, three rows. */
+.gd-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 460px); gap: 16px; }
+.gd-layout > .sh-box { margin: 0; }
+.gd-colls { align-self: start; }
+
 /* Characters and gear shortcuts. */
-.gd-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 16px; align-items: start; }
-.gd-char-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.gd-chars { display: flex; flex-direction: column; }
+.gd-char-list { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.gd-chars .gd-char { align-content: space-between; }
 .gd-char { display: grid; grid-template-columns: 56px 1fr auto; grid-template-rows: auto auto; align-items: center; column-gap: 12px; row-gap: 8px; min-height: 76px; padding: 10px 12px 10px 10px; background: rgba(0, 0, 0, 0.45) center / cover no-repeat; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
 .gd-char__emblem { display: block; width: 56px; height: 56px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(0, 0, 0, 0.3); }
 .gd-char__emblem img { width: 100%; height: 100%; object-fit: cover; }
@@ -39,7 +45,6 @@
 .gd-short__icon svg { width: 20px; height: 20px; }
 .gd-short__text { display: flex; flex-direction: column; min-width: 0; }
 .gd-short__text small { color: var(--mist); font-size: 0.78rem; }
-.gd-short--wide { width: 100%; margin-top: 14px; }
 .gd-short.is-off { opacity: 0.45; cursor: default; }
 .gd-short.is-off:hover { border-color: color-mix(in srgb, var(--cream) 12%, transparent); background: rgba(255, 255, 255, 0.04); }
 
@@ -56,9 +61,9 @@
 .gd-com__total { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
 .gd-com__total strong { font-family: var(--font-display); font-size: 1.6rem; }
 .gd-com__total small { color: var(--mist); }
-.gd-com__row { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 8px; min-height: 24px; font-size: 0.82rem; }
-.gd-com__bar { position: relative; height: 6px; background: rgba(255, 255, 255, 0.1); }
-.gd-com__fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.gd-com__key { display: flex; flex-direction: column; gap: 2px; }
+.gd-com__row { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; min-height: 22px; font-size: 0.82rem; }
+.gd-com__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
 .gd-com__num { color: var(--mist); font-variant-numeric: tabular-nums; }
 .gd-seal-list { display: flex; gap: 10px; }
 .gd-seal { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 92px; padding: 4px; border: 0; background: transparent; color: var(--cream); cursor: pointer; text-align: center; }
@@ -67,8 +72,15 @@
 .gd-seal strong { color: var(--gold); font-size: 0.78rem; }
 .gd-seal small { color: var(--mist); font-size: 0.7rem; }
 
-/* Collections shortcuts. */
-.gd-coll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+/* Triumphs and scores. */
+.gd-triumphs { display: flex; flex-direction: column; }
+.gd-scores { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.gd-score { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--cream) 8%, transparent); }
+.gd-score small { color: var(--mist); font-size: 0.8rem; }
+.gd-score strong { font-family: var(--font-display); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+/* Collections shortcuts: two columns, as in the app. */
+.gd-coll-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
 /* Recent games. */
 .gd-game-list { display: flex; flex-direction: column; gap: 4px; }
@@ -82,7 +94,8 @@
 .gd-game__stats, .gd-game__time { color: var(--mist); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 @media (max-width: 1100px) {
-  .gd-top, .gd-journey__grid { grid-template-columns: 1fr; }
+  .gd-layout, .gd-journey__grid { grid-template-columns: 1fr; }
+  .gd-char-list { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .gd-game { grid-template-columns: 72px minmax(0, 1fr) auto; }
   .gd-game__stats, .gd-game__time { display: none; }
 }
@@ -102,9 +115,11 @@
 .gd-rank__art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .gd-rank__art span { position: relative; font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
 .gd-com__total { align-items: center; }
-.gd-com__total svg { width: 24px; height: 24px; }
-.gd-com__split { display: flex; gap: 3px; height: 6px; margin-bottom: 10px; }
+.gd-com__total svg { width: 26px; height: 26px; color: var(--mist); }
+.gd-com__split { display: flex; height: 8px; margin-bottom: 10px; border-radius: 4px; overflow: hidden; }
 .gd-com__split span { flex: 1 1 0; background: var(--accent); }
+/* The redrawn icons (glyphs.js) inside the shortcut buttons. */
+.gd-short__icon .glyph { width: 28px; height: 28px; }
 .gd-seal { width: 96px; }
 .gd-seal__art { width: 78px; height: 94px; clip-path: none; background: none; }
 .gd-seal__art img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); }

@@ -3,7 +3,8 @@
 //   [ DIRECTOR · season ....................................................................... refresh ]
 //   [ Seasonal Hub · Vendors · Quests · Friends ]
 //   [ the season's banner (its seal, triumphs and Tenets)          ] [ reward pass rank and XP ] [ clan ]
-//   [ Vanguard alerts: every activity the Portal lists for the character (featured first) · Ops Categories › ]
+//   [ Vanguard alerts: Grandmaster, weekly dungeon, weekly raid, Equilibrium, The Desert Perpetual ]
+//   [ Ops Categories: Arena · Fireteam · Solo · Pinnacle · Crucible & Gambit, each opening its activities ]
 // The latest Bungie articles sit across the top (news.js); a character picker in the title band picks whose Portal.
 //
 // d2_director (hubs.rs `director`: season and pass) and d2_portal (hubs.rs `portal`: the character's available
@@ -18,22 +19,59 @@ import { clanTab } from "./clan.js";
 import { recordsTab } from "./records.js";
 import { wallpaper } from "./wallpaper.js";
 import { articleReader, loadPicture } from "./news.js";
+import { glyph } from "./glyphs.js";
+import { ROTATORS, withSaved, rotatorNow } from "./d2/rotators.js";
+import { featuredRotation, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 
-// The Portal's four groups, in the app's order; Bungie's own trait text and icon are used when it sends them.
+// The Ops boxes, in the app's order (its text; Bungie's own trait text when it sends it), then Crucible & Gambit.
 const OPS = [
-  ["Arena Ops", "Join a large group of Lightbearers executing Vanguard operations around Sol and crushing Earth's deadliest foes."],
-  ["Fireteam Ops", "Team up with fellow Guardians to defend the Last City and reclaim Sol from humanity's adversaries."],
-  ["Solo Ops", "Protect Earth from Sol's greatest foes as a one-Guardian fireteam and the Vanguard's last line of defense."],
-  ["Pinnacle Ops", "Brave the lairs of humanity's greatest foes to secure Sol for the Vanguard and earn sought-after armaments for the battles to come."],
+  { id: "arena", name: "Arena Ops", text: "Join a large group of Lightbearers executing Vanguard operations around Sol and crushing Earth's deadliest foes." },
+  { id: "fireteam", name: "Fireteam Ops", text: "Team up with fellow Guardians to defend the Last City and reclaim Sol from humanity's adversaries." },
+  { id: "solo", name: "Solo Ops", text: "Protect Earth from Sol's greatest foes as a one-Guardian fireteam and the Vanguard's last line of defense." },
+  { id: "pinnacle", name: "Pinnacle Ops", text: "Brave the lairs of humanity's greatest foes to secure Sol for the Vanguard and earn sought-after armaments for the battles to come." },
+  { id: "crucible", name: "Crucible & Gambit", text: "Test yourself against other Guardians in the Crucible, or race another fireteam to summon and defeat a Primeval in Gambit." },
 ];
 const SECTIONS = [
-  ["seasonal", "Seasonal Hub", "Orders, challenges and the reward pass", ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 3a9 9 0 0 0 0 18z"]],
-  ["vendors", "Vendors", "What everyone's selling", ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M6 15l3-4 2 2 3-5 4 7z"]],
-  ["quests", "Quests", "Every quest and bounty you hold", ["M6 3h12v18l-6-4-6 4z", "M9 8l1.5 1.5L12 7l1.5 2.5L15 8l-.5 3h-5z"]],
-  ["friends", "Friends", "Your Bungie.net friends, who's online", ["M8.5 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M2.5 20a6 6 0 0 1 12 0M13 14.5a5.5 5.5 0 0 1 8.5 5.5"]],
+  ["seasonal", "Seasonal Hub", "Orders, challenges and the reward pass"],
+  ["vendors", "Vendors", "What everyone's selling"],
+  ["quests", "Quests", "Every quest and bounty you hold"],
+  ["friends", "Friends", "Your Bungie.net friends, who's online"],
 ];
 const number = (n) => (n == null ? "–" : Number(n).toLocaleString());
-const opsOf = (a, name) => (a.traits ?? []).some((t) => t.toLowerCase().includes(name.toLowerCase()));
+const plain = (s) => String(s ?? "").toLowerCase().replace(/[‘’]/g, "'").replace(/^the\s+/, "").trim();
+// Bungie names the Portal's launch entries like "Exodus Crash: Customize"; the part before the colon is the activity.
+const titleOf = (a) => String(a.fullName || a.name || "Activity").replace(/\s*:\s*customize\s*$/i, "").trim() || "Activity";
+const hasTrait = (a, name) => (a.traits ?? []).some((t) => t.toLowerCase().includes(name));
+// Exotic missions by the rotator's names, compared without "Operation:" and punctuation ("//node.ovrd.AVALON//").
+const missionKey = (s) => plain(s).replace(/^operation:\s*/, "").replace(/[^a-z0-9' ]/g, "");
+const EXOTIC_MISSIONS = (ROTATORS.find((r) => r.id === "exotic-mission")?.entries ?? []).map((e) => missionKey(e.name)).filter(Boolean);
+
+// Which Ops box an activity goes in. The owner's rules come first (PvP is Crucible & Gambit; Onslaught, Prison of Elders
+// and exotic missions are Pinnacle; strikes and battlegrounds are Fireteam unless Bungie marks them Solo), then Bungie's
+// own Ops trait.
+function opsOf(a) {
+  const text = `${plain(titleOf(a))} ${a.type ?? ""} ${(a.traits ?? []).join(" ")}`.toLowerCase();
+  if (a.pvp || /crucible|gambit|trials of osiris|iron banner/.test(text)) return "crucible";
+  const mission = missionKey(titleOf(a));
+  if (/onslaught|prison of elders|exotic mission/.test(text) || EXOTIC_MISSIONS.some((n) => mission.startsWith(n))) return "pinnacle";
+  if (hasTrait(a, "solo ops")) return "solo";
+  if (/strike|battleground/.test(text)) return "fireteam";
+  for (const op of ["arena", "fireteam", "pinnacle"]) if (hasTrait(a, `${op} ops`)) return op;
+  return null;
+}
+
+// One card per activity: Bungie lists some twice ("Exodus Crash" and "Exodus Crash: Customize"); the featured one, or
+// the one with more rewards, is kept.
+function unique(list) {
+  const seen = new Map();
+  for (const a of list) {
+    const key = plain(titleOf(a));
+    const had = seen.get(key);
+    if (!had || (a.featured && !had.featured) || (a.featured === had.featured && a.rewards.length > had.rewards.length)) seen.set(key, a);
+  }
+  return [...seen.values()];
+}
+const sorted = (list) => [...list].sort((a, b) => Number(b.featured) - Number(a.featured) || titleOf(a).localeCompare(titleOf(b)));
 
 export function directorTab(ctx, container, deps) {
   const { el, svg } = ctx;
@@ -67,7 +105,8 @@ export function directorTab(ctx, container, deps) {
     if (key === "friends") return pages.show("friends", "Friends", (host) => friendsPage(host));
     if (key === "clan") return pages.show("clan", "Clan", (host) => clanTab(ctx, host, withWall));
     if (key === "season") return pages.show("season", dir?.season?.name || "Season", (host) => seasonPage(host));
-    if (key === "ops") return pages.show(`ops-${who}`, "Ops Categories", (host) => opsCategories(host));
+    const op = OPS.find((o) => `ops-${o.id}` === key);
+    if (op) return pages.show(`ops-${op.id}-${who}`, op.name, (host) => opsPage(host, op));
   }
 
   // The season: its seal and triumphs (the Triumphs screen at the seal) and the Tenets (vendors named Tenet).
@@ -141,49 +180,28 @@ export function directorTab(ctx, container, deps) {
     load();
   }
 
-  // Ops Categories: the four groups with Bungie's description; picking one lists its activities as cards.
-  function opsCategories(host) {
-    let chosen = null;
-    const shell = (kicker, title, tools, ...children) =>
-      el(
-        "div",
-        { class: "tab dr sh" },
-        backdrop(),
-        el("header", { class: "sh-top" }, el("div", { class: "sh-top__text" }, el("span", { class: "sh-top__kicker", text: kicker }), el("h1", { class: "sh-top__title", text: title })), el("div", { class: "sh-top__tools" }, ...tools)),
-        el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, ...children)),
-      );
+  // One Ops box's activities as cards (featured first).
+  function opsPage(host, op) {
     const paint = () => {
-      if (!portal) return host.replaceChildren(shell("Director", "Ops Categories", [], waiting("portal", "Reading the Portal…")));
-      if (chosen) {
-        const list = sorted(portal.activities.filter((a) => opsOf(a, chosen)));
-        return host.replaceChildren(
-          shell(
-            "Ops Categories",
-            chosen,
-            [el("button", { class: "btn btn--small", type: "button", text: "All categories", onclick: () => ((chosen = null), paint()) })],
-            list.length ? el("section", { class: "sh-box" }, label("Activities", `${list.length} · ${list.filter((a) => a.matchmade).length} matchmade`), el("div", { class: "dr-acts" }, ...list.map(activityCard))) : el("p", { class: "tab__note", text: `Bungie's list didn't mark any activity as ${chosen} for this character.` }),
-          ),
-        );
-      }
-      const info = portal.traitInfo ?? {};
+      const list = portal ? sorted(unique(portal.activities.filter((a) => opsOf(a) === op.id))) : [];
       host.replaceChildren(
-        shell(
-          "Director",
-          "Ops Categories",
-          [],
+        el(
+          "div",
+          { class: "tab dr sh" },
+          backdrop(),
+          el("header", { class: "sh-top" }, el("div", { class: "sh-top__text" }, el("span", { class: "sh-top__kicker", text: "Ops Categories" }), el("h1", { class: "sh-top__title", text: op.name }))),
           el(
             "div",
-            { class: "dr-op-list" },
-            ...OPS.map(([name, text]) => {
-              const t = Object.entries(info).find(([k]) => k.toLowerCase().includes(name.toLowerCase()))?.[1];
-              const n = portal.activities.filter((a) => opsOf(a, name)).length;
-              return el(
-                "button",
-                { class: "gd-short dr-op", type: "button", onclick: () => ((chosen = name), paint()) },
-                el("span", { class: `gd-short__icon${t?.icon ? " has-image" : ""}` }, t?.icon ? el("img", { src: t.icon, alt: "" }) : svg(["M5 4h14v8c0 4-3 7-7 8-4-1-7-4-7-8z"])),
-                el("span", { class: "gd-short__text" }, el("strong", { text: name }), el("span", { class: "dr-op__desc", text: t?.description || text }), el("small", { text: n ? `${n} ${n === 1 ? "activity" : "activities"}` : "None listed for this character" })),
-              );
-            }),
+            { class: "sh-body" },
+            el(
+              "div",
+              { class: "sh-main" },
+              !portal
+                ? waiting("portal", "Reading the Portal…")
+                : list.length
+                  ? el("section", { class: "sh-box" }, label("Activities", `${list.length} · ${list.filter((a) => a.matchmade).length} matchmade`), el("div", { class: "dr-acts" }, ...list.map((a) => activityCard(a, a.type || op.name))))
+                  : el("p", { class: "tab__note", text: `Bungie's list has nothing for ${op.name} on this character.` }),
+            ),
           ),
         ),
       );
@@ -194,12 +212,41 @@ export function directorTab(ctx, container, deps) {
 
   // ---------- Pieces ----------
 
-  // Featured first, then Pinnacle, Fireteam, Solo, Arena, then by name.
-  const opsRank = (a) => {
-    const i = OPS.findIndex(([name]) => opsOf(a, name));
-    return i < 0 ? OPS.length : [3, 1, 2, 0][i];
-  };
-  const sorted = (list) => [...list].sort((a, b) => Number(b.featured) - Number(a.featured) || opsRank(a) - opsRank(b) || String(a.name).localeCompare(String(b.name)));
+  // This week's Grandmaster strike from the rotators (seals.report's week, its saved schedule, or the built-in one).
+  function grandmasterName() {
+    const data = deps.remote?.();
+    const def = data?.week?.rotators?.find((r) => r.id === "grandmaster") ?? withSaved(ROTATORS.find((r) => r.id === "grandmaster"), data?.saved?.grandmaster ?? null);
+    if (!def) return null;
+    const now = rotatorNow(def);
+    return now.unknown ? null : now.current?.name ?? null;
+  }
+
+  // The five Vanguard alerts, in the owner's order: the Grandmaster alert, this week's dungeon and raid, then Equilibrium
+  // and The Desert Perpetual (always featured). Bungie's featured flag wins; the schedules fill in when it's silent.
+  function alertPicks() {
+    const list = portal?.activities ?? [];
+    const weekly = (kind) => featuredRotation().activities.filter((x) => x.kind === kind && !x.always).map((x) => plain(x.name));
+    const named = (a, names) => names.some((n) => plain(titleOf(a)).startsWith(n));
+    const variant = (a) => (/master|epic|contest|grandmaster|legend/i.test(titleOf(a)) ? 1 : 0);
+    // A raid or dungeon of `names`: one Bungie features, else one of this week's (`week`), the normal version first.
+    const find = (names, week = null) =>
+      list
+        .filter((a) => named(a, names) && (!week || a.featured || named(a, week)))
+        .sort((x, y) => Number(y.featured) - Number(x.featured) || (week ? Number(named(y, week)) - Number(named(x, week)) : 0) || variant(x) - variant(y))[0] ?? null;
+    const gmName = grandmasterName();
+    const isGM = (a) => /grandmaster/i.test(`${titleOf(a)} ${a.type ?? ""} ${(a.traits ?? []).join(" ")}`) && !/excision/i.test(titleOf(a));
+    const gmScore = (a) => (isGM(a) ? 0 : 4) + (gmName && named(a, [plain(gmName)]) ? 0 : 2) + (a.featured ? 0 : 1);
+    const gm = list.filter((a) => isGM(a) || (gmName && named(a, [plain(gmName)]))).sort((x, y) => gmScore(x) - gmScore(y))[0] ?? null;
+    const dungeons = weekly("dungeon");
+    const raids = weekly("raid");
+    return [
+      { kicker: "Grandmaster alert", a: gm, expect: gmName ?? "Grandmaster" },
+      { kicker: "Weekly dungeon", a: find(DUNGEON_NAMES.map(plain).filter((n) => n !== "equilibrium"), dungeons), expect: DUNGEON_NAMES.find((n) => plain(n) === dungeons[0]) ?? "This week's dungeon" },
+      { kicker: "Weekly raid", a: find(RAID_NAMES.map(plain).filter((n) => n !== "desert perpetual"), raids), expect: RAID_NAMES.find((n) => plain(n) === raids[0]) ?? "This week's raid" },
+      { kicker: "Dungeon", a: find(["equilibrium"]), expect: "Equilibrium" },
+      { kicker: "Raid", a: find(["desert perpetual"]), expect: "The Desert Perpetual" },
+    ];
+  }
 
   // The latest Bungie articles as banners across the top; each opens inside the Director.
   function newsStrip() {
@@ -213,20 +260,20 @@ export function directorTab(ctx, container, deps) {
     );
   }
 
-  function activityCard(a) {
+  function activityCard(a, kickerText = null) {
     const engrams = a.rewards.filter((r) => /engram/i.test(`${r.name} ${r.typeName}`));
     const weapons = a.rewards.filter((r) => r.kind === 3);
     const rest = a.rewards.filter((r) => !engrams.includes(r) && !weapons.includes(r));
     const art = el("span", { class: "dr-act__art" });
     if (a.image) art.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.75)), url("${a.image}")`;
-    const kicker = (a.traits ?? []).find((t) => /ops/i.test(t)) || a.type || (a.pvp ? "Crucible" : "Activity");
+    const kicker = kickerText || (a.traits ?? []).find((t) => /ops/i.test(t)) || a.type || (a.pvp ? "Crucible" : "Activity");
     const reward = (r) => el("span", { class: `dr-reward tier-${r.tier}`, title: `${r.name}${r.typeName ? ` · ${r.typeName}` : ""}${r.quantity > 1 ? ` ×${r.quantity}` : ""}` }, r.icon ? el("img", { src: r.icon, alt: "", loading: "lazy" }) : el("span", { text: r.name.slice(0, 2) }));
     return el(
       "div",
       { class: `dr-act${a.featured ? " is-featured" : ""}` },
       art,
       el("span", { class: "dr-act__kicker", text: kicker }),
-      el("div", { class: "dr-act__body" }, el("strong", { class: "dr-act__name", text: a.name }), a.fullName && a.fullName !== a.name ? el("small", { class: "dr-act__full", text: a.fullName }) : null),
+      el("div", { class: "dr-act__body" }, el("strong", { class: "dr-act__name", text: titleOf(a) })),
       el(
         "div",
         { class: "dr-act__tags" },
@@ -243,9 +290,9 @@ export function directorTab(ctx, container, deps) {
     );
   }
 
-  function shortcut(key, name, note, icon) {
+  function shortcut(key, name, note) {
     if (key === "friends" && friends) note = `${friends.filter((f) => f.online).length} online · ${friends.length} friends`;
-    return el("button", { class: "gd-short", type: "button", onclick: () => open(key) }, el("span", { class: "gd-short__icon" }, svg(icon)), el("span", { class: "gd-short__text" }, el("strong", { text: name }), el("small", { text: note })));
+    return el("button", { class: "gd-short", type: "button", onclick: () => open(key) }, el("span", { class: "gd-short__icon" }, glyph(key)), el("span", { class: "gd-short__text" }, el("strong", { text: name }), el("small", { text: note })));
   }
 
   function banners() {
@@ -280,18 +327,49 @@ export function directorTab(ctx, container, deps) {
     return el("div", { class: "dr-banners" }, seasonBanner, el("div", { class: "dr-side" }, pass, clan));
   }
 
-  // Every activity the Portal lists for the character, featured ones first; "Ops Categories" groups them.
+  // The five alerts; a slot Bungie's list doesn't have says so (in its place, so the order stays).
   function alerts() {
-    const list = sorted(portal?.activities ?? []);
+    const picks = portal ? alertPicks() : [];
+    const missing = (p) =>
+      el(
+        "div",
+        { class: "dr-act is-missing" },
+        el("span", { class: "dr-act__art" }),
+        el("span", { class: "dr-act__kicker", text: p.kicker }),
+        el("div", { class: "dr-act__body" }, el("strong", { class: "dr-act__name", text: p.expect })),
+        el("p", { class: "dr-act__none", text: "Not in Bungie's list for this character right now." }),
+      );
     return el(
       "section",
       { class: "sh-box dr-alerts" },
-      label("Vanguard alerts", [portal ? `${list.filter((a) => a.featured).length} featured · ${list.length} in all ` : null, el("button", { class: "dr-head-link", type: "button", text: "Ops Categories ›", onclick: () => open("ops") })].filter(Boolean)),
-      !portal
-        ? waiting("portal", "Reading the Portal from Bungie… (the first time reads every activity, so it takes a little longer)")
-        : list.length
-          ? el("div", { class: "dr-acts" }, ...list.map(activityCard))
-          : el("p", { class: "tab__note", text: "Bungie listed no activities with rewards for this character. The data check below shows what it sent." }),
+      label("Vanguard alerts", portal ? `${picks.filter((p) => p.a).length} of ${picks.length}` : null),
+      !portal ? waiting("portal", "Reading the Portal from Bungie… (the first time reads every activity, so it takes a little longer)") : el("div", { class: "dr-acts dr-acts--alerts" }, ...picks.map((p) => (p.a ? activityCard(p.a, p.kicker) : missing(p)))),
+    );
+  }
+
+  // The Ops boxes (the app's look: crest, name, description), each opening its activities.
+  function opsBoxes() {
+    const info = portal?.traitInfo ?? {};
+    const counts = {};
+    if (portal) for (const a of unique(portal.activities)) counts[opsOf(a) ?? "none"] = (counts[opsOf(a) ?? "none"] ?? 0) + 1;
+    return el(
+      "section",
+      { class: "sh-box dr-ops-box" },
+      label("Ops Categories"),
+      el(
+        "div",
+        { class: "dr-op-list" },
+        ...OPS.map((op) => {
+          const bungie = Object.entries(info).find(([k]) => k.toLowerCase() === op.name.toLowerCase())?.[1];
+          const n = counts[op.id] ?? 0;
+          return el(
+            "button",
+            { class: "gd-short dr-op", type: "button", onclick: () => open(`ops-${op.id}`) },
+            el("span", { class: "gd-short__icon has-image" }, glyph(op.id)),
+            el("span", { class: "gd-short__text" }, el("strong", { text: op.name }), el("span", { class: "dr-op__desc", text: bungie?.description || op.text }), el("small", { text: !portal ? "Reading…" : n ? `${n} ${n === 1 ? "activity" : "activities"}` : "None listed for this character" })),
+          );
+        }),
+      ),
     );
   }
 
@@ -305,7 +383,11 @@ export function directorTab(ctx, container, deps) {
       el("h3", { text: "Kinds (traits) Bungie gave them" }),
       el("ul", {}, ...(portal.traits.length ? portal.traits.map((t) => el("li", { text: `${t.name} · ${t.count}` })) : [el("li", { text: "None." })])),
       el("h3", { text: "Featured" }),
-      el("ul", {}, ...(portal.activities.filter((a) => a.featured).map((a) => el("li", { text: `${a.fullName || a.name} · ${a.rewards.length} rewards · ${a.traits.join(", ") || "no traits"}` })) || [])),
+      el("ul", {}, ...portal.activities.filter((a) => a.featured).map((a) => el("li", { text: `${a.fullName || a.name} · ${a.type ?? "no type"} · ${a.rewards.length} rewards · ${a.traits.join(", ") || "no traits"}` }))),
+      el("h3", { text: "Vanguard alerts picked" }),
+      el("ul", {}, ...alertPicks().map((p) => el("li", { text: `${p.kicker}: ${p.a ? `${p.a.fullName || p.a.name}${p.a.featured ? " (featured)" : ""}` : `nothing found (expected ${p.expect})`}` }))),
+      el("h3", { text: "In no Ops box" }),
+      el("ul", {}, ...unique(portal.activities).filter((a) => !opsOf(a)).map((a) => el("li", { text: `${titleOf(a)} · ${a.type ?? "no type"} · ${a.traits.join(", ") || "no traits"}` }))),
     );
   }
 
@@ -332,7 +414,7 @@ export function directorTab(ctx, container, deps) {
     const body = el(
       "div",
       { class: "sh-body" },
-      el("div", { class: "sh-main" }, newsStrip(), el("div", { class: "dr-sections" }, ...SECTIONS.map(([id, name, note, icon]) => shortcut(id, name, note, icon))), banners(), alerts(), check()),
+      el("div", { class: "sh-main" }, newsStrip(), el("div", { class: "dr-sections" }, ...SECTIONS.map(([id, name, note]) => shortcut(id, name, note))), banners(), alerts(), opsBoxes(), check()),
     );
     root.replaceChildren(homeBackdrop, top, body);
     body.scrollTop = scroll;

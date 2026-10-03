@@ -276,6 +276,25 @@ then Pinnacle, Fireteam, Solo, Arena) instead of separate Ops buttons; "Ops Cate
 groups (Bungie's trait description and icon when sent, else the app's text) and each group's activities. A character
 picker (the usual segmented one) chooses whose Portal is read; the latest Bungie articles sit in a short strip at the
 top (news.js).
+
+**v0.9.4 (owner's sketch and icon screenshots, 3 Oct 2026):** Guardian is a wide column and a narrow one in three rows:
+Characters (three cards stretched to the row) | Gear (Inventory, Postmaster, Armor optimizer); Journey (rank,
+commendations, titles) | Triumphs (button plus active, lifetime and legacy scores); Recent games | Collections (two
+columns: Items, Shaping Progress, Lore, Stat Trackers, Medals, Exotic Catalysts, as named in the sketch). Commendations
+are one smooth split bar with a colour key underneath (no per-category bars). **glyphs.js** redraws the app's icons on
+a 48 grid (our own shapes, not copied art; even-odd holes make the crests' dark motifs): collections, the Director's
+section buttons, commendations, and the Ops crests (Arena, Fireteam, Solo, Pinnacle, plus our own for Crucible &
+Gambit). Bungie's `rootInfo`/trait icons are no longer shown. **Vanguard alerts** are exactly five, in the owner's order:
+Grandmaster alert (an activity naming "Grandmaster", not Excision, or this week's GM strike from the rotators: seals.report's
+week via `remote`, else the built-in schedule), weekly dungeon, weekly raid (Bungie's featured flag first, else
+rotations.js's two of the week), Equilibrium, The Desert Perpetual (normal versions before Master/Epic); a missing one
+shows as a dashed placeholder. Titles are the definition's name without ": Customize" (`titleOf`), no subtitle, and
+duplicates collapse (`unique`). **Ops Categories** boxes sit below (crest, name, description; Bungie's trait text when
+sent) and open a page of that box's activities. Sorting (`opsOf`): PvP/Crucible/Gambit/Trials/Iron Banner → Crucible &
+Gambit; Onslaught, Prison of Elders and exotic missions (the rotator's names) → Pinnacle; Solo Ops trait → Solo; strikes
+and battlegrounds → Fireteam (the owner called these "Vanguard ops"; the box keeps the game's name); then Bungie's
+Arena/Fireteam/Pinnacle trait. The data check lists the picks and anything in no box. **Unverified live:** how the GM
+alert and the raid/dungeon are named and flagged in component 204.
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
   tabs without one fall back to the old Seasonal Hub picture, then the Inventory's, then MIDA's backdrop (RAD shows none
@@ -683,6 +702,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.4 (3 Oct 2026, owner): Guardian laid out from the owner's sketch; the app's icons redrawn (glyphs.js); five fixed
+  Vanguard alerts with clean titles; Ops Categories boxes plus Crucible & Gambit.
 * v0.9.3 (3 Oct 2026, owner): Guardian and Director back to their v0.9.0 layouts with the Companion app's icons and touches;
   every activity under Vanguard alerts with Ops Categories.
 * v0.9.2 (3 Oct 2026, owner): News tab (Bungie.net, Bungie Server Status and Destiny 2 on Bluesky, D2 Community Hub), the

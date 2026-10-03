@@ -1,21 +1,21 @@
 // The Guardian tab (Destiny 2), like the Companion app's Guardian screen, on the Seasonal Hub's look (sh-* classes):
 //
-//   [ GUARDIAN · name ..................................................................... refresh ]
-//   [ three characters: emblem, class, race, title, power, the emblem's stat tracker ] [ Inventory / Postmaster /
-//                                                                                        Armor optimizer        ]
-//   [ Journey: Guardian Rank and what's left for the next | commendations | recent seals | Triumphs + score ]
-//   [ Collections: Items · Weapon patterns · Lore · Stat trackers · Medals · Exotic catalysts ]
-//   [ Recent games ]
+//   [ GUARDIAN · name ............................................................ currencies · refresh ]
+//   [ three characters: emblem, class, race, title, power, tracker ]  [ Inventory / Postmaster / Armor optimizer ]
+//   [ Guardian Rank | commendations | titles                       ]  [ Triumphs and scores                       ]
+//   [ Recent games                                                 ]  [ Collections: two columns of six           ]
+//
+// (The owner's sketch, 3 Oct 2026.) Section icons are redrawn after the Companion app's (glyphs.js).
 //
 // d2_guardian (hubs.rs `guardian`), d2_records (the overview: seals, scores, collection roots) and d2_recent (activity
 // history) are read together and each part fills in when its answer arrives. Triumphs, the collection pages and the
 // armor optimizer open as pages inside this tab (subpages.js); Inventory and Postmaster switch to the Inventory tab.
-// "Recently earned seals": Bungie keeps no dates, so MIDA notes when it first sees each title earned (`mida-seals-seen`).
 
 import { subpages } from "./subpages.js";
 import { recordsTab } from "./records.js";
 import { armorTab } from "./armor.js";
 import { wallpaper } from "./wallpaper.js";
+import { glyph } from "./glyphs.js";
 
 const number = (n) => (n == null ? "–" : Number(n).toLocaleString());
 const ago = (iso) => {
@@ -28,19 +28,12 @@ const ago = (iso) => {
   const d = Math.round(h / 24);
   return d < 30 ? `${d} days ago` : new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
-// Line icons after the Companion app's (where Bungie sends a section's own icon, that's used instead).
+// Line icons for the buttons the app's screenshots didn't cover; the rest are glyphs.js.
 const ICONS = {
   inventory: ["M3 12c3-5 15-5 18 0-3 5-15 5-18 0z", "M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"],
   postmaster: ["M4 5h16v14H4z", "M8 9h3v3H8zM13 9h3v3h-3zM8 14h3v3H8zM13 14h3v3h-3z"],
   armor: ["M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z", "M8.5 13h2l1-3 2 6 1-3h1"],
-  items: ["M4 5h4v4H4zM10 5h4v4h-4zM16 5h4v4h-4zM4 11h4v4H4zM10 11h4v4h-4zM16 11h4v4h-4z"],
-  patterns: ["M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z", "M10 7h4M7 10v4M17 10v4M10 17h4"],
-  lore: ["M4 5h16v14H4z", "M12 8l2 4-2 4-2-4z", "M4 5l8 4 8-4"],
-  metrics: ["M12 3l7 3v6c0 4-3 7.5-7 9-4-1.5-7-5-7-9V6z", "M8 9l8 8M10 8l6 6M8 12l4 4"],
-  medals: ["M6 4h12v5l-6 4-6-4z", "M9 15l3 5 3-5", "M9 7l6 3M15 7l-6 3"],
-  catalysts: ["M9 3h6v3l2 2v9a4 4 0 0 1-4 4h-2a4 4 0 0 1-4-4V8l2-2z", "M12 10v7"],
   triumphs: ["M7 4h10v4l-5 3-5-3z", "M12 11v5M8 20h8M10 16h4"],
-  commend: ["M12 3l2.4 5 5.6.8-4 3.9 1 5.5L12 15.6 7 18.2l1-5.5-4-3.9 5.6-.8z"],
 };
 
 export function guardianTab(ctx, container, deps) {
@@ -105,32 +98,32 @@ export function guardianTab(ctx, container, deps) {
     return card;
   }
 
-  function shortcut(icon, name, note, onclick, extra = "", image = null) {
+  // `icon`: a line icon's name (ICONS) or a glyph's (glyphs.js).
+  function shortcut(icon, name, note, onclick, extra = "") {
     return el(
       "button",
       { class: `gd-short${extra}`, type: "button", onclick },
-      el("span", { class: `gd-short__icon${image ? " has-image" : ""}` }, image ? el("img", { src: image, alt: "" }) : svg(ICONS[icon])),
+      el("span", { class: "gd-short__icon" }, ICONS[icon] ? svg(ICONS[icon]) : glyph(icon)),
       el("span", { class: "gd-short__text" }, el("strong", { text: name }), note ? el("small", { text: note }) : null),
     );
   }
 
   function characters() {
+    return el("section", { class: "sh-box gd-chars" }, label("Characters", g ? String(g.characters.length) : null), g ? el("div", { class: "gd-char-list" }, ...g.characters.map(characterCard)) : waiting("guardian", "Reading your Guardians…"));
+  }
+
+  function gear() {
     return el(
-      "div",
-      { class: "gd-top" },
-      el("section", { class: "sh-box gd-chars" }, label("Characters", g ? String(g.characters.length) : null), g ? el("div", { class: "gd-char-list" }, ...g.characters.map(characterCard)) : waiting("guardian", "Reading your Guardians…")),
-      el(
-        "section",
-        { class: "sh-box gd-shorts" },
-        label("Gear"),
-        shortcut("inventory", "Inventory", "Your characters and vault", () => openInventory(false)),
-        shortcut("postmaster", "Postmaster", "Lost items waiting", () => openInventory(true)),
-        shortcut("armor", "Armor optimizer", "Best builds for your stats", openArmor),
-      ),
+      "section",
+      { class: "sh-box gd-shorts" },
+      label("Gear"),
+      shortcut("inventory", "Inventory", "Your characters and vault", () => openInventory(false)),
+      shortcut("postmaster", "Postmaster", "Lost items waiting", () => openInventory(true)),
+      shortcut("armor", "Armor optimizer", "Best builds for your stats", openArmor),
     );
   }
 
-  // One bar split by commendation category, each in its colour (the app's look).
+  // One smooth bar split by commendation category, each in its colour (the app's look), with a key underneath.
   function splitBar(nodes) {
     const bar = el("div", { class: "gd-com__split", role: "img", "aria-label": nodes.map((n) => `${n.name} ${n.percent ?? 0}%`).join(", ") });
     for (const n of nodes) {
@@ -180,14 +173,17 @@ export function guardianTab(ctx, container, deps) {
         ? el(
             "div",
             {},
-            el("div", { class: "gd-com__total" }, svg(ICONS.commend), el("strong", { text: number(com.total) }), el("small", { text: "score" })),
+            el("div", { class: "gd-com__total" }, glyph("commend"), el("strong", { text: number(com.total) }), el("small", { text: "score" })),
             splitBar(com.nodes),
-            ...com.nodes.map((n) => {
-              const fill = el("span", { class: "gd-com__fill" });
-              fill.style.width = `${Math.max(2, Math.min(100, Number(n.percent) || 0))}%`;
-              if (n.color) fill.style.background = n.color;
-              return el("div", { class: "gd-com__row" }, el("span", { class: "gd-com__name", text: n.name }), el("span", { class: "gd-com__bar" }, fill), el("span", { class: "gd-com__num", text: `${number(n.score)}${n.percent != null ? ` · ${n.percent}%` : ""}` }));
-            }),
+            el(
+              "div",
+              { class: "gd-com__key" },
+              ...com.nodes.map((n) => {
+                const dot = el("i", { class: "gd-com__dot" });
+                if (n.color) dot.style.background = n.color;
+                return el("span", { class: "gd-com__row" }, dot, el("span", { class: "gd-com__name", text: n.name }), el("span", { class: "gd-com__num", text: `${number(n.score)}${n.percent != null ? ` · ${n.percent}%` : ""}` }));
+              }),
+            ),
           )
         : g
           ? el("p", { class: "tab__note", text: "Bungie isn't sharing commendations for this account." })
@@ -215,12 +211,18 @@ export function guardianTab(ctx, container, deps) {
             )
           : el("p", { class: "tab__note", text: "No titles earned yet." }),
     );
+    return el("section", { class: "sh-box gd-journey" }, label("Journey"), el("div", { class: "gd-journey__grid" }, rankBox, comBox, sealsBox));
+  }
+
+  function triumphs() {
+    const s = rec?.scores;
+    const score = (name, value) => el("div", { class: "gd-score" }, el("small", { text: name }), el("strong", { text: number(value) }));
     return el(
       "section",
-      { class: "sh-box gd-journey" },
-      label("Journey"),
-      el("div", { class: "gd-journey__grid" }, rankBox, comBox, sealsBox),
-      shortcut("triumphs", "Triumphs", rec ? `Active score ${number(rec.scores.active)} · Lifetime ${number(rec.scores.lifetime)}` : "Reading…", () => openRecords("triumphs", "Triumphs", { view: "triumphs" }), " gd-short--wide"),
+      { class: "sh-box gd-triumphs" },
+      label("Triumphs"),
+      shortcut("triumphs", "Triumphs", "Every triumph and title", () => openRecords("triumphs", "Triumphs", { view: "triumphs" })),
+      s ? el("div", { class: "gd-scores" }, score("Active score", s.active), score("Lifetime score", s.lifetime), s.legacy != null ? score("Legacy score", s.legacy) : null) : waiting("records", "Reading…"),
     );
   }
 
@@ -229,8 +231,7 @@ export function guardianTab(ctx, container, deps) {
     const cats = rec?.collections?.categories ?? [];
     const owned = cats.reduce((a, c) => a + (c.progress || 0), 0);
     const total = cats.reduce((a, c) => a + (c.goal || 0), 0);
-    const info = rec?.rootInfo ?? {};
-    const node = (key, name, hash, icon, note) => shortcut(icon, name, hash || key === "patterns" ? note : "Not in Bungie's data", () => (hash || key === "patterns") && openRecords(key, name, key === "items" ? { view: "collections" } : { node: key === "patterns" ? "patterns" : hash, title: name }), hash || key === "patterns" ? "" : " is-off", info[key]?.icon ?? null);
+    const node = (key, name, hash, icon, note) => shortcut(icon, name, hash || key === "patterns" ? note : "Not in Bungie's data", () => (hash || key === "patterns") && openRecords(key, name, key === "items" ? { view: "collections" } : { node: key === "patterns" ? "patterns" : hash, title: name }), hash || key === "patterns" ? "" : " is-off");
     return el(
       "section",
       { class: "sh-box gd-colls" },
@@ -239,12 +240,12 @@ export function guardianTab(ctx, container, deps) {
         ? el(
             "div",
             { class: "gd-coll-grid" },
-            node("items", "Items", 1, "items", total ? `${number(owned)} of ${number(total)} collected` : "Weapons, armor, ghosts, ships…"),
-            node("patterns", "Shaping Progress", 0, "patterns", "Weapon patterns unlocked"),
-            node("lore", "Lore", roots.lore, "lore", "Books and their pages"),
-            node("metrics", "Stat Trackers", roots.metrics, "metrics", "Your numbers across the game"),
-            node("medals", "Medals", roots.medals, "medals", "Medals you've earned"),
-            node("catalysts", "Patterns & Catalysts", roots.catalysts, "catalysts", "Exotic catalysts found and completed"),
+            node("items", "Items", 1, "items", total ? `${number(owned)} of ${number(total)} collected` : "Weapons, armor, ships…"),
+            node("patterns", "Shaping Progress", 0, "shaping", "Weapon patterns"),
+            node("lore", "Lore", roots.lore, "lore", "Books and pages"),
+            node("metrics", "Stat Trackers", roots.metrics, "metrics", "Your numbers"),
+            node("medals", "Medals", roots.medals, "medals", "Medals earned"),
+            node("catalysts", "Exotic Catalysts", roots.catalysts, "catalysts", "Catalysts completed"),
           )
         : waiting("records", "Reading…"),
     );
@@ -299,7 +300,7 @@ export function guardianTab(ctx, container, deps) {
       el("div", { class: "sh-top__tools" }, currencies(), el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => start(true) })),
     );
     const scroll = root.querySelector(".sh-body")?.scrollTop ?? 0;
-    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, characters(), journey(), collections(), recentGames()));
+    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, el("div", { class: "gd-layout" }, characters(), gear(), journey(), triumphs(), recentGames(), collections())));
     root.replaceChildren(backdrop, top, body);
     body.scrollTop = scroll;
   }

@@ -381,7 +381,8 @@ function guardian(ctx, container) {
 
 // The season, Vanguard alerts and Ops, with the Seasonal Hub, Vendors, Quests, friends and clan inside (director.js).
 function director(ctx, container) {
-  directorTab(ctx, container, shared("tab-director"));
+  // seals.report's rotators say which strike is this week's Grandmaster alert.
+  directorTab(ctx, container, { ...shared("tab-director"), remote: () => remoteRotators });
 }
 
 
