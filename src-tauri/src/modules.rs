@@ -41,7 +41,7 @@ pub const TABS: &[BuiltInTab] = &[
     BuiltInTab { game: "destiny2", id: "tab-seasonal", name: "Seasonal Hub", blurb: "Orders, daily and weekly objectives, and your season pass track.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-quests", name: "Quests", blurb: "Every quest a character has picked up.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-rad", name: "RAD assistant", blurb: "Raids and dungeons: encounters, loot, tips and maps.", sign_in: false },
-    BuiltInTab { game: "destiny2", id: "tab-featured", name: "Featured", blurb: "This week's raids and dungeons, rotators and timers.", sign_in: false },
+    BuiltInTab { game: "destiny2", id: "tab-featured", name: "Rotators", blurb: "This week's raids, dungeons, rotations and timers, at a glance.", sign_in: false },
 ];
 
 /// The built-in tabs a game has (all of them, in order).

@@ -117,6 +117,10 @@ const anySiteShown = () => shownIds().some(siteShown);
 // ---------- Sidebar ----------
 
 function renderSidebar() {
+  if (dragId) {
+    sidebarStale = true;
+    return;
+  }
   const app = $("app");
   // Expanding the sidebar from the flyout (its button or the shortcut) ends the flyout at once,
   // so the sidebar takes its real place straight away instead of after the pointer leaves.
@@ -255,12 +259,46 @@ $("modules").addEventListener("dragstart", (event) => {
   const row = event.target.closest(".mod-row");
   if (row) startDrag(event, row);
 });
-// Tabs can't be reordered, but they can be dragged onto the page area.
+// Tabs reorder among themselves (and can be dragged onto the page area like modules).
 $("tabs-list").addEventListener("dragstart", (event) => {
   const row = event.target.closest(".mod-row");
   if (row) startDrag(event, row);
 });
 $("tabs-list").addEventListener("dragend", () => endDrag());
+let tabDropIndex = -1;
+$("tabs-list").addEventListener("dragover", (event) => {
+  if (!dragId || !isTab(dragId)) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  const list = $("tabs-list");
+  const rows = [...list.querySelectorAll(".mod-row")].filter((r) => r.dataset.id !== dragId);
+  tabDropIndex = rows.findIndex((row) => {
+    const r = row.getBoundingClientRect();
+    return event.clientY < r.top + r.height / 2;
+  });
+  if (tabDropIndex < 0) tabDropIndex = rows.length;
+  const listTop = list.getBoundingClientRect().top;
+  const ref = rows[tabDropIndex] ?? rows[rows.length - 1];
+  const r = ref?.getBoundingClientRect();
+  const y = !r ? 0 : tabDropIndex < rows.length ? r.top - listTop - 2 : r.bottom - listTop;
+  dropLine.style.top = `${y}px`;
+  dropLine.hidden = false;
+  if (dropLine.parentElement !== list) list.append(dropLine);
+});
+$("tabs-list").addEventListener("drop", (event) => {
+  if (!dragId || !isTab(dragId)) return;
+  event.preventDefault();
+  const ids = state.tabs.filter((id) => id !== dragId);
+  ids.splice(tabDropIndex < 0 ? ids.length : tabDropIndex, 0, dragId);
+  tabDropIndex = -1;
+  state.tabs = ids;
+  endDrag();
+  renderSidebar();
+  hub.setTabs(ids);
+});
+$("tabs-list").addEventListener("dragleave", (event) => {
+  if (!$("tabs-list").contains(event.relatedTarget)) dropLine.hidden = true;
+});
 
 $("modules").addEventListener("dragover", (event) => {
   if (!dragId || isTab(dragId)) return;
@@ -283,12 +321,23 @@ $("modules").addEventListener("dragover", (event) => {
 });
 
 function endDrag() {
+  if (!dragId && $("drop-zones").hidden) return;
   dragId = null;
   dropIndex = -1;
   dropLine.hidden = true;
   document.querySelectorAll(".sidebar .is-dragging").forEach((r) => r.classList.remove("is-dragging"));
   endStageDrag();
+  if (sidebarStale) {
+    sidebarStale = false;
+    renderSidebar();
+  }
 }
+// A drag that's cancelled (Esc, dropped outside) must always clear the drop zones. The row being
+// dragged can be redrawn mid-drag (its dragend then never reaches the list), so: no sidebar redraws
+// while dragging, a dragend anywhere ends it, and so does the first pointer move after it.
+let sidebarStale = false;
+document.addEventListener("dragend", () => endDrag(), true);
+window.addEventListener("pointermove", () => dragId && endDrag());
 
 $("modules").addEventListener("drop", (event) => {
   if (!dragId || isTab(dragId)) return;

@@ -310,6 +310,7 @@ html[data-theme="light"] .app {
   margin-bottom: 2px;
 }
 .mod-row.is-dragging { opacity: 0.4; }
+.tabs-list { position: relative; }
 .drop-line {
   position: absolute;
   left: 4px;
@@ -431,11 +432,13 @@ html[data-theme="light"] .app {
 .app[data-expanded="false"] .brand,
 .app[data-expanded="false"] .mod__name,
 .app[data-expanded="false"] .mod__more,
-.app[data-expanded="false"] .profile-chip__text,
 .app[data-expanded="false"] .profile-chip__caret { display: none; }
-.app[data-expanded="false"] .sidebar__label { font-size: 0; margin-top: 10px; }
+/* Labels and the profile name stay in place but invisible, so every icon sits at the same height
+   collapsed as expanded. */
+.app[data-expanded="false"] .sidebar__label { color: transparent; overflow: hidden; }
+.app[data-expanded="false"] .profile-chip__text { visibility: hidden; flex: 0 0 0; width: 0; overflow: hidden; }
 .app[data-expanded="false"] .mod { justify-content: center; padding: 5px 0; }
-.app[data-expanded="false"] .profile-chip { justify-content: center; padding: 6px 0; margin: 2px 8px 6px; }
+.app[data-expanded="false"] .profile-chip { justify-content: center; gap: 0; padding: 7px 0; margin: 2px 8px 6px; }
 
 /* ---------- Update banner ---------- */
 

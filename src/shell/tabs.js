@@ -6,11 +6,11 @@
 // lib/rotators.js and lib/loot-tables.js, so both show the same weeks; copy them again when those
 // change. Everything here is worked out on this computer: nothing is fetched.
 
-import { featuredRotation, dreamingCityWeek, distortionSchedule, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
-import { ROTATORS, withSaved, rotatorNow } from "./d2/rotators.js";
+import { featuredRotation, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
 import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 import { seasonalHub } from "./seasonal.js";
+import { rotatorsTab } from "./rotators.js";
 
 const CLOCK = ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"];
 const PIN = ["M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z", "M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"];
@@ -25,8 +25,6 @@ function timeLeft(ms) {
   return `${minutes}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 }
 
-const localTime = (iso) => new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
-const localDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
 // A countdown that ticks by itself (see the timer at the bottom).
 function until(ctx, iso, suffix = " left") {
@@ -56,85 +54,10 @@ function head(ctx, title, lede) {
   return el("header", { class: "tab__head" }, el("h1", { class: "tab__title", text: title }), lede ? el("p", { class: "tab__lede" }, ...[].concat(lede)) : null);
 }
 
-// ---------- Featured ----------
+// ---------- Rotators (was Featured; rotators.js) ----------
 
 function featured(ctx) {
-  const { el } = ctx;
-  const now = Date.now();
-  const rotation = featuredRotation(now);
-  const reset = rotation.activities.find((a) => a.ends)?.ends;
-  const weekStart = new Date(new Date(reset).getTime() - 7 * 24 * 3600e3).toISOString();
-  const activity = (a) =>
-    card(ctx, {
-      kicker: a.kind === "raid" ? "Raid" : "Dungeon",
-      name: a.name,
-      place: a.destination,
-      meta: a.always ? el("span", { text: "Always featured" }) : until(ctx, a.ends),
-    });
-  const city = dreamingCityWeek(now);
-  const distortions = distortionSchedule(now, 6);
-  const [current, ...later] = distortions;
-
-  return el(
-    "div",
-    { class: "tab" },
-    head(ctx, "Featured", [`Week of ${localDate(weekStart)} to ${localDate(reset)} · weekly reset in `, until(ctx, reset, "")]),
-    band(ctx, "Raids"),
-    el("div", { class: "cards" }, ...rotation.activities.filter((a) => a.kind === "raid").map(activity)),
-    band(ctx, "Dungeons"),
-    el("div", { class: "cards" }, ...rotation.activities.filter((a) => a.kind === "dungeon").map(activity)),
-    el(
-      "p",
-      { class: "tab__note" },
-      `Next week: ${rotation.next.raids.join(" and ")}; ${rotation.next.dungeons.join(" and ")}.`,
-    ),
-    band(ctx, "Dreaming City"),
-    el(
-      "div",
-      { class: "cards" },
-      card(ctx, { kicker: "Ascendant Challenge", name: city.ascendant.name, place: city.ascendant.location, meta: until(ctx, city.weekEnd), note: "Moves every week on a six-week loop." }),
-      card(ctx, { kicker: "Curse", name: city.curse.label, meta: until(ctx, city.weekEnd), note: "Grows over three weeks, then starts again." }),
-    ),
-    band(ctx, "Distortion"),
-    el(
-      "div",
-      { class: "cards" },
-      card(ctx, { kicker: "Distorted right now", name: current.destination, detail: current.activity, meta: until(ctx, current.end) }),
-      el(
-        "div",
-        { class: "card card--list" },
-        el("div", { class: "card__kicker", text: "Next, your time" }),
-        ...later.map((d) => el("div", { class: "row" }, el("span", { class: "row__time", text: localTime(d.start) }), el("span", { text: `${d.destination} · ${d.activity}` }))),
-      ),
-    ),
-    band(ctx, "Rotators"),
-    el(
-      "div",
-      { class: "cards" },
-      ...ROTATORS.map((def) => {
-        const rotator = withSaved(def, savedRotators[def.id] ?? null);
-        const at = rotatorNow(rotator, now, 3);
-        const detail = at.current.detail;
-        return el(
-          "div",
-          { class: `card${at.unknown ? " card--muted" : ""}` },
-          el("div", { class: "card__kicker", text: `${def.title} · ${def.period}` }),
-          el("div", { class: "card__name", text: at.current.name }),
-          detail ? el("div", { class: "card__detail", text: detail }) : null,
-          el("div", { class: "card__meta" }, ctx.svg(CLOCK), until(ctx, at.ends, " until it changes")),
-          at.next.length
-            ? el("div", { class: "card__next" }, ...at.next.map((n) => el("div", { class: "row" }, el("span", { class: "row__time", text: localDate(n.starts) }), el("span", { text: n.entry.name }))))
-            : null,
-          rotator.confirmed ? null : el("div", { class: "card__note", text: "Worked out from guide sites; may be off." }),
-        );
-      }),
-    ),
-    el(
-      "p",
-      { class: "tab__note" },
-      "Bungie doesn't publish these schedules, so they're counted from known weeks, with any corrections made on seals.report. Times are shown in your time zone.",
-    ),
-  );
+  return rotatorsTab(ctx, { until, saved: () => savedRotators });
 }
 
 // ---------- RAD assistant ----------
