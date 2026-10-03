@@ -3,9 +3,9 @@
 // with a diamond and a bright stretch):
 //
 //   [ SEASONAL HUB · season name ............................... character · refresh ]
-//   [ active orders        ] [ daily objectives ] [ weekly objectives ]  [ bounties  ]
-//                            [ refresh timer    ] [ refresh timer     ]  [ on this   ]
-//                            [ weekly rewards ........................ ]  [ character ]
+//   [ active orders        ] [ weekly rewards ........................ ]  [ bounties  ]
+//                            [ daily / weekly reset countdowns        ]  [ on this   ]
+//                                                                         [ character ]
 //   ( rank )  PASS NAME  [past passes ▾]        [ season pass bonuses ]  [           ]
 //   [ season pass rewards: a column per rank, free row over pass row     ]  [           ]
 //   [ rewards to claim: this pass | every pass, with Claim buttons       ]  [           ]
@@ -171,30 +171,16 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
     );
   }
 
-  // ---------- Objectives ----------
-
-  function objectiveCard(r) {
-    const main = r.objectives?.[0];
-    const pct = r.objectives?.length ? Math.round(r.objectives.reduce((n, o) => n + percent(o), 0) / r.objectives.length) : r.complete ? 100 : 0;
+  // When the daily and weekly content turns over.
+  function resets() {
+    const clock = () => svg(["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7v5l3 2"]);
     return el(
       "div",
-      { class: `sh-card${r.complete ? " is-done" : ""}`, title: clean(r.description || r.name) },
-      el("div", { class: "sh-card__head" }, r.icon ? el("img", { class: "sh-card__icon", src: r.icon, alt: "" }) : null, el("span", { class: "sh-card__name", text: r.name }), r.complete ? el("span", { class: "sh-card__done", text: "✓" }) : null),
-      el("div", { class: "sh-card__body" }, rich(main?.text || r.description || "", "sh-card__desc"), el("span", { class: "sh-card__rewards" }, ...(r.rewards ?? []).slice(0, 3).map((w) => rewardTile(w, "Objective reward")))),
-      meter(pct),
+      { class: "sh-resets" },
+      el("div", { class: "sh-timer" }, clock(), el("span", { text: "Daily reset in " }), until(ctx, nextDaily(), "")),
+      el("div", { class: "sh-timer" }, clock(), el("span", { text: "Weekly reset in " }), until(ctx, nextWeekly(), "")),
     );
   }
-
-  function objectives(title, list, reset, hub) {
-    return el(
-      "div",
-      { class: "sh-col" },
-      section(title, list?.length ? `${list.filter((r) => r.complete).length} / ${list.length}` : null, list?.length ? el("div", { class: "sh-cards" }, ...list.map(objectiveCard)) : note(hub ? "Nothing found for this yet (see the data check below)." : "Reading…")),
-      el("div", { class: "sh-timer" }, svg(["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7v5l3 2"]), el("span", { text: `${title.split(" ")[0]} refresh in ` }), until(ctx, reset, "")),
-    );
-  }
-
-  // ---------- Weekly rewards ----------
 
   function weeklyRewards(hub) {
     const track = hub?.weeklyRewards;
@@ -517,7 +503,9 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
       "div",
       { class: "sh-main" },
       hub?.error ? el("p", { class: "tab__error", text: hub.error }) : null,
-      el("div", { class: "sh-grid" }, orders(ready), el("div", { class: "sh-right" }, objectives("Daily objectives", ready?.daily, nextDaily(), ready), objectives("Weekly objectives", ready?.weekly, nextWeekly(), ready), el("div", { class: "sh-wide" }, weeklyRewards(ready)))),
+      // The hub's daily and weekly objectives aren't in Bungie's public data (checked live through
+      // every record tree, vendor and hidden item), so the top row is orders and weekly rewards.
+      el("div", { class: "sh-grid" }, orders(ready), el("div", { class: "sh-right sh-right--one" }, weeklyRewards(ready), resets())),
       passHeader(ready, pass),
       passError ? el("p", { class: "tab__error", text: passError }) : null,
       track(pass),

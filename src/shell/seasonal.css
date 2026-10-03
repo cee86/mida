@@ -255,3 +255,7 @@
 .sh-el--stasis { color: #4d88ff; }
 .sh-el--strand { color: #35e366; }
 .sh-el--kinetic { color: #d8d4cc; }
+
+/* Top row since the daily/weekly objective boxes were dropped: orders | weekly rewards + resets. */
+.sh-right--one { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.sh-resets { display: flex; flex-wrap: wrap; gap: 6px 22px; }

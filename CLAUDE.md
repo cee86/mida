@@ -289,7 +289,11 @@ element diamonds (`rich()`, others dropped). "Personal Weekly Objectives" is the
 objectives mention "clan" are skipped. The real daily/weekly hub objectives are still unfound: `seasonal()` now reads
 `/Settings/` and lists every core-settings record tree in the data check, walking those named like season / hub /
 objective / daily / weekly / pathfinder / portal. "Pass ends in" only shows for dates within two years (Bungie's
-far-future placeholders are ignored). The data check adds "Orders found", the objective holders (done counts, reward lists) and track hashes. **Filters** = a screen like the game's vault filters (categories left, a grid of
+far-future placeholders are ignored). **Fifth check (v0.8.4 live, 3 Oct 2026):** no core-settings record tree is the hub's (Titles,
+Triumphs, Badges, Items, Weapons, Patterns & Catalysts, Guardian Ranks, Legacy, Lore, Medals, Metrics; the season's
+challenges node is empty), no vendor or hidden item holds them: **the hub's daily and weekly objectives aren't in Bungie's
+public data**, so those two boxes were removed. Top row now: Active orders | Weekly rewards with the daily / weekly reset
+countdowns under it. (The Rust still looks for them, cheaply; if Bungie adds them, they show in the data check.) The data check adds "Orders found", the objective holders (done counts, reward lists) and track hashes. **Filters** = a screen like the game's vault filters (categories left, a grid of
 toggles, "Currently selected n/m", Select all / Deselect all / Clear every filter / Done); options are built from the
 items present; OR within a category, AND across; kept per tab in `mida-inv-filters2`. Weapons: Slot, Archetype (item
 type), Damage Type, Ammo Type, Anti-Champion (`breakerType` 1/2/3), Gear Tier, Rarity, Masterwork, Duplicates,
