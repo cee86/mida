@@ -967,6 +967,15 @@ async fn challenge_entry(hash: u64, state: &Value, m: &Manifest) -> Option<Value
     }))
 }
 
+/// A challenge pays like a weekly one: an engram, Legendary marks, or 50+ Bright Dust (daily ones give XP and ~20).
+fn challenge_is_weekly(entry: &Value) -> bool {
+    entry["rewards"].as_array().into_iter().flatten().any(|r| {
+        let name = r["name"].as_str().unwrap_or("").to_lowercase();
+        let kind = r["typeName"].as_str().unwrap_or("").to_lowercase();
+        name.contains("engram") || kind.contains("engram") || name.contains("mark") || (name.contains("bright dust") && r["quantity"].as_i64().unwrap_or(0) >= 50)
+    })
+}
+
 async fn node_records(root: u64, depth: u32, path: String, out: &mut Vec<(String, u64)>, seen: &mut Vec<Value>) {
     if depth > 3 || out.len() > 120 {
         return;
@@ -1390,18 +1399,24 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
             continue; // the season's card wins; the event's is used when the season has none
         }
         challenge_title = name;
-        for (group_name, records) in groups {
-            let lower = group_name.to_lowercase();
-            let kind = if lower.contains("daily") || lower.contains("day") { "daily" } else { "weekly" };
-            let mut list = Vec::new();
+        // Daily or weekly by what they pay (the owner's rule, 3 Oct 2026; the nodes' names don't say): weekly
+        // challenges give bonus loot (Legendary marks, engrams, 100 Bright Dust), daily ones XP and about 20 Bright Dust.
+        let (mut daily_list, mut weekly_list) = (Vec::new(), Vec::new());
+        let mut seen: HashSet<u64> = HashSet::new();
+        for (_, records) in groups {
             for r in records.iter().take(60) {
-                if let Some(entry) = challenge_entry(*r, &record_state_of(profile, character, *r), m).await {
-                    list.push(entry);
+                if !seen.insert(*r) {
+                    continue;
                 }
+                let Some(entry) = challenge_entry(*r, &record_state_of(profile, character, *r), m).await else { continue };
+                if challenge_is_weekly(&entry) { weekly_list.push(entry) } else { daily_list.push(entry) }
             }
-            if !list.is_empty() {
-                challenge_groups.push(json!({ "name": group_name, "kind": kind, "records": list }));
-            }
+        }
+        if !daily_list.is_empty() {
+            challenge_groups.push(json!({ "name": "Daily", "kind": "daily", "records": daily_list }));
+        }
+        if !weekly_list.is_empty() {
+            challenge_groups.push(json!({ "name": "Weekly", "kind": "weekly", "records": weekly_list }));
         }
     }
     // Bungie's core settings name the root of each record tree; list them all (for the data
@@ -2287,6 +2302,15 @@ mod tests {
         m.items.insert(5, item("A quest", 12, QUESTS_BUCKET, 3));
         m.objectives.insert(9, Objective { text: "Defeat enemies".into(), goal: 50 });
         m
+    }
+
+    #[test]
+    fn weekly_challenges_by_their_rewards() {
+        let dust = |q: i64| json!({ "name": "Bright Dust", "typeName": "Currency", "quantity": q });
+        assert!(!challenge_is_weekly(&json!({ "rewards": [{ "name": "XP", "quantity": 1 }, dust(20)] })));
+        assert!(challenge_is_weekly(&json!({ "rewards": [dust(100)] })));
+        assert!(challenge_is_weekly(&json!({ "rewards": [{ "name": "Legendary Marks", "quantity": 10 }] })));
+        assert!(challenge_is_weekly(&json!({ "rewards": [{ "name": "Tier 2 Engram", "quantity": 4 }] })));
     }
 
     #[test]

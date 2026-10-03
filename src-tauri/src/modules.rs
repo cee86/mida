@@ -40,10 +40,9 @@ pub const TABS: &[BuiltInTab] = &[
     BuiltInTab { game: "destiny2", id: "tab-guardian", name: "Guardian", blurb: "Your characters, Guardian Rank, commendations, triumphs, collections and recent games.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-director", name: "Director", blurb: "The season, reward pass, Vanguard alerts and Ops, plus the Seasonal Hub, vendors, quests, friends and clan.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-inventory", name: "Inventory", blurb: "Move gear between your characters and the vault.", sign_in: true },
-    BuiltInTab { game: "destiny2", id: "tab-armor", name: "Armor optimizer", blurb: "Finds the armor combinations that get closest to the stats you want, and equips them.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-planner", name: "Weekly planner", blurb: "Each character's week: milestones, bounties and your own to-do list, reset every Tuesday.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-featured", name: "Rotators", blurb: "This week's raids, dungeons, rotations and timers, at a glance.", sign_in: false },
-    BuiltInTab { game: "destiny2", id: "tab-rad", name: "RAD assistant", blurb: "Raids and dungeons: encounters, loot, tips and maps.", sign_in: false },
+    BuiltInTab { game: "destiny2", id: "tab-rad", name: "RAD Assistant", blurb: "Raids and dungeons: encounters, loot, tips and maps.", sign_in: false },
 ];
 
 /// The built-in tabs a game has (all of them, in order).

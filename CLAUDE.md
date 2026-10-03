@@ -233,10 +233,10 @@ button, and the loadout dock uses the same grid. `character_details` now returns
 * **Themes:** Pyramid, Vex network, Traveler's light, Cabal, Neomuna neon (see §6).
 
 **Guardian and Director (3 Oct 2026, owner's new organisation, modelled on the Companion app):** the sidebar's
-Destiny 2 tabs are now Guardian, Director, Inventory, Armor optimizer, Weekly planner, Rotators, RAD. Triumphs moved into
-Guardian; the Seasonal Hub, Quests, Vendors and Clan into Director; their screens are unchanged and open as pages inside
+Destiny 2 tabs are now Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant. Triumphs and the Armor
+optimizer moved into Guardian; the Seasonal Hub, Quests, Vendors and Clan into Director; their screens are unchanged and open as pages inside
 the tab (subpages.js: a back bar "‹ Director · Vendors" over the screen; each page built once and kept). Saved sidebar
-lists are migrated in place (store.rs `clean_profile`: tab-records → tab-guardian; tab-seasonal/quests/vendors/clan →
+lists are migrated in place (store.rs `clean_profile`: tab-records and tab-armor → tab-guardian; tab-seasonal/quests/vendors/clan →
 tab-director, once).
 * **Guardian** (guardian.js; `d2_guardian`, `d2_recent`, and the `d2_records` overview, each filling in on arrival):
   characters (hubs.rs `guardian`: emblem, power, race, equipped title, the emblem's stat tracker = the emblem item's
@@ -270,9 +270,11 @@ gives `DestinyEventCardDefinition.weeklyChallengesPresentationNodeHash`, and cor
 its core-settings scan only looked at keys containing "node"). `seasonal()` now reads the season's card first, else the
 event's: the challenges node's own records are one group and each sub-node another; a group is "daily" when its name
 says day/daily, else "weekly" (`challenges: { title, groups: [{ name, kind, records }] }`, `challenge_entry`). The
-Seasonal Hub shows them across the width under the top row with a Daily | Weekly switch; the data check lists both
-cards, their challenges node and groups. **Unverified live:** whether the season's card is set and how its groups are
-named.
+Seasonal Hub shows them across the width under the top row; the data check lists both
+cards, their challenges node and groups. **Confirmed live by the owner (3 Oct 2026):** this finds the daily and weekly objectives. Their
+nodes don't say which is which, so `challenge_is_weekly` sorts by reward (owner's rule: weekly = bonus loot, Legendary
+marks, engrams, 100 Bright Dust; daily = XP and ~20 Bright Dust), and the box shows "Daily challenges" then "Weekly
+challenges", each with what it pays, in an even grid (descriptions clamped to three lines).
 
 **Rotators, round 3 (3 Oct 2026, owner: "bring everything up to date with seals.report"):** the tab now mirrors
 seals.report's Featured v0.58. `src/shell/d2/` holds unchanged copies of seals.report's rotations.js, rotators.js,
@@ -647,6 +649,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.0 (3 Oct 2026, owner): Guardian and Director tabs (the Companion app's organisation); Triumphs, Armor optimizer,
+  Seasonal Hub, Quests, Vendors and Clan now open inside them; Event challenges sorted into Daily / Weekly by reward.
 * v0.8.11 (3 Oct 2026, owner): daily and weekly Event challenges in the Seasonal Hub (the season's event card).
 * v0.8.10 (3 Oct 2026, owner): the app icon in grey (taskbar and window icons too).
 * v0.8.9 (3 Oct 2026, owner's picks from Claude's ideas): Weekly planner, Triumphs (seals, triumphs, collections),

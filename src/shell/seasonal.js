@@ -52,7 +52,6 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
   let claimScope = "current";
   const claiming = new Set();
   let hubBar = null; // the progress bar shown while a character's hub is read
-  let challengeKind = "daily"; // the Event challenges box's Daily | Weekly choice
 
   const chosen = () => (activity.characters.some((c) => c.id === lastCharacter.seasonal) ? lastCharacter.seasonal : activity.characters[0]?.id);
 
@@ -175,32 +174,26 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
 
   // ---------- Event challenges ----------
 
-  // The season's daily and weekly challenges (the Companion app's "Event challenges"), from the season's event card.
+  // The season's daily and weekly challenges (the Companion app's "Event challenges"): dailies first, then weeklies,
+  // each in an even grid under a heading saying what that kind pays (Rust sorts them by their rewards).
+  const CHALLENGE_KINDS = [
+    ["daily", "Daily challenges", "XP and Bright Dust · resets daily"],
+    ["weekly", "Weekly challenges", "Bonus loot: Legendary marks, engrams and 100 Bright Dust · resets Tuesday"],
+  ];
   function challenges(hub) {
     const groups = hub?.challenges?.groups ?? [];
     if (!groups.length) return null;
-    const kinds = ["daily", "weekly"].filter((k) => groups.some((g) => g.kind === k));
-    const kind = kinds.includes(challengeKind) ? challengeKind : kinds[0];
-    const shown = groups.filter((g) => g.kind === kind);
-    const all = shown.flatMap((g) => g.records);
+    const all = groups.flatMap((g) => g.records);
     const done = all.filter((r) => r.complete).length;
-    const toggle =
-      kinds.length > 1
-        ? el(
-            "span",
-            { class: "segmented", role: "group", "aria-label": "Daily or weekly" },
-            ...kinds.map((k) => el("button", { type: "button", "aria-pressed": String(k === kind), text: k === "daily" ? "Daily" : "Weekly", onclick: () => ((challengeKind = k), draw()) })),
-          )
-        : null;
     const card = (r) =>
       el(
         "div",
         { class: `sh-challenge${r.complete ? " is-done" : ""}` },
-        el("span", { class: "sh-order__icon" }, r.icon ? el("img", { src: r.icon, alt: "", loading: "lazy" }) : null, r.complete ? el("span", { class: "sh-tile__check", text: "✓" }) : null),
+        el("span", { class: "sh-challenge__icon" }, r.icon ? el("img", { src: r.icon, alt: "", loading: "lazy" }) : null, r.complete ? el("span", { class: "sh-tile__check", text: "✓" }) : null),
         el(
           "div",
-          { class: "sh-order__text" },
-          el("div", { class: "sh-order__name" }, el("span", { text: r.name }), r.claimable ? el("span", { class: "sh-challenge__claim", text: "Claim in game" }) : null),
+          { class: "sh-challenge__body" },
+          el("div", { class: "sh-challenge__name" }, el("span", { text: r.name }), r.claimable ? el("span", { class: "sh-challenge__claim", text: "Claim in game" }) : null),
           r.description ? rich(r.description, "sh-challenge__desc") : null,
           ...(r.objectives ?? []).map((o) =>
             el(
@@ -218,8 +211,17 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
     return el(
       "section",
       { class: "sh-box sh-challenges" },
-      label(hub.challenges.title ? `Event challenges · ${hub.challenges.title}` : "Event challenges", [toggle, el("span", { text: ` ${done} of ${all.length} done · resets ${kind === "daily" ? "daily" : "Tuesday"}` })].filter(Boolean)),
-      ...shown.map((g) => el("div", { class: "sh-challenge-group" }, shown.length > 1 && g.name ? el("h3", { class: "sh-challenge-group__name", text: g.name }) : null, el("div", { class: "sh-challenge-list" }, ...g.records.map(card)))),
+      label(hub.challenges.title ? `Event challenges · ${hub.challenges.title}` : "Event challenges", `${done} of ${all.length} done`),
+      ...CHALLENGE_KINDS.map(([kind, title, pays]) => {
+        const list = groups.filter((g) => g.kind === kind).flatMap((g) => g.records);
+        if (!list.length) return null;
+        return el(
+          "div",
+          { class: `sh-challenge-group sh-challenge-group--${kind}` },
+          el("div", { class: "sh-challenge-group__head" }, el("h3", { class: "sh-challenge-group__name", text: title }), el("span", { class: "sh-challenge-group__pays", text: pays }), el("span", { class: "sh-challenge-group__count", text: `${list.filter((r) => r.complete).length} of ${list.length}` })),
+          el("div", { class: "sh-challenge-list" }, ...list.map(card)),
+        );
+      }),
     );
   }
 

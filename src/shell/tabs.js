@@ -10,7 +10,6 @@ import { featuredRotation, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 import { LOOT_TABLES, WEAPON_KINDS } from "./d2/loot-tables.js";
 import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 import { plannerTab } from "./planner.js";
-import { armorTab } from "./armor.js";
 import { guardianTab } from "./guardian.js";
 import { directorTab } from "./director.js";
 import { remind, postmasterCheck, REMINDERS, reminderChoices, setReminder } from "./reminders.js";
@@ -64,7 +63,7 @@ function featured(ctx) {
   return rotatorsTab(ctx, { until, remote: () => remoteRotators });
 }
 
-// ---------- RAD assistant ----------
+// ---------- RAD Assistant ----------
 
 const RAD_KEY = "mida-rad-activity";
 const radChoice = () => {
@@ -190,7 +189,6 @@ const SIGN_IN = {
   "tab-planner": "Each character's week in one place: the weekly milestones still to do, bounties ready to turn in, and your own to-do list that resets every Tuesday.",
   "tab-guardian": "Your three characters, Guardian Rank and commendations, recent seals, triumphs and collections, and your latest games, like the Companion app's Guardian screen.",
   "tab-director": "The season and your reward pass, this week's Vanguard alerts and Ops with their bonus drops, plus the Seasonal Hub, vendors, quests, friends and your clan.",
-  "tab-armor": "Set the stats you want and it searches all your armor (vault included) for the combinations that get closest, then equips the one you pick.",
 };
 const SHIELD = ["M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z", "M9 12l2 2 4-4"];
 
@@ -384,10 +382,6 @@ function director(ctx, container) {
   directorTab(ctx, container, shared());
 }
 
-// The best armor combinations for the stats you want (armor.js).
-function armor(ctx, container) {
-  armorTab(ctx, container, { read, loadingView, problemView, characterPicker, lastCharacter });
-}
 
 
 
@@ -404,7 +398,7 @@ const BUILDERS = {
   "tab-featured": featured,
   "tab-rad": rad,
 };
-const SIGNED_IN = { "tab-guardian": guardian, "tab-director": director, "tab-planner": planner, "tab-inventory": inventoryTab, "tab-armor": armor };
+const SIGNED_IN = { "tab-guardian": guardian, "tab-director": director, "tab-planner": planner, "tab-inventory": inventoryTab };
 
 // What a sign-in tab depends on: remount when the account changes.
 const accountKey = (ctx) => {

@@ -316,15 +316,23 @@
   .sh-pair { grid-template-columns: 1fr; }
 }
 
-/* Event challenges (daily / weekly), across the whole width. */
-.sh-challenges .sh-label__count { display: inline-flex; align-items: center; gap: 8px; }
-.sh-challenge-group + .sh-challenge-group { margin-top: 12px; }
-.sh-challenge-group__name { margin: 4px 0 8px; color: var(--mist); font-size: 0.74rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
-.sh-challenge-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
-.sh-challenge { display: grid; grid-template-columns: 48px 1fr; gap: 10px; padding: 8px; background: rgba(255, 255, 255, 0.03); }
-.sh-challenge .sh-order__icon { position: relative; }
+/* Event challenges: daily, then weekly, each an even grid of cards. */
+.sh-challenge-group + .sh-challenge-group { margin-top: 18px; }
+.sh-challenge-group__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin: 6px 0 10px; padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); }
+.sh-challenge-group__name { margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.sh-challenge-group--weekly .sh-challenge-group__name { color: var(--accent); }
+.sh-challenge-group__pays { color: var(--mist); font-size: 0.8rem; }
+.sh-challenge-group__count { margin-left: auto; color: var(--mist); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.sh-challenge-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; align-items: stretch; }
+.sh-challenge { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 10px; background: rgba(255, 255, 255, 0.035); border: 1px solid color-mix(in srgb, var(--cream) 8%, transparent); }
+.sh-challenge-group--weekly .sh-challenge { border-left: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); }
 .sh-challenge.is-done { opacity: 0.62; }
-.sh-challenge__desc { display: block; margin: 0 0 4px; color: var(--mist); font-size: 0.8rem; line-height: 1.4; }
+.sh-challenge__icon { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--rule); background: var(--hover); }
+.sh-challenge__icon img { width: 80%; height: 80%; object-fit: contain; }
+.sh-challenge__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sh-challenge__name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-weight: 600; }
+.sh-challenge__desc { display: -webkit-box; margin: 0; overflow: hidden; color: var(--mist); font-size: 0.8rem; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.sh-challenge .sh-obj { margin-top: 0; }
 .sh-challenge__claim { padding: 0 6px; border: 1px solid var(--accent); color: var(--accent); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; }
-.sh-challenge__rewards { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.sh-challenge__rewards { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 2px; }
 .sh-challenge__rewards .sh-tile { width: 34px; height: 34px; }
