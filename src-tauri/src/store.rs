@@ -384,14 +384,14 @@ mod tests {
         // A list saved before Vendors existed (no tabs_known): the newer tabs are added at the end, order kept.
         let old = Profile { id: "p-1".into(), game: "destiny2".into(), tabs: Some(vec!["tab-featured".into(), "tab-inventory".into()]), ..Profile::default() };
         let p = clean_profile(old).unwrap();
-        assert_eq!(p.tabs.as_deref().unwrap(), ["tab-featured", "tab-inventory", "tab-guardian", "tab-director", "tab-planner"]);
+        assert_eq!(p.tabs.as_deref().unwrap(), ["tab-featured", "tab-inventory", "tab-guardian", "tab-director", "tab-news", "tab-planner"]);
         // Hidden after that (it's known now): it stays hidden.
         let hidden = Profile { tabs: Some(vec!["tab-featured".into()]), ..p };
         assert_eq!(clean_profile(hidden).unwrap().tabs.as_deref().unwrap(), ["tab-featured"]);
         // v0.9: the old tabs become Guardian and Director where they were, once each.
         let known: Vec<String> = ["tab-inventory", "tab-seasonal", "tab-quests", "tab-records", "tab-clan", "tab-vendors", "tab-planner", "tab-armor", "tab-rad", "tab-featured"].iter().map(|t| t.to_string()).collect();
         let before = Profile { id: "p-2".into(), game: "destiny2".into(), tabs: Some(["tab-seasonal", "tab-inventory", "tab-records", "tab-quests", "tab-featured"].iter().map(|t| t.to_string()).collect()), tabs_known: known, ..Profile::default() };
-        assert_eq!(clean_profile(before).unwrap().tabs.as_deref().unwrap(), ["tab-director", "tab-inventory", "tab-guardian", "tab-featured"]);
+        assert_eq!(clean_profile(before).unwrap().tabs.as_deref().unwrap(), ["tab-director", "tab-inventory", "tab-guardian", "tab-featured", "tab-news"]);
     }
 
     #[test]

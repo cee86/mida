@@ -39,6 +39,7 @@ pub struct BuiltInTab {
 pub const TABS: &[BuiltInTab] = &[
     BuiltInTab { game: "destiny2", id: "tab-guardian", name: "Guardian", blurb: "Your characters, Guardian Rank, commendations, triumphs, collections and recent games.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-director", name: "Director", blurb: "The season, reward pass, Vanguard alerts and Ops, plus the Seasonal Hub, vendors, quests, friends and clan.", sign_in: true },
+    BuiltInTab { game: "destiny2", id: "tab-news", name: "News", blurb: "Bungie's news, Bungie Server Status and Destiny 2 on Bluesky, and the D2 Community Hub, in one feed.", sign_in: false },
     BuiltInTab { game: "destiny2", id: "tab-inventory", name: "Inventory", blurb: "Move gear between your characters and the vault.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-planner", name: "Weekly planner", blurb: "Each character's week: milestones, bounties and your own to-do list, reset every Tuesday.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-featured", name: "Rotators", blurb: "This week's raids, dungeons, rotations and timers, at a glance.", sign_in: false },

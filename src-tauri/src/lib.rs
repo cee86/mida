@@ -24,6 +24,7 @@ mod auth;
 mod bungie;
 mod hubs;
 mod modules;
+mod news;
 mod records;
 mod store;
 #[cfg(windows)]
@@ -119,6 +120,9 @@ struct Hub {
     item_parts: Mutex<Option<(u64, Value)>>, // every item's card details (bungie::item_parts) and when they were read
     records: tokio::sync::Mutex<Option<Arc<records::Records>>>, // triumph, seal and collection definitions (Records tab)
     records_profile: Mutex<Option<(u64, Arc<Value>)>>, // the player's records read and when (kept 5 minutes)
+    news: Mutex<Option<(u64, Value)>>, // the News feed and when it was read (kept 5 minutes)
+    news_links: Mutex<HashSet<String>>, // links the feeds listed (the only ones open_news opens)
+    news_pictures: Mutex<HashMap<String, Option<String>>>, // pictures the feeds listed -> loaded copy (data: address)
 }
 
 fn hub(app: &AppHandle) -> tauri::State<'_, Hub> {
@@ -1520,6 +1524,70 @@ async fn d2_friends(webview: Webview, app: AppHandle) -> Value {
     )
 }
 
+/// The News tab: Bungie.net news, Bungie's Bluesky accounts and the D2 Community Hub feed (news.rs), kept 5 minutes.
+#[tauri::command]
+async fn d2_news(webview: Webview, app: AppHandle, fresh: Option<bool>) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    if fresh != Some(true) {
+        if let Some((at, v)) = hub(&app).news.lock().unwrap().as_ref() {
+            if auth::now() < at + 300 {
+                return answer(Ok(v.clone()));
+            }
+        }
+    }
+    progress(&app, "news", 0.2, "Reading the news");
+    let (v, links, pictures) = news::feed().await;
+    *hub(&app).news.lock().unwrap() = Some((auth::now(), v.clone()));
+    hub(&app).news_links.lock().unwrap().extend(links);
+    {
+        let state = hub(&app);
+        let mut known = state.news_pictures.lock().unwrap();
+        for p in pictures {
+            known.entry(p).or_insert(None);
+        }
+        // Don't keep loaded pictures forever: past 300, forget the copies (they load again when shown).
+        if known.len() > 300 {
+            for v in known.values_mut() {
+                *v = None;
+            }
+        }
+    }
+    answer(Ok(v))
+}
+
+/// A picture a news feed listed, as a data: address (only those; nothing else is fetched).
+#[tauri::command]
+async fn news_image(webview: Webview, app: AppHandle, url: String) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    let known = hub(&app).news_pictures.lock().unwrap().get(&url).cloned();
+    match known {
+        None => fail("That picture isn't from the news."),
+        Some(Some(data)) => answer(Ok(json!(data))),
+        Some(None) => match news::picture(&url).await {
+            Ok(data) => {
+                hub(&app).news_pictures.lock().unwrap().insert(url, Some(data.clone()));
+                answer(Ok(json!(data)))
+            }
+            Err(e) => fail(&e),
+        },
+    }
+}
+
+/// Opens a news link in the system browser (only links the feeds listed).
+#[tauri::command]
+async fn open_news(webview: Webview, app: AppHandle, url: String) {
+    if !from_shell(&webview) || !hub(&app).news_links.lock().unwrap().contains(&url) {
+        return;
+    }
+    if let Ok(u) = Url::parse(&url) {
+        open_external(&app, &u);
+    }
+}
+
 /// The Weekly planner: each character's weekly checklist.
 #[tauri::command]
 async fn d2_planner(webview: Webview, app: AppHandle) -> Value {
@@ -2118,6 +2186,9 @@ pub fn run() {
                 item_parts: Mutex::new(None),
                 records: tokio::sync::Mutex::new(None),
                 records_profile: Mutex::new(None),
+                news: Mutex::new(None),
+                news_links: Mutex::new(HashSet::new()),
+                news_pictures: Mutex::new(HashMap::new()),
                 dir: dir.clone(),
                 store: Mutex::new(Store::open(dir)),
                 statuses: Mutex::new(HashMap::new()),
@@ -2181,6 +2252,9 @@ pub fn run() {
             d2_director,
             d2_portal,
             d2_friends,
+            d2_news,
+            news_image,
+            open_news,
             d2_pass,
             d2_claim,
             d2_rotators,

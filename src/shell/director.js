@@ -20,6 +20,7 @@ import { vendorsTab } from "./vendors.js";
 import { clanTab } from "./clan.js";
 import { recordsTab } from "./records.js";
 import { wallpaper } from "./wallpaper.js";
+import { articleReader, loadPicture } from "./news.js";
 
 // The Portal's four groups, in the app's order; Bungie's own trait text and icon are used when it sends them.
 const OPS = [
@@ -48,6 +49,7 @@ export function directorTab(ctx, container, deps) {
   let portal = null; // d2_portal for `who`
   let who = null; // the chosen character
   let friends = null; // d2_friends, for the online count
+  let articles = null; // the latest Bungie articles (d2_news), for the strip at the top
   const errors = {};
   const label = (title, extra) => el("div", { class: "sh-label" }, el("span", { class: "sh-label__text", text: title }), extra == null ? null : el("span", { class: "sh-label__count" }, ...[].concat(extra).map((x) => (x instanceof Node ? x : document.createTextNode(String(x))))));
   const waiting = (key, text) => (errors[key] ? el("p", { class: "tab__error", text: errors[key] }) : el("p", { class: "tab__note", text }));
@@ -248,6 +250,18 @@ export function directorTab(ctx, container, deps) {
     );
   }
 
+  // The latest Bungie articles as banners across the top, like the app; each opens inside the Director.
+  function newsStrip() {
+    if (!articles?.length) return null;
+    return el(
+      "div",
+      { class: "dr-news", role: "list", "aria-label": "Latest from Bungie" },
+      ...articles.slice(0, 6).map((a) =>
+        el("button", { class: "dr-news__item", type: "button", role: "listitem", onclick: () => pages.show(`article-${a.id}`, a.title, (host) => articleReader(ctx, host, a, wall)) }, a.image ? loadPicture(ctx, a.image) : null, el("span", { text: a.title })),
+      ),
+    );
+  }
+
   function tiles() {
     const online = friends ? friends.filter((f) => f.online).length : null;
     return el(
@@ -332,7 +346,7 @@ export function directorTab(ctx, container, deps) {
       el("div", { class: "sh-top__tools" }, picker(), el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => start(true) })),
     );
     const scroll = root.querySelector(".sh-body")?.scrollTop ?? 0;
-    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main dr-main" }, tiles(), ...season(), ...alerts(), check()));
+    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main dr-main" }, newsStrip(), tiles(), ...season(), ...alerts(), check()));
     root.replaceChildren(backdrop, top, body);
     body.scrollTop = scroll;
   }
@@ -364,6 +378,12 @@ export function directorTab(ctx, container, deps) {
         loadPortal(fresh);
       } else {
         errors.director = r?.error ?? "Something went wrong.";
+        draw();
+      }
+    });
+    ctx.hub.d2News().then((r) => {
+      if (r?.ok) {
+        articles = (r.data.items ?? []).filter((it) => it.source === "bungie");
         draw();
       }
     });

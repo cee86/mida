@@ -288,6 +288,22 @@ tab-director, once).
   without a picture). **Settings → Personalization** opens a dropdown in the settings sidebar: General (theme, colours,
   sidebar...) and one page per Destiny 2 tab (its wallpaper; the Inventory's item-icon options moved to its page).
 
+**News tab (3 Oct 2026, owner's sources):** news.rs fetches four fixed sources at once: Bungie.net news (the API's
+`/Content/Rss/NewsArticles/0/?includebody=true`, each article's HTML turned into plain blocks: headings, paragraphs,
+list items and bungie.net/contentstack pictures; scripts dropped), Bluesky's public API (`getAuthorFeed`, no account) for
+@bungieserverstatus.bungie.net and @destinythegame.bungie.net (pictures, link cards, video thumbnails, reposts), and
+the D2 Community Hub's RSS feed (https://rss.app/feeds/eWkksrBfp6ZwkMWp.xml; a small RSS reader, no new crate). Newest
+first, each source's failure shown on its own (`problems`). `d2_news` keeps the answer 5 minutes and remembers every
+link and picture it listed: `open_news` opens only those links in the browser, and `news_image` fetches only those
+pictures (image types, no SVG, at most 4 MB) and returns them as data: addresses, so the page's security policy stays
+"pictures from MIDA and bungie.net only". news.js: filters All · Bungie · Server status · Destiny 2 · Community,
+article reader inside the tab (subpages), pictures loaded as they scroll into view. The Director shows the latest
+Bungie articles as banners at the top (like the app), opening the reader inside the Director. New Bungie Server Status
+posts go to the notification bell (Settings → Tabs → Reminders, "Bungie Server Status", on by default; checked at most
+every 15 minutes; the first check only notes what's there). The News tab needs no sign-in and has its own wallpaper.
+**Unverified live:** the Bungie feed's field shapes (PubDate format, relative links), the Bluesky handles' feeds, and
+the rss.app feed's tags (media:content assumed).
+
 **Event challenges (3 Oct 2026, owner: "the Companion app tracks daily/weekly event challenges"):** Bungie's API spec
 gives `DestinyEventCardDefinition.weeklyChallengesPresentationNodeHash`, and core settings name the season's own card
 (`seasonalHubEventCardHash`; MIDA had only read the profile's `activeEventCardHash`, which is empty outside events, and

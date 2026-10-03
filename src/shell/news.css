@@ -1,0 +1,61 @@
+/* The News tab (news.js) and its article reader, on the Seasonal Hub's look; the Director's news strip too. */
+
+.nw-feed { display: flex; flex-direction: column; gap: 14px; max-width: 760px; margin: 0 auto; }
+.nw-problem { margin: 0; }
+.nw-more { align-self: center; }
+
+.nw-card { display: flex; flex-direction: column; border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); background: color-mix(in srgb, var(--char) 86%, transparent); backdrop-filter: var(--glass-blur); }
+.nw-card__hero { display: block; padding: 0; border: 0; background: var(--ash); cursor: pointer; aspect-ratio: 16 / 7; overflow: hidden; }
+.nw-card__hero img { width: 100%; height: 100%; object-fit: cover; }
+.nw-card__body { display: flex; flex-direction: column; gap: 8px; padding: 14px 18px 16px; }
+.nw-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--mist); font-size: 0.8rem; }
+.nw-card__title { margin: 0; font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; line-height: 1.25; }
+.nw-card__text { margin: 0; color: var(--mist); font-size: 0.92rem; line-height: 1.5; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+.nw-card__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.nw-card__repost { color: var(--mist); font-size: 0.78rem; }
+
+.nw-source { padding: 1px 8px; border: 1px solid var(--rule); color: var(--cream); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.nw-source--bungie { border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--accent); }
+.nw-source--status { border-color: #d9a441; color: #e9bd62; }
+.nw-source--d2 { border-color: #6aa7e6; color: #8fc2f5; }
+.nw-source--community { border-color: #6fc28f; color: #8fdca2; }
+
+/* Bluesky posts. */
+.nw-post__head { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.nw-post__avatar { display: block; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: var(--ash); }
+.nw-post__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.nw-post__who { display: flex; flex-direction: column; min-width: 0; }
+.nw-post__who strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.nw-post__who small { color: var(--mist); font-size: 0.8rem; }
+.nw-post__text { margin: 2px 0 0; font-size: 0.98rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.nw-post__pics { display: grid; gap: 4px; border-radius: 10px; overflow: hidden; }
+.nw-post__pics img { width: 100%; height: 100%; object-fit: cover; background: var(--ash); }
+.nw-post__pics--1 { grid-template-columns: 1fr; }
+.nw-post__pics--1 img { max-height: 420px; }
+.nw-post__pics--2 { grid-template-columns: 1fr 1fr; aspect-ratio: 2 / 1; }
+.nw-post__pics--3, .nw-post__pics--4 { grid-template-columns: 1fr 1fr; grid-auto-rows: 160px; }
+.nw-post__counts { margin-right: auto; color: var(--mist); font-size: 0.8rem; white-space: pre; }
+.nw-link { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0; padding: 0; border: 1px solid var(--rule); border-radius: 10px; background: rgba(0, 0, 0, 0.25); color: var(--cream); text-align: left; overflow: hidden; cursor: pointer; }
+.nw-link:hover { border-color: var(--accent); }
+.nw-link__thumb { width: 140px; height: 100%; min-height: 90px; object-fit: cover; background: var(--ash); }
+.nw-link__text { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; min-width: 0; }
+.nw-link__text span { color: var(--mist); font-size: 0.84rem; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.nw-link__text small { color: var(--mist-dim); font-size: 0.76rem; }
+img.is-missing { visibility: hidden; }
+
+/* The article reader. */
+.nw-article { display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; padding-bottom: 30px; user-select: text; }
+.nw-article__hero { width: 100%; max-height: 380px; object-fit: cover; }
+.nw-article__meta { color: var(--mist); font-size: 0.86rem; }
+.nw-article__title { margin: 0; font-family: var(--font-display); font-size: 2rem; line-height: 1.2; }
+.nw-article h3 { margin: 14px 0 0; font-family: var(--font-display); font-size: 1.25rem; }
+.nw-article p { margin: 0; font-size: 1rem; line-height: 1.65; }
+.nw-article__list { margin: 0; padding-left: 22px; line-height: 1.6; }
+.nw-article__pic { width: 100%; height: auto; }
+.nw-article .btn { align-self: flex-start; margin-top: 10px; }
+
+/* The Director's news strip: the latest Bungie articles as banners, scrolling sideways. */
+.dr-news { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(420px, 78%); gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; }
+.dr-news__item { position: relative; display: flex; align-items: flex-end; min-height: 200px; padding: 0; border: 0; background: var(--ash); color: #fff; text-align: left; overflow: hidden; cursor: pointer; scroll-snap-align: start; }
+.dr-news__item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.dr-news__item span { position: relative; width: 100%; padding: 40px 22px 16px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.85)); font-size: 1.5rem; font-weight: 500; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }

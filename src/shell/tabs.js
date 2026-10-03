@@ -13,6 +13,7 @@ import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 import { plannerTab } from "./planner.js";
 import { guardianTab } from "./guardian.js";
 import { directorTab } from "./director.js";
+import { newsTab } from "./news.js";
 import { remind, postmasterCheck, REMINDERS, reminderChoices, setReminder } from "./reminders.js";
 import { rotatorsTab } from "./rotators.js";
 
@@ -395,7 +396,15 @@ function inventoryTab(ctx, container) {
 
 // ---------- Mounting ----------
 
+// The News tab doesn't need sign-in (news.js).
+function news(ctx) {
+  const host = ctx.el("div", { class: "tab-host" });
+  newsTab(ctx, host, { loadingView, problemView, wallpaper: "tab-news" });
+  return host;
+}
+
 const BUILDERS = {
+  "tab-news": news,
   "tab-featured": featured,
   "tab-rad": rad,
 };
@@ -466,6 +475,7 @@ window.midaTabs = {
   // Reminders (reminders.js), called by shell.js once a minute on Destiny 2 profiles. Events come from seals.report's
   // weekly answer, asked for here too (at most every 30 minutes) when the Rotators tab hasn't been opened.
   remind(ctx) {
+    newsCheck(ctx);
     if (Date.now() - rotatorsAskedAt > 30 * 60e3) {
       rotatorsAskedAt = Date.now();
       ctx.hub.d2Rotators().then((reply) => {
@@ -484,6 +494,31 @@ window.midaTabs = {
     }
   },
 };
+
+// New Bungie Server Status posts (maintenance, downtime, fixes) in the notification bell: checked at most every 15
+// minutes; the first look only notes what's there. The setting is in Settings → Tabs → Reminders.
+let newsCheckedAt = 0;
+function newsCheck(ctx) {
+  if (!reminderChoices().news || Date.now() - newsCheckedAt < 15 * 60e3 || !ctx.notify) return;
+  newsCheckedAt = Date.now();
+  ctx.hub.d2News().then((r) => {
+    if (!r?.ok) return;
+    const posts = (r.data.items ?? []).filter((it) => it.source === "status" && it.at);
+    let seen = null;
+    try {
+      seen = localStorage.getItem("mida-news-status-seen");
+    } catch {
+      // Only a convenience.
+    }
+    const newest = posts.reduce((a, p) => (p.at > a ? p.at : a), seen ?? "");
+    if (seen) for (const p of posts.filter((x) => x.at > seen).slice(0, 3)) ctx.notify({ key: `news-${p.id}`, kind: "reminder", title: "Bungie Server Status", detail: String(p.text ?? "").slice(0, 220) });
+    try {
+      if (newest) localStorage.setItem("mida-news-status-seen", newest);
+    } catch {
+      // Only a convenience.
+    }
+  });
+}
 
 // Countdowns tick every second; when one runs out (a reset, the next Distortion), its tab is
 // built again so everything moves on.

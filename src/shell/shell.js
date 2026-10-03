@@ -42,6 +42,7 @@ const TAB_ICONS = {
   "tab-inventory": ["M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"],
   "tab-planner": ["M4 5h16v15H4z", "M4 9h16M9 3v4M15 3v4", "M8 13l2 2 4-4"],
   "tab-guardian": ["M12 3l7 4v5c0 4.4-3 8-7 9-4-1-7-4.6-7-9V7z", "M12 8a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z", "M8 17a4 4 0 0 1 8 0"],
+  "tab-news": ["M4 5h13v14a1 1 0 0 0 1 1H6a2 2 0 0 1-2-2z", "M17 9h3v9a2 2 0 0 1-2 2", "M7 9h7M7 13h7M7 17h4"],
   "tab-director": ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 3v18M3 12h18", "M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"],
   "tab-rad": ["M12 3l8 9-8 9-8-9z", "M12 8v8M8.5 12h7"],
   "tab-featured": ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"],
@@ -1574,6 +1575,7 @@ let personalSection = "general"; // Personalization's page: "general" or a Desti
 const WALL_TABS = [
   ["tab-guardian", "Guardian", "Behind the Guardian tab and everything it opens (Triumphs, collections, the Armor optimizer)."],
   ["tab-director", "Director", "Behind the Director and everything it opens (Seasonal Hub, Vendors, Quests, Friends, Clan)."],
+  ["tab-news", "News", "Behind the News tab."],
   ["tab-inventory", "Inventory", "Behind the Inventory tab."],
   ["tab-planner", "Weekly planner", "Behind the Weekly planner."],
   ["tab-featured", "Rotators", "Behind the Rotators tab."],

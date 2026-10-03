@@ -7,6 +7,7 @@
 export const WALL_TABS = [
   ["tab-guardian", "Guardian"],
   ["tab-director", "Director"],
+  ["tab-news", "News"],
   ["tab-inventory", "Inventory"],
   ["tab-planner", "Weekly planner"],
   ["tab-featured", "Rotators"],

@@ -11,6 +11,7 @@ export const REMINDERS = [
   ["weekly", "Weekly reset", "Tuesdays at 17:00 UTC: this week's raids, dungeons and featured activities.", true],
   ["daily", "Daily reset", "Every day at 17:00 UTC: today's Lost Sectors.", false],
   ["events", "Xûr, Trials and events", "When Xûr and Trials arrive on Fridays, and when Bungie lists an event.", true],
+  ["news", "Bungie Server Status", "New posts from Bungie Server Status on Bluesky: maintenance, downtime and fixes (checked every 15 minutes).", true],
   ["postmaster", "Postmaster filling up", "When a character has 18 or more items waiting (Bungie removes the oldest past 21).", true],
 ];
 
