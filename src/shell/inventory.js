@@ -49,6 +49,7 @@ const PANEL = ["M4 5h16v14H4z", "M15 5v14"];
 const MAIL = ["M4 6h16v12H4z", "M4 7l8 6 8-6"];
 const FILTER = ["M4 5h16l-6 8v5l-4 2v-7z"];
 const RELOAD = ["M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4"];
+const FEED = ["M4 6h10M4 12h10M4 18h7", "M18 14a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z", "M18 16v1.6l1 .8"];
 // Our own vault-door mark (circle, hub and bolts), not Bungie's art.
 const VAULT = ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z", "M12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"];
 const MAIN_CURRENCIES = [/^glimmer$/i, /chronolog/i, /^bright dust$/i];
@@ -96,6 +97,7 @@ const view = {
   group: remember("group", "weapons"),
   size: remember("size", "m"),
   allCharacters: remember("all", true),
+  feed: remember("feed", false),
   panel: remember("panel", true),
   // Per tab: { category: [values] }.
   filters: remember("filters2", {}),
@@ -319,7 +321,8 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const node = el(
       "button",
       {
-        class: `tile2 tile2--${TIERS[item.tier] ?? "basic"}${item.masterwork ? " is-mw" : ""}${item.moving ? " is-moving" : ""}${passes(item) ? "" : " is-dim"}${card?.item === item ? " is-open" : ""}`,
+        class: `tile2 tile2--${TIERS[item.tier] ?? "basic"}${item.masterwork ? " is-mw" : ""}${item.moving ? " is-moving" : ""}${passes(item) ? "" : " is-dim"}${item.blocked ? " is-blocked" : ""}${card?.item === item ? " is-open" : ""}`,
+        title: item.blocked || null,
         type: "button",
         draggable: item.transferable && !item.equipped && !item.postmaster ? "true" : null,
         "aria-label": item.name,
@@ -733,8 +736,8 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       el("div", { class: "segmented", role: "group", "aria-label": "Show" }, ...GROUPS.map(([id, label]) => el("button", { type: "button", "aria-pressed": String(view.group === id), text: label, onclick: () => ((view.group = id), keep("group", id), closeCard(), draw()) }))),
       el("button", { class: `btn inv-bar__btn${picks ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "filters"), onclick: () => ((overlay = overlay === "filters" ? null : "filters"), closeCard(), draw()) }, svg(FILTER), el("span", { text: picks ? `Filters (${picks})` : "Filters" })),
       el("div", { class: "segmented", role: "group", "aria-label": "Item size" }, ...[["s", "S"], ["m", "M"], ["l", "L"]].map(([id, label]) => el("button", { type: "button", title: `${{ s: "Small", m: "Medium", l: "Large" }[id]} items`, "aria-pressed": String(view.size === id), text: label, onclick: () => ((view.size = id), keep("size", id), draw()) }))),
-      el("button", { class: `btn inv-bar__btn${mail.length ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "postmaster"), onclick: () => ((overlay = overlay === "postmaster" ? null : "postmaster"), closeCard(), draw()) }, svg(MAIL), el("span", { text: `Postmaster${mail.length ? ` (${mail.length})` : ""}` })),
-      el("button", { class: "btn inv-bar__btn", type: "button", title: "Read everything from Bungie again", onclick: () => load(true) }, svg(RELOAD), el("span", { text: "Refresh" })),
+      el("button", { class: `btn inv-bar__btn inv-bar__mail${mail.length ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "postmaster"), onclick: () => ((overlay = overlay === "postmaster" ? null : "postmaster"), closeCard(), draw()) }, svg(MAIL), el("span", { text: `Postmaster${mail.length ? ` (${mail.length})` : ""}` })),
+      el("button", { class: `btn inv-bar__btn${view.feed ? " is-on" : ""}`, type: "button", title: "Your newest items, newest first", "aria-pressed": String(view.feed), onclick: () => ((view.feed = !view.feed), keep("feed", view.feed), closeCard(), draw()) }, svg(FEED), el("span", { text: newCount() ? `Item feed (${newCount()} new)` : "Item feed" })),
       el("span", { class: "inv-bar__spacer" }),
       characterChoice()
         ? el("div", { class: "segmented", role: "group", "aria-label": "Characters" }, ...[[true, "All characters"], [false, "Current only"]].map(([all, label]) => el("button", { type: "button", "aria-pressed": String(view.allCharacters === all), text: label, onclick: () => view.allCharacters !== all && toggleCharacters() })))
@@ -802,8 +805,20 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
 
   // ---------- The postmaster drop-down ----------
 
+  // Why a postmaster item can't be pulled right now (dimmed in the drop-down), or null: Bungie won't move it, or its
+  // slot on that character is full (account-wide buckets aren't checked; Bungie says so if those are full).
+  function pullBlock(i) {
+    if (!i.transferable) return "Can't be pulled: collect it in the game";
+    const b = bucketInfo(i.bucket);
+    if (b && !b.account && i.instance) {
+      const held = data.items.filter((x) => x.owner === i.owner && x.bucket === i.bucket && !x.equipped).length;
+      if (held >= (SLOTS[i.bucket] ?? 9)) return `Can't be pulled: ${charName(i.owner)}'s ${b.name} slot is full`;
+    }
+    return null;
+  }
+
   function postmasterPanel() {
-    const mail = (data.postmaster ?? []).map((i) => Object.assign(i, { postmaster: true }));
+    const mail = (data.postmaster ?? []).map((i) => Object.assign(i, { postmaster: true, blocked: pullBlock(i) }));
     const close = () => ((overlay = null), closeCard(), draw());
     return el(
       "div",
@@ -827,12 +842,114 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
               }),
             )
           : el("p", { class: "tab__note", text: "Nothing waiting at the postmaster." }),
-        el("p", { class: "tab__note", text: "Hover an item for its details; click it to pull it to that character." }),
+        el("p", { class: "tab__note", text: "Hover an item for its details; click it to pull it to that character. Dimmed items can't be pulled right now (point at one to see why)." }),
       ),
     );
   }
 
+  // ---------- In-game loadouts (side panel) ----------
+
+  let equipping = null;
+  async function wearLoadout(l, c) {
+    if (equipping !== null) return;
+    equipping = l.index;
+    draw();
+    const result = await ctx.hub.d2Loadout(c.id, l.index);
+    equipping = null;
+    if (!result?.ok) {
+      fail(`Couldn't equip ${l.name}`, result?.error ?? "Couldn't equip that loadout.");
+      return draw();
+    }
+    say(`${l.name} equipped on ${c.className}.`);
+    invalidate();
+    delete details[c.id];
+    window.dispatchEvent(new CustomEvent("mida-inventory-changed", { detail: root }));
+    load(true, true);
+  }
+
+  function loadoutsPanel() {
+    const c = current();
+    const d = details[c.id];
+    const close = () => ((overlay = null), draw());
+    const named = (id) => data.items.find((i) => i.instance === id)?.name;
+    return el(
+      "div",
+      { class: "inv-overlay inv-overlay--clear", onclick: close },
+      el(
+        "div",
+        { class: "inv-drop inv-drop--loadouts", role: "dialog", "aria-label": `${c.className} loadouts`, onclick: (e) => e.stopPropagation() },
+        el("div", { class: "inv-label" }, el("span", { text: `${c.className} loadouts` }), el("span", { class: "inv-label__count", text: d?.loadouts ? `${d.loadouts.filter((l) => !l.empty).length} saved` : "" })),
+        !d
+          ? el("p", { class: "tab__note", text: "Reading loadouts…" })
+          : d.error
+            ? el("p", { class: "tab__error", text: d.error })
+            : d.loadouts?.length
+              ? loadoutGrid(el, d.loadouts, { busy: equipping, named, onWear: (l) => wearLoadout(l, c) })
+              : el("p", { class: "tab__note", text: "No in-game loadouts on this character." }),
+      ),
+    );
+  }
+
+  // ---------- Item feed: the newest items first, like DIM's ----------
+
+  // Bungie numbers item copies as they're made, so a bigger instance number is a newer item. "New" = newer than the
+  // newest one seen when the feed was last marked as seen (the first time, nothing is new).
+  const newest = () =>
+    data.items
+      .filter((i) => i.instance && /^\d+$/.test(i.instance))
+      .sort((a, b) => (BigInt(b.instance) > BigInt(a.instance) ? 1 : BigInt(b.instance) < BigInt(a.instance) ? -1 : 0));
+  let seenUpTo = remember("feed-seen", null);
+  const isNew = (i) => seenUpTo !== null && BigInt(i.instance) > BigInt(seenUpTo);
+  const newCount = () => (data && seenUpTo !== null ? data.items.filter((i) => i.instance && /^\d+$/.test(i.instance) && isNew(i)).length : 0);
+  function markSeen() {
+    const top = newest()[0];
+    if (top) {
+      seenUpTo = top.instance;
+      keep("feed-seen", seenUpTo);
+    }
+  }
+
+  function feedBar() {
+    const list = newest().slice(0, 60);
+    const where = (i) => (i.postmaster ? "Postmaster" : i.owner === "vault" ? "Vault" : i.owner === "account" ? "Inventory" : charName(i.owner));
+    return el(
+      "div",
+      { class: "inv-feed" },
+      el(
+        "div",
+        { class: "inv-feed__head" },
+        el("span", { class: "inv-feed__title", text: "Item feed" }),
+        el("span", { class: "inv-label__count", text: newCount() ? `${newCount()} new · newest first` : "Newest first" }),
+        el("button", { class: "btn btn--small", type: "button", disabled: !newCount() || null, text: "Mark as seen", onclick: () => (markSeen(), draw()) }),
+      ),
+      list.length
+        ? el(
+            "div",
+            { class: "inv-feed__list" },
+            ...list.map((i) => el("div", { class: `inv-feed__item${isNew(i) ? " is-new" : ""}` }, tile(i), el("span", { class: "inv-feed__where", text: where(i) }))),
+          )
+        : el("p", { class: "tab__note", text: "No items yet." }),
+    );
+  }
+
   // ---------- The grid ----------
+
+  // A drop-down hung directly under the button that opened it (kept inside the tab; `right` lines its right edge up
+  // with the button's instead of its left).
+  function hangUnder(layer, selector, right = false) {
+    root.append(layer);
+    const button = root.querySelector(selector);
+    const box = layer.firstElementChild;
+    if (!button || !box) return;
+    const tab = root.getBoundingClientRect();
+    const b = button.getBoundingClientRect();
+    layer.classList.add("inv-overlay--anchored");
+    const width = box.offsetWidth;
+    const left = right ? b.right - tab.left - width : b.left - tab.left;
+    box.style.left = `${Math.max(8, Math.min(left, tab.width - width - 8))}px`;
+    box.style.top = `${b.bottom - tab.top + 6}px`;
+    box.style.maxHeight = `${Math.max(160, tab.bottom - b.bottom - 20)}px`;
+  }
 
   function grid(children) {
     const g = el("div", { class: "inv__grid" }, ...children);
@@ -896,7 +1013,12 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     const side = el(
       "aside",
       { class: "inv-side" },
-      el("div", { class: "inv-label" }, el("span", { text: "Loadout" })),
+      el(
+        "div",
+        { class: "inv-label" },
+        el("span", { text: "Loadout" }),
+        el("button", { class: `inv-side__lbtn${overlay === "loadouts" ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "loadouts"), title: "This character's in-game loadouts", onclick: (event) => (event.stopPropagation(), (overlay = overlay === "loadouts" ? null : "loadouts"), closeCard(), draw()) }, el("span", { text: "Loadouts" })),
+      ),
       el("div", { class: "inv-side__loadout" }, el("div", { class: "inv-side__col" }, ...equipped("weapons")), loadoutMark(), el("div", { class: "inv-side__col" }, ...equipped("armor"))),
     );
     if (!d) side.append(el("p", { class: "tab__note", text: "Reading stats…" }));
@@ -941,6 +1063,28 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     backdrop.classList.toggle("has-picture", Boolean(picture));
   }
 
+  function searchBox() {
+    return el(
+      "label",
+      { class: "inv-search" },
+      svg(SEARCH),
+      el("input", {
+        type: "search",
+        placeholder: "Search items",
+        value: search,
+        "aria-label": "Search items",
+        oninput: (event) => {
+          search = event.target.value.trim().toLowerCase();
+          const pos = event.target.selectionStart;
+          draw();
+          const input = root.querySelector(".inv-search input");
+          input?.focus();
+          input?.setSelectionRange(pos, pos);
+        },
+      }),
+      );
+  }
+
   function draw() {
     const c = current();
     view.current = c.id;
@@ -953,28 +1097,10 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       "header",
       { class: "inv-top" },
       el("div", { class: "inv-top__text" }, el("h1", { class: "inv-top__title", text: "Inventory" }), el("span", { class: "inv-top__sub", text: `${ctx.state.account?.name ?? ""} · ${c.className} · ${c.subtitle ?? ""}` })),
-      el(
-        "label",
-        { class: "inv-search" },
-        svg(SEARCH),
-        el("input", {
-          type: "search",
-          placeholder: "Search items",
-          value: search,
-          "aria-label": "Search items",
-          oninput: (event) => {
-            search = event.target.value.trim().toLowerCase();
-            const pos = event.target.selectionStart;
-            draw();
-            const input = root.querySelector(".inv-search input");
-            input?.focus();
-            input?.setSelectionRange(pos, pos);
-          },
-        }),
-      ),
+      el("div", { class: "inv-top__tools" }, searchBox(), el("button", { class: "btn inv-bar__btn inv-top__refresh", type: "button", title: "Read everything from Bungie again", onclick: () => load(true) }, svg(RELOAD), el("span", { text: "Refresh" }))),
     );
     if (c.wide || c.banner) top.style.backgroundImage = `linear-gradient(90deg, rgba(8, 10, 12, 0.82), rgba(8, 10, 12, 0.35) 60%, rgba(8, 10, 12, 0.6)), url("${c.wide || c.banner}")`;
-
+    
     // Characters, then the vault's emblem with the currencies box at the far right of its column.
     const heads = grid([...shown().map(emblem), el("div", { class: "inv-heads__vault" }, vaultCard(), currencies())]);
     // The bar runs the whole width (over the side panel too); only the rows under it scroll.
@@ -994,7 +1120,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     });
 
     const main = el("div", { class: "inv-main" }, body, view.panel ? panel() : null);
-    root.replaceChildren(backdrop, top, toolbar(), headbar, main, toast);
+    root.replaceChildren(...[backdrop, top, toolbar(), view.feed ? feedBar() : null, headbar, main, toast].filter(Boolean));
     if (overlay === "filters") root.append(filterScreen());
     if (overlay === "wallet") {
       // Opens under the currencies box (the bar clips anything inside it, so it lives on the tab).
@@ -1007,13 +1133,8 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
         layer.style.paddingRight = `${Math.max(8, tab.right - box.right)}px`;
       }
     }
-    if (overlay === "postmaster") {
-      // The drop-down hangs just under the toolbar, whatever its height.
-      const drop = postmasterPanel();
-      root.append(drop);
-      const bar = root.querySelector(".inv-bar");
-      drop.style.paddingTop = `${bar.offsetTop + bar.offsetHeight + 6}px`;
-    }
+    if (overlay === "postmaster") hangUnder(postmasterPanel(), ".inv-bar__mail");
+    if (overlay === "loadouts") hangUnder(loadoutsPanel(), ".inv-side__lbtn", true);
     if (keepScroll) {
       body.scrollTop = keepScroll[0];
       body.scrollLeft = keepScroll[1];
@@ -1069,6 +1190,8 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     }
     data = result.data;
     if (!data.characters?.length) return container.replaceChildren(problemView(ctx, "That account has no Destiny 2 characters.", () => load(true)));
+    // The first time, everything already owned counts as seen; the feed marks what arrives after.
+    if (seenUpTo === null) markSeen();
     if (!view.current || !data.characters.some((ch) => ch.id === view.current)) view.current = data.characters[0].id;
     if (fresh) {
       for (const key of Object.keys(details)) delete details[key];
@@ -1104,6 +1227,41 @@ function dockTile(el, svg, item, extra = {}) {
       ? el("span", { class: "tile2__bar" }, element && element !== "kinetic" ? el("i", { class: `tile2__element tile2__element--${element}` }) : null, el("span", { class: "tile2__power", text: String(item.power) }))
       : null,
   );
+}
+
+// The character's in-game loadouts laid out like the game's: numbered squares four across, each the loadout's icon on
+// its colour, empty slots as dashed squares with a +. Pointing at one names it (and lists its items) in the caption
+// line; clicking equips it. Shared by the Inventory's side panel and the loadout dock.
+export function loadoutGrid(el, loadouts, { busy = null, named = () => null, onWear }) {
+  const caption = el("p", { class: "lo-caption", text: "Point at a loadout to see it; click to equip." });
+  const say = (l) => (caption.textContent = l ? `${l.index + 1}. ${l.name}${l.items?.length ? `: ${l.items.map(named).filter(Boolean).join(", ")}` : ""}` : "Point at a loadout to see it; click to equip.");
+  const grid = el(
+    "div",
+    { class: "lo-grid" },
+    ...loadouts.map((l) => {
+      const number = el("span", { class: "lo-num", text: String(l.index + 1) });
+      if (l.empty) return el("span", { class: "lo-slot is-empty", title: `Slot ${l.index + 1}: empty`, "aria-label": `Loadout slot ${l.index + 1}, empty` }, el("span", { class: "lo-plus", "aria-hidden": "true" }));
+      const node = el(
+        "button",
+        {
+          class: `lo-slot${busy === l.index ? " is-busy" : ""}`,
+          type: "button",
+          disabled: busy !== null || null,
+          "aria-label": `Equip ${l.name}`,
+          onpointerenter: () => say(l),
+          onpointerleave: () => say(null),
+          onfocus: () => say(l),
+          onblur: () => say(null),
+          onclick: () => onWear(l),
+        },
+        l.icon ? el("img", { class: "lo-icon", src: l.icon, alt: "" }) : null,
+        number,
+      );
+      if (l.color) node.style.backgroundImage = `url("${l.color}")`;
+      return node;
+    }),
+  );
+  return el("div", { class: "lo" }, grid, caption);
 }
 
 export function loadoutDock(ctx, container, { read, invalidate, loadingView, problemView }) {
@@ -1291,31 +1449,12 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
           )
         : el("p", { class: "tab__note", text: "No set bonuses active." })
       : null;
-    // In-game loadouts: icon on its colour, name, and the items it holds on hover.
+    // In-game loadouts, laid out like the game's grid.
     const named = (id) => data.items.find((i) => i.instance === id)?.name;
     const loadouts = st && !st.error
       ? (st.loadouts ?? []).length
-        ? el(
-            "div",
-            { class: "inv-dock__loadouts" },
-            ...st.loadouts.map((l) => {
-              const mark = el("span", { class: "inv-dock__lmark" }, l.icon ? el("img", { src: l.icon, alt: "" }) : null);
-              if (l.color) mark.style.backgroundImage = `url("${l.color}")`;
-              return el(
-                "button",
-                {
-                  class: `inv-dock__loadout${equipping === l.index ? " is-busy" : ""}`,
-                  type: "button",
-                  disabled: equipping !== null || null,
-                  title: `Equip ${l.name}\n${l.items.map(named).filter(Boolean).join(", ")}`,
-                  onclick: () => wearLoadout(l, c),
-                },
-                mark,
-                el("span", { class: "inv-dock__lname", text: l.name }),
-              );
-            }),
-          )
-        : el("p", { class: "tab__note", text: "No in-game loadouts saved on this character." })
+        ? loadoutGrid(el, st.loadouts, { busy: equipping, named, onWear: (l) => wearLoadout(l, c) })
+        : el("p", { class: "tab__note", text: "No in-game loadouts on this character." })
       : null;
     root.replaceChildren(
       head,
@@ -1330,7 +1469,7 @@ export function loadoutDock(ctx, container, { read, invalidate, loadingView, pro
         statList,
         bonuses ? el("div", { class: "inv-label" }, el("span", { text: "Set bonuses" })) : null,
         bonuses,
-        loadouts ? el("div", { class: "inv-label" }, el("span", { text: "Loadouts" }), el("span", { class: "inv-label__count", text: "Click to equip" })) : null,
+        loadouts ? el("div", { class: "inv-label" }, el("span", { text: "Loadouts" }), el("span", { class: "inv-label__count", text: `${(st?.loadouts ?? []).filter((l) => !l.empty).length} saved` })) : null,
         loadouts,
       ),
     );

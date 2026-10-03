@@ -594,11 +594,17 @@ pub async fn character_details(profile: &Value, character: &str) -> Value {
         }
         bonuses.push(json!({ "name": set["displayProperties"]["name"], "count": count, "perks": perks }));
     }
-    // The character's in-game loadouts (component 206): name, icon and colour from their small
-    // definition tables, and the item instances in each (the shell matches them to its items).
-    // Empty slots (every item "0") are left out; `index` is what EquipLoadout wants.
+    // The character's in-game loadouts (component 206), every slot in order like the game's grid: name, icon and
+    // colour from their small definition tables (read together, kept on disk), and the item instances in each (the
+    // shell matches them to its items). Empty slots (every item "0") come back as `empty: true`; `index` is what
+    // EquipLoadout wants.
+    let list = profile["characterLoadouts"]["data"][character]["loadouts"].as_array().cloned().unwrap_or_default();
+    let hashes = |key: &str| -> Vec<u64> { list.iter().filter_map(|l| l[key].as_u64()).collect::<HashSet<_>>().into_iter().collect() };
+    let names = entities("DestinyLoadoutNameDefinition", &hashes("nameHash")).await;
+    let icons = entities("DestinyLoadoutIconDefinition", &hashes("iconHash")).await;
+    let colors = entities("DestinyLoadoutColorDefinition", &hashes("colorHash")).await;
     let mut loadouts = Vec::new();
-    for (index, l) in profile["characterLoadouts"]["data"][character]["loadouts"].as_array().into_iter().flatten().enumerate() {
+    for (index, l) in list.iter().enumerate() {
         let items: Vec<String> = l["items"]
             .as_array()
             .into_iter()
@@ -608,20 +614,12 @@ pub async fn character_details(profile: &Value, character: &str) -> Value {
             .map(str::to_string)
             .collect();
         if items.is_empty() {
+            loadouts.push(json!({ "index": index, "empty": true }));
             continue;
         }
-        let name = match l["nameHash"].as_u64() {
-            Some(h) => entity("DestinyLoadoutNameDefinition", h).await.and_then(|d| d["name"].as_str().map(str::to_string)),
-            None => None,
-        };
-        let icon = match l["iconHash"].as_u64() {
-            Some(h) => entity("DestinyLoadoutIconDefinition", h).await.map(|d| icon_url(d["iconImagePath"].as_str().unwrap_or(""))),
-            None => None,
-        };
-        let color = match l["colorHash"].as_u64() {
-            Some(h) => entity("DestinyLoadoutColorDefinition", h).await.map(|d| icon_url(d["colorImagePath"].as_str().unwrap_or(""))),
-            None => None,
-        };
+        let name = l["nameHash"].as_u64().and_then(|h| names.get(&h)).and_then(|d| d["name"].as_str().map(str::to_string));
+        let icon = l["iconHash"].as_u64().and_then(|h| icons.get(&h)).map(|d| icon_url(d["iconImagePath"].as_str().unwrap_or("")));
+        let color = l["colorHash"].as_u64().and_then(|h| colors.get(&h)).map(|d| icon_url(d["colorImagePath"].as_str().unwrap_or("")));
         loadouts.push(json!({ "index": index, "name": name.unwrap_or_else(|| format!("Loadout {}", index + 1)), "icon": icon, "color": color, "items": items }));
     }
     json!({ "stats": stats, "sets": bonuses, "light": c["light"], "loadouts": loadouts })

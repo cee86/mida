@@ -166,6 +166,17 @@ countdowns, then Guardian Rank and Clan this week side by side (`.sh-pair`); the
 width (cards 280px+ each); the pass's rank ring and name in a column beside its reward track (`.sh-passrow`, stacked
 under 1250px); then rewards to claim.
 
+**Inventory round (3 Oct 2026, owner):** Refresh moved beside the search box (title band). The postmaster drop-down
+hangs directly under its button (`hangUnder`), and items that can't be pulled now are dimmed with the reason on hover
+(`pullBlock`: not transferable, or that character's slot is full; account-wide buckets aren't checked). **Item feed**
+(toolbar button, `mida-inv-feed`): a strip above the character emblems with the 60 newest items, newest first (a
+bigger instance id = a newer item, DIM's method), where each sits, and a diamond on ones newer than "Mark as seen"
+(`mida-inv-feed-seen`; the first load counts everything as seen). **Loadouts** like the game's grid (`loadoutGrid`:
+numbered squares four across, icon on its colour, empty slots as corner-bracketed squares with a +, the hovered one
+named with its items underneath, click equips): a Loadouts button in the side panel's Loadout row opens it under the
+button, and the loadout dock uses the same grid. `character_details` now returns every loadout slot in order
+(`empty: true` for unused ones) and reads the name/icon/colour definitions together.
+
 **Speed round (3 Oct 2026, owner):**
 * **Loading bars** everywhere data is read (`progressBar`/`loadingView` in tabs.js; the Seasonal Hub's per-character
   hub read shows one too): lib.rs `progress(app, task, fraction, label)` emits a "progress" event (shell only) at each

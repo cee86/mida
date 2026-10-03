@@ -513,13 +513,6 @@ html[data-theme="foundry"][data-foundry="light"] .inv-mark img { filter: invert(
 .inv-dock__bonus-mark { display: grid; place-items: center; color: var(--accent); }
 .inv-dock__bonus-need { position: absolute; left: 22px; top: 2px; min-width: 13px; height: 13px; padding: 0 3px; background: var(--accent); color: var(--on-accent); font-size: 0.62rem; font-weight: 700; line-height: 13px; text-align: center; }
 .inv-dock__bonus-name { font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.inv-dock__loadouts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.inv-dock__loadout { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 4px 8px 4px 4px; border: 1px solid transparent; background: var(--hover); color: var(--cream); text-align: left; cursor: pointer; }
-.inv-dock__loadout:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.5); }
-.inv-dock__loadout:disabled { cursor: default; opacity: 0.6; }
-.inv-dock__loadout.is-busy { opacity: 1; animation: pulse 0.8s ease-in-out infinite; }
-.inv-dock__lmark { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; background: #2a3038 center / cover no-repeat; }
-.inv-dock__lmark img { width: 80%; height: 80%; }
 .inv-dock__lname { font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inv-dock__note:empty { display: none; }
 .inv-dock__pick {
@@ -533,3 +526,49 @@ html[data-theme="foundry"][data-foundry="light"] .inv-mark img { filter: invert(
 }
 .inv-dock__pick .inv-label { margin-top: 8px; }
 .inv-dock__grid { display: grid; grid-template-columns: repeat(3, var(--tile)); gap: 4px; }
+
+/* Refresh beside the search box (title band). */
+.inv-top__tools { display: flex; align-items: center; gap: 8px; width: min(420px, 55%); justify-content: flex-end; }
+.inv-top__tools .inv-search { flex: 1; width: auto; }
+.inv-top__refresh { flex-shrink: 0; min-height: 36px; border-color: rgba(255, 255, 255, 0.35); background: rgba(0, 0, 0, 0.45); color: #fff; }
+
+/* Drop-downs hung directly under the button that opened them (postmaster, loadouts). */
+.inv-overlay--anchored { display: block; padding: 0; }
+.inv-overlay--anchored > .inv-drop { position: absolute; }
+.tile2.is-blocked { filter: grayscale(0.75) brightness(0.5); }
+
+/* The side panel's Loadouts button, in the Loadout label's row. */
+.inv-side__lbtn { padding: 2px 10px; border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.05); color: var(--cream); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
+.inv-side__lbtn:hover, .inv-side__lbtn.is-on { border-color: #fff; background: rgba(255, 255, 255, 0.12); }
+.inv-drop--loadouts { width: 320px; }
+
+/* In-game loadouts like the game's grid: numbered squares four across; empty slots dashed with a +. */
+.lo { display: flex; flex-direction: column; gap: 8px; }
+.lo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.lo-slot { position: relative; display: grid; place-items: center; aspect-ratio: 1; padding: 0; border: 2px solid rgba(255, 255, 255, 0.55); background: #2a3038 center / cover no-repeat; cursor: pointer; overflow: hidden; }
+.lo-slot:hover:not(:disabled), .lo-slot:focus-visible { border-color: #fff; box-shadow: 0 0 0 1px #fff, 0 0 12px rgba(255, 255, 255, 0.25); outline: none; }
+.lo-slot:disabled { cursor: default; opacity: 0.6; }
+.lo-slot.is-busy { opacity: 1; animation: pulse 0.8s ease-in-out infinite; }
+.lo-icon { width: 68%; height: 68%; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+.lo-num { position: absolute; right: 5px; bottom: 2px; color: #fff; font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+.lo-slot.is-empty { border: 0; background: transparent; cursor: default; }
+.lo-slot.is-empty {
+  --c: rgba(255, 255, 255, 0.22);
+  background:
+    linear-gradient(var(--c), var(--c)) left top / 22% 1px no-repeat, linear-gradient(var(--c), var(--c)) left top / 1px 22% no-repeat,
+    linear-gradient(var(--c), var(--c)) right top / 22% 1px no-repeat, linear-gradient(var(--c), var(--c)) right top / 1px 22% no-repeat,
+    linear-gradient(var(--c), var(--c)) left bottom / 22% 1px no-repeat, linear-gradient(var(--c), var(--c)) left bottom / 1px 22% no-repeat,
+    linear-gradient(var(--c), var(--c)) right bottom / 22% 1px no-repeat, linear-gradient(var(--c), var(--c)) right bottom / 1px 22% no-repeat;
+}
+.lo-slot.is-empty .lo-plus { position: relative; width: 34%; height: 34%; opacity: 0.35; background: linear-gradient(#fff, #fff) center / 26% 100% no-repeat, linear-gradient(#fff, #fff) center / 100% 26% no-repeat; }
+.lo-caption { margin: 0; min-height: 2.4em; color: var(--mist); font-size: 0.8rem; line-height: 1.3; }
+
+/* Item feed: a strip above the character emblems, newest first. */
+.inv-feed { flex-shrink: 0; padding: 6px clamp(14px, 3cqi, 28px) 8px; border-bottom: 1px solid var(--rule); background: rgba(0, 0, 0, 0.5); }
+.inv-feed__head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.inv-feed__title { color: #fff; font-size: 0.76rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
+.inv-feed__head .btn { margin-left: auto; }
+.inv-feed__list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.inv-feed__item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; width: calc(var(--tile) + 4px); }
+.inv-feed__where { max-width: 100%; overflow: hidden; color: rgba(255, 255, 255, 0.6); font-size: 0.68rem; white-space: nowrap; text-overflow: ellipsis; }
+.inv-feed__item.is-new::after { content: ""; position: absolute; top: -3px; left: -3px; width: 9px; height: 9px; transform: rotate(45deg); background: var(--accent); box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.8); pointer-events: none; }
