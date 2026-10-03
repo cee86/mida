@@ -232,6 +232,16 @@ button, and the loadout dock uses the same grid. `character_details` now returns
   window, applied at start and when changed.
 * **Themes:** Pyramid, Vex network, Traveler's light, Cabal, Neomuna neon (see §6).
 
+**Event challenges (3 Oct 2026, owner: "the Companion app tracks daily/weekly event challenges"):** Bungie's API spec
+gives `DestinyEventCardDefinition.weeklyChallengesPresentationNodeHash`, and core settings name the season's own card
+(`seasonalHubEventCardHash`; MIDA had only read the profile's `activeEventCardHash`, which is empty outside events, and
+its core-settings scan only looked at keys containing "node"). `seasonal()` now reads the season's card first, else the
+event's: the challenges node's own records are one group and each sub-node another; a group is "daily" when its name
+says day/daily, else "weekly" (`challenges: { title, groups: [{ name, kind, records }] }`, `challenge_entry`). The
+Seasonal Hub shows them across the width under the top row with a Daily | Weekly switch; the data check lists both
+cards, their challenges node and groups. **Unverified live:** whether the season's card is set and how its groups are
+named.
+
 **Rotators, round 3 (3 Oct 2026, owner: "bring everything up to date with seals.report"):** the tab now mirrors
 seals.report's Featured v0.58. `src/shell/d2/` holds unchanged copies of seals.report's rotations.js, rotators.js,
 featured-sections.js, live-rotations.js, **featured-week.js** (new on the site: the Featured page's "which cards this
@@ -646,6 +656,12 @@ contents (`data-fit`).
   PC encrypted by Windows. Needs the owner to register the app and add two Vercel env vars (steps to come).
 
 ## 9. Roadmap
+
+0. **The owner's goal (3 Oct 2026): every feature of Bungie's Destiny 2 Companion app (iOS), natively on PC.** Done
+   or partly: inventory/vault/transfers/loadouts, quests and bounties, seasonal hub with event challenges, triumphs,
+   seals and collections, vendors, clan, weekly milestones. Still to compare against the app: Fireteam Finder / LFG,
+   the Director (destinations with their activities and milestones), activity details and history (PGCR), friends
+   list and presence, news, Eververse / Bright Dust store, character stats and subclass screens, and notifications.
 
 1. **Destiny 2 Home page design** (the owner will direct it; custom games keep the basic Home).
 2. Test on the owner's PC: Bungie sign-in, downloads (DIM exports), the v0.1.0 -> v0.2.0 in-app update.

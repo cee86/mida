@@ -879,6 +879,47 @@ fn claimable(track: &Value) -> Vec<Value> {
 }
 
 /// Records under a presentation node, a few levels down, with the node names on the way.
+/// A record's state for a character: its own copy, else the account's.
+fn record_state_of(profile: &Value, character: &str, hash: u64) -> Value {
+    let key = hash.to_string();
+    let c = &profile["characterRecords"]["data"][character]["records"][&key];
+    if c.is_object() {
+        return c.clone();
+    }
+    profile["profileRecords"]["data"]["records"][&key].clone()
+}
+
+/// One event challenge (a record) as a card: name, description, icon, objectives, rewards, done. None when it's
+/// invisible or not on this account.
+async fn challenge_entry(hash: u64, state: &Value, m: &Manifest) -> Option<Value> {
+    let flags = state["state"].as_u64()?;
+    if flags & 16 != 0 {
+        return None;
+    }
+    let def = entity("DestinyRecordDefinition", hash).await?;
+    let rewards: Vec<Value> = def["rewardItems"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|r| {
+            let item = m.items.get(&(r["itemHash"].as_u64()? as u32))?;
+            Some(json!({ "name": item.name, "icon": icon_url(&item.icon), "quantity": r["quantity"], "tier": item.tier, "typeName": item.type_name, "description": item.description }))
+        })
+        .collect();
+    let objs = objectives(&state["objectives"], m);
+    let done = flags & 4 == 0 || (!objs.is_empty() && objs.iter().all(|o| o["complete"].as_bool() == Some(true)));
+    Some(json!({
+        "hash": hash,
+        "name": def["displayProperties"]["name"],
+        "description": def["displayProperties"]["description"],
+        "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
+        "complete": done,
+        "claimable": done && flags & 1 == 0 && !def["rewardItems"].as_array().map(|a| a.is_empty()).unwrap_or(true),
+        "objectives": objs,
+        "rewards": rewards,
+    }))
+}
+
 async fn node_records(root: u64, depth: u32, path: String, out: &mut Vec<(String, u64)>, seen: &mut Vec<Value>) {
     if depth > 3 || out.len() > 120 {
         return;
@@ -1262,11 +1303,65 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     let card_hash = profile["profile"]["data"]["activeEventCardHash"].as_u64().unwrap_or(0);
     let card = if card_hash != 0 { entity("DestinyEventCardDefinition", card_hash).await.unwrap_or(Value::Null) } else { Value::Null };
     collect_roots(&card, "eventCard");
+    let settings = get("/Settings/", None).await.unwrap_or(Value::Null);
+    // The season's own event card (core settings `seasonalHubEventCardHash`), which the Companion app's "Event
+    // challenges" (daily and weekly) appear to come from; the active event's card (Solstice...) is the other one.
+    let hub_card_hash = settings["destiny2CoreSettings"]["seasonalHubEventCardHash"].as_u64().unwrap_or(0);
+    let hub_card = if hub_card_hash != 0 && hub_card_hash != card_hash { entity("DestinyEventCardDefinition", hub_card_hash).await.unwrap_or(Value::Null) } else { Value::Null };
+    collect_roots(&hub_card, "hubCard");
+    let mut cards_seen: Vec<Value> = Vec::new();
+    let mut challenge_groups: Vec<Value> = Vec::new();
+    let mut challenge_title = String::new();
+    for (from, h, def) in [("hubCard", hub_card_hash, &hub_card), ("eventCard", card_hash, &card)] {
+        if !def.is_object() {
+            continue;
+        }
+        let name = def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+        let node_hash = def["weeklyChallengesPresentationNodeHash"].as_u64().filter(|h| *h != 0);
+        let node = match node_hash {
+            Some(n) => entity("DestinyPresentationNodeDefinition", n).await.unwrap_or(Value::Null),
+            None => Value::Null,
+        };
+        let node_name = node["displayProperties"]["name"].as_str().unwrap_or("").to_string();
+        // The challenges node: its own records are one group, each sub-node another (Daily, Weekly, Week 3...).
+        let mut groups: Vec<(String, Vec<u64>)> = Vec::new();
+        let own: Vec<u64> = node["children"]["records"].as_array().into_iter().flatten().filter_map(|r| r["recordHash"].as_u64()).collect();
+        if !own.is_empty() {
+            groups.push((node_name.clone(), own));
+        }
+        for c in node["children"]["presentationNodes"].as_array().into_iter().flatten() {
+            let Some(ch) = c["presentationNodeHash"].as_u64() else { continue };
+            let Some(sub) = entity("DestinyPresentationNodeDefinition", ch).await else { continue };
+            let records: Vec<u64> = sub["children"]["records"].as_array().into_iter().flatten().filter_map(|r| r["recordHash"].as_u64()).collect();
+            groups.push((sub["displayProperties"]["name"].as_str().unwrap_or("").to_string(), records));
+        }
+        cards_seen.push(json!({
+            "from": from, "hash": h, "name": name, "node": node_hash, "nodeName": node_name,
+            "groups": groups.iter().map(|(n, r)| format!("{} · {} records", if n.is_empty() { "(no name)" } else { n }, r.len())).collect::<Vec<_>>(),
+        }));
+        if !challenge_groups.is_empty() || groups.is_empty() {
+            continue; // the season's card wins; the event's is used when the season has none
+        }
+        challenge_title = name;
+        for (group_name, records) in groups {
+            let lower = group_name.to_lowercase();
+            let kind = if lower.contains("daily") || lower.contains("day") { "daily" } else { "weekly" };
+            let mut list = Vec::new();
+            for r in records.iter().take(60) {
+                if let Some(entry) = challenge_entry(*r, &record_state_of(profile, character, *r), m).await {
+                    list.push(entry);
+                }
+            }
+            if !list.is_empty() {
+                challenge_groups.push(json!({ "name": group_name, "kind": kind, "records": list }));
+            }
+        }
+    }
     // Bungie's core settings name the root of each record tree; list them all (for the data
     // check) and look inside the ones whose names suggest the hub's objectives.
     let mut core_nodes: Vec<Value> = Vec::new();
     let mut guardian_root: Option<u64> = None;
-    if let Ok(settings) = get("/Settings/", None).await {
+    if settings.is_object() {
         guardian_root = settings["destiny2CoreSettings"]["guardianRanksRootNodeHash"].as_u64().filter(|h| *h != 0);
         if let Some(core) = settings["destiny2CoreSettings"].as_object() {
             for (k, v) in core {
@@ -1617,6 +1712,7 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
         "claimable": waiting,
         "daily": daily,
         "weekly": weekly,
+        "challenges": { "title": challenge_title, "groups": challenge_groups },
         "orders": orders,
         "weeklyRewards": weekly_rewards,
         "checklist": checklist,
@@ -1633,6 +1729,7 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
             "uninstanced": uninstanced,
             "holders": holders,
             "coreNodes": core_nodes,
+            "eventCards": cards_seen,
             "inventoryOrders": orders.len(),
             "kinds": kinds.iter().take(40).map(|(k, n)| json!(format!("{k} · {n}"))).collect::<Vec<_>>(),
             "passKeys": pass["keys"],

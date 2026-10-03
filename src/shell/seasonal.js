@@ -52,6 +52,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
   let claimScope = "current";
   const claiming = new Set();
   let hubBar = null; // the progress bar shown while a character's hub is read
+  let challengeKind = "daily"; // the Event challenges box's Daily | Weekly choice
 
   const chosen = () => (activity.characters.some((c) => c.id === lastCharacter.seasonal) ? lastCharacter.seasonal : activity.characters[0]?.id);
 
@@ -169,6 +170,56 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
       "div",
       { class: "sh-col" },
       section("Active orders", list.length ? String(list.length) : null, body),
+    );
+  }
+
+  // ---------- Event challenges ----------
+
+  // The season's daily and weekly challenges (the Companion app's "Event challenges"), from the season's event card.
+  function challenges(hub) {
+    const groups = hub?.challenges?.groups ?? [];
+    if (!groups.length) return null;
+    const kinds = ["daily", "weekly"].filter((k) => groups.some((g) => g.kind === k));
+    const kind = kinds.includes(challengeKind) ? challengeKind : kinds[0];
+    const shown = groups.filter((g) => g.kind === kind);
+    const all = shown.flatMap((g) => g.records);
+    const done = all.filter((r) => r.complete).length;
+    const toggle =
+      kinds.length > 1
+        ? el(
+            "span",
+            { class: "segmented", role: "group", "aria-label": "Daily or weekly" },
+            ...kinds.map((k) => el("button", { type: "button", "aria-pressed": String(k === kind), text: k === "daily" ? "Daily" : "Weekly", onclick: () => ((challengeKind = k), draw()) })),
+          )
+        : null;
+    const card = (r) =>
+      el(
+        "div",
+        { class: `sh-challenge${r.complete ? " is-done" : ""}` },
+        el("span", { class: "sh-order__icon" }, r.icon ? el("img", { src: r.icon, alt: "", loading: "lazy" }) : null, r.complete ? el("span", { class: "sh-tile__check", text: "✓" }) : null),
+        el(
+          "div",
+          { class: "sh-order__text" },
+          el("div", { class: "sh-order__name" }, el("span", { text: r.name }), r.claimable ? el("span", { class: "sh-challenge__claim", text: "Claim in game" }) : null),
+          r.description ? rich(r.description, "sh-challenge__desc") : null,
+          ...(r.objectives ?? []).map((o) =>
+            el(
+              "div",
+              { class: `sh-obj${o.complete ? " is-done" : ""}` },
+              el("span", { class: "sh-obj__box", "aria-hidden": "true" }),
+              rich(o.text || "Progress", "sh-obj__text"),
+              el("span", { class: "sh-obj__value", text: o.goal > 1 ? `${Number(o.progress).toLocaleString()} / ${Number(o.goal).toLocaleString()}` : o.complete ? "Done" : "" }),
+              meter(percent(o), "sh-obj__fill"),
+            ),
+          ),
+          r.rewards?.length ? el("div", { class: "sh-challenge__rewards" }, ...r.rewards.map((w) => rewardTile({ ...w, earned: r.complete }, r.name))) : null,
+        ),
+      );
+    return el(
+      "section",
+      { class: "sh-box sh-challenges" },
+      label(hub.challenges.title ? `Event challenges · ${hub.challenges.title}` : "Event challenges", [toggle, el("span", { text: ` ${done} of ${all.length} done · resets ${kind === "daily" ? "daily" : "Tuesday"}` })].filter(Boolean)),
+      ...shown.map((g) => el("div", { class: "sh-challenge-group" }, shown.length > 1 && g.name ? el("h3", { class: "sh-challenge-group__name", text: g.name }) : null, el("div", { class: "sh-challenge-list" }, ...g.records.map(card)))),
     );
   }
 
@@ -500,6 +551,8 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
             el("h3", { text: "Milestones on this character" }),
             list(k.milestones ?? [], "None."),
             el("h3", { text: `Orders found in the inventories: ${k.inventoryOrders ?? 0}` }),
+            el("h3", { text: "Event cards (Event challenges come from the season's card, else the event's)" }),
+            list((k.eventCards ?? []).map((c) => `${c.from}: ${c.name || "(no name)"} [${c.hash}] · challenges node ${c.node ?? "none"}${c.nodeName ? ` (${c.nodeName})` : ""}${c.groups?.length ? ` · ${c.groups.join("; ")}` : ""}`), "No event card named in Bungie's settings or on the profile."),
             el("h3", { text: "Record trees Bungie's settings name (the hub's objectives may be under one)" }),
             list(k.coreNodes ?? [], "None."),
             el("h3", { text: "Objective holders (daily / weekly objectives)" }),
@@ -579,8 +632,8 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
       hub?.error ? el("p", { class: "tab__error", text: hub.error }) : null,
       // While this character's hub is being read: one bar, kept across redraws so it doesn't restart.
       hub === null ? (hubBar ??= el("div", { class: "sh-loading" }, progressBar(ctx, "seasonal", "Reading the hub from Bungie…"))) : ((hubBar = null), null),
-      // The hub's daily and weekly objectives aren't in Bungie's public data (checked live through
-      // every record tree, vendor and hidden item), so the top row is orders and weekly rewards.
+      // The top row is orders and weekly rewards; the daily and weekly Event challenges (from the season's event
+      // card, v0.8.11) sit across the width under it, when Bungie lists them.
       // The owner's layout (3 Oct 2026): Guardian Rank and the clan's week under the weekly rewards, the
       // checklist across the whole width, and the pass's rank and name beside its reward track.
       el(
@@ -589,6 +642,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
         orders(ready),
         el("div", { class: "sh-right sh-right--one" }, weeklyRewards(ready), resets(), el("div", { class: "sh-pair" }, guardianRank(ready), clanWeekly(ready))),
       ),
+      challenges(ready),
       checklist(ready),
       el("div", { class: "sh-passrow" }, passHeader(ready, pass), track(pass)),
       passError ? el("p", { class: "tab__error", text: passError }) : null,
