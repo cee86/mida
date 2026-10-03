@@ -472,7 +472,7 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
-* Held for v0.8.5 (3 Oct 2026, owner's round): Seasonal Hub without the hub objectives / bonuses boxes, with a weekly
+* v0.8.5 (3 Oct 2026, owner's round): Seasonal Hub without the hub objectives / bonuses boxes, with a weekly
   checklist, Guardian Rank and clan weekly; Featured rebuilt as **Rotators**; Quests like the game's Quests screen with
   bounties on the right; sidebar alignment, tab reordering and cancelled-drag fixes.
 * v0.8.3 (owner): updates install silently (`plugins.updater.windows.installMode` "quiet" = NSIS `/S /R`, per-user so no
