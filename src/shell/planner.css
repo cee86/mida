@@ -1,0 +1,32 @@
+/* The Weekly planner (planner.js), on the Seasonal Hub's look (sh-* classes from seasonal.css). */
+
+.pl-week .sh-label { margin-top: 4px; }
+.pl-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pl-chip { display: inline-flex; align-items: baseline; gap: 8px; padding: 5px 10px; border: 1px solid color-mix(in srgb, var(--cream) 14%, transparent); background: rgba(255, 255, 255, 0.04); font-size: 0.86rem; }
+.pl-chip__k { color: var(--mist); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.pl-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+.pl-col { padding-top: 0; }
+.pl-head { display: flex; align-items: center; justify-content: space-between; min-height: 64px; margin: 0 -14px 6px; padding: 10px 14px; background: rgba(0, 0, 0, 0.4) center / cover no-repeat; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+.pl-head__class { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.pl-head__light { font-family: var(--font-display); font-size: 1.5rem; color: #e6c75b; }
+.pl-head__light i { font-style: normal; font-size: 0.55em; vertical-align: 0.5em; margin-right: 3px; }
+.pl-list { display: flex; flex-direction: column; gap: 4px; }
+.pl-ms { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 8px; min-height: 32px; padding: 2px 6px 2px 2px; background: rgba(255, 255, 255, 0.04); font-size: 0.86rem; }
+.pl-ms__icon { display: grid; place-items: center; width: 26px; height: 26px; }
+.pl-ms__icon img { width: 100%; height: 100%; object-fit: contain; }
+.pl-ms__name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pl-ms__state { padding: 1px 7px; border: 1px solid var(--rule); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.pl-ms__state.is-done { border-color: transparent; color: var(--accent); }
+.pl-ms__state.is-unknown { color: var(--mist-dim); }
+.pl-ms.is-done { opacity: 0.6; }
+.pl-bounties { display: flex; flex-wrap: wrap; gap: 6px; }
+.pl-bounty { position: relative; display: block; width: 40px; height: 40px; border: 1px solid var(--rule); background: var(--hover); overflow: hidden; }
+.pl-bounty img { width: 100%; height: 100%; object-fit: cover; }
+.pl-bounty i { position: absolute; right: 2px; bottom: 0; color: var(--accent); font-style: normal; font-weight: 800; text-shadow: 0 0 3px #000; }
+.pl-bounty.is-done { border-color: var(--accent); }
+.pl-todo { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 4px 0 8px; background: rgba(255, 255, 255, 0.04); }
+.pl-todo__check { display: flex; flex: 1; align-items: center; gap: 8px; cursor: pointer; font-size: 0.88rem; }
+.pl-todo.is-done .pl-todo__check span { color: var(--mist); text-decoration: line-through; }
+.pl-todo__remove { width: 26px; height: 26px; }
+.pl-add { display: flex; gap: 6px; margin-top: 4px; }
+.pl-add__input { flex: 1; min-width: 0; min-height: 32px; padding: 0 8px; border: 1px solid var(--rule); background: rgba(0, 0, 0, 0.3); color: var(--cream); font: inherit; font-size: 0.86rem; user-select: text; }

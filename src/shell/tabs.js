@@ -12,6 +12,7 @@ import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 import { seasonalHub } from "./seasonal.js";
 import { questsTab } from "./quests.js";
 import { vendorsTab } from "./vendors.js";
+import { plannerTab } from "./planner.js";
 import { remind, postmasterCheck, REMINDERS, reminderChoices, setReminder } from "./reminders.js";
 import { rotatorsTab } from "./rotators.js";
 
@@ -188,6 +189,7 @@ const SIGN_IN = {
   "tab-inventory": "Your characters' gear and your vault, with quick moves between them. For deeper work (loadouts, sorting, tags), DIM can sit beside it as a module.",
   "tab-seasonal": "The season in one place: orders, daily and weekly objectives, weekly rewards and your season pass track (past passes too).",
   "tab-quests": "Every quest a character has picked up. Starts on the character you played last; switch any time.",
+  "tab-planner": "Each character's week in one place: the weekly milestones still to do, bounties ready to turn in, and your own to-do list that resets every Tuesday.",
   "tab-vendors": "Every vendor your character can visit: what they sell, what it costs, your rank with them and when their stock resets.",
 };
 const SHIELD = ["M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z", "M9 12l2 2 4-4"];
@@ -370,6 +372,11 @@ function quests(ctx, container) {
   questsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter });
 }
 
+// Each character's week (planner.js).
+function planner(ctx, container) {
+  plannerTab(ctx, container, { read, loadingView, problemView, until, remote: () => remoteRotators });
+}
+
 // Every vendor the character can visit (vendors.js).
 function vendors(ctx, container) {
   vendorsTab(ctx, container, { read, loadingView, problemView, until, characterPicker, lastCharacter });
@@ -393,7 +400,7 @@ const BUILDERS = {
   "tab-featured": featured,
   "tab-rad": rad,
 };
-const SIGNED_IN = { "tab-inventory": inventoryTab, "tab-quests": quests, "tab-seasonal": seasonal, "tab-vendors": vendors };
+const SIGNED_IN = { "tab-planner": planner, "tab-inventory": inventoryTab, "tab-quests": quests, "tab-seasonal": seasonal, "tab-vendors": vendors };
 
 // What a sign-in tab depends on: remount when the account changes.
 const accountKey = (ctx) => {

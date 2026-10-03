@@ -37,6 +37,7 @@ pub struct BuiltInTab {
 }
 
 pub const TABS: &[BuiltInTab] = &[
+    BuiltInTab { game: "destiny2", id: "tab-planner", name: "Weekly planner", blurb: "Each character's week: milestones, bounties and your own to-do list, reset every Tuesday.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-inventory", name: "Inventory", blurb: "Move gear between your characters and the vault.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-seasonal", name: "Seasonal Hub", blurb: "Orders, daily and weekly objectives, and your season pass track.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-quests", name: "Quests", blurb: "Every quest a character has picked up.", sign_in: true },

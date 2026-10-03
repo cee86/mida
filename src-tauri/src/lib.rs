@@ -1309,6 +1309,27 @@ async fn d2_seasonal(webview: Webview, app: AppHandle, character: String) -> Val
     )
 }
 
+/// The Weekly planner: each character's weekly checklist.
+#[tauri::command]
+async fn d2_planner(webview: Webview, app: AppHandle) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            progress(&app, "planner", 0.05, "Checking your sign-in");
+            let a = account(&app).await?;
+            progress(&app, "planner", 0.15, "Reading Destiny's game data");
+            let m = manifest(&app).await?;
+            progress(&app, "planner", 0.35, "Reading your characters' weeks from Bungie");
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,200,202").await?;
+            progress(&app, "planner", 0.7, "Reading the weekly milestones");
+            Ok(bungie::planner(&profile, &m).await)
+        }
+        .await,
+    )
+}
+
 /// The Vendors tab: every vendor the character can visit and what they sell.
 #[tauri::command]
 async fn d2_vendors(webview: Webview, app: AppHandle, character: String) -> Value {
@@ -1935,6 +1956,7 @@ pub fn run() {
             d2_loadout,
             d2_seasonal,
             d2_vendors,
+            d2_planner,
             d2_pass,
             d2_claim,
             d2_rotators,
