@@ -203,10 +203,10 @@ button, and the loadout dock uses the same grid. `character_details` now returns
   seals.report's `week.events` (default on), postmaster at 18 and 20 items per character per day (default on; checked
   after every inventory read via `postmasterCheck`). Each fires once (its key is remembered); shell.js runs `remind()`
   every minute. Choices in Settings → Tabs → Reminders (`mida-reminders`).
-* **Inventory tools:** tags (favourite/keep/junk/infuse/archive) and a note per item (`mida-inv-tags`, this PC only,
-  searchable, tag filter, badge on the tile); **Compare** (an item card button: every copy of that item, or the same
-  slot and type, side by side with stat bars); **Make room** (moves the oldest unlocked spares of a full slot to the
-  vault).
+* **Inventory tools:** tags (Favorite/Keep/Infuse/Junk) and a note per item (`mida-inv-tags`, this PC only,
+  searchable, tag filter, badge on the tile); **Compare** (an item card button: its other copies, or the same slot and
+  type, side by side); **Make room** (postmaster panel: moves enough of that character's items to the vault for the
+  blocked postmaster items to fit, Junk-tagged first, then lowest power; never equipped, locked, Favorite or Keep).
 * **Weekly planner** (planner.js, `tab-planner`): "This week" chips (raids, dungeons, Grandmaster, exotic mission,
   Ascendant Challenge, Pantheon, Xûr) from the Rotators' sources, then a column per character: weekly milestones
   (`d2_planner` → bungie.rs `planner`, the Seasonal Hub's `weekly_checklist`), bounties (shared "activity" read) and
