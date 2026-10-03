@@ -96,6 +96,7 @@ pub struct Prefs {
     pub foundry_mark: String,     // #rrggbb: Foundry's markings
     pub sidebar_flyout: bool,     // collapsed sidebar opens over the page on hover
     pub sidebar_fit: bool,        // sidebar only as tall as its contents
+    pub always_on_top: bool,      // MIDA's window stays above other windows (the game included, when it's windowed)
 }
 
 impl Default for Prefs {
@@ -118,6 +119,7 @@ impl Default for Prefs {
             foundry_mark: "#d8473a".into(),
             sidebar_flyout: true,
             sidebar_fit: false,
+            always_on_top: false,
         }
     }
 }
@@ -153,6 +155,7 @@ pub fn clean_prefs(p: Prefs) -> Prefs {
         foundry_mark: if is_hex(&p.foundry_mark) { p.foundry_mark.to_lowercase() } else { d.foundry_mark },
         sidebar_flyout: p.sidebar_flyout,
         sidebar_fit: p.sidebar_fit,
+        always_on_top: p.always_on_top,
     }
 }
 

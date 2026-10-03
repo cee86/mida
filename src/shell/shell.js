@@ -138,6 +138,10 @@ function renderSidebar() {
   app.dataset.expanded = String(expanded);
   app.dataset.fit = String(state.prefs.sidebarFit);
   app.dataset.address = state.prefs.showAddressBar ? "shown" : "hidden";
+  const pin = $("pin-top");
+  pin.setAttribute("aria-pressed", String(Boolean(state.prefs.alwaysOnTop)));
+  pin.classList.toggle("is-on", Boolean(state.prefs.alwaysOnTop));
+  pin.title = state.prefs.alwaysOnTop ? "MIDA stays above other windows. Click to stop." : "Keep MIDA above other windows";
   const toggle = $("toggle");
   const label = state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar";
   toggle.setAttribute("aria-label", label);
@@ -834,6 +838,7 @@ function renderDock() {
   $("app").dataset.dock = String(show);
 }
 $("dock-open").addEventListener("click", () => setDock(!dockOn));
+$("pin-top").addEventListener("click", () => updatePrefs({ alwaysOnTop: !state.prefs.alwaysOnTop }));
 window.addEventListener("mida-dock-close", () => setDock(false));
 window.addEventListener("mida-tabs-ready", () => state && renderDock());
 
@@ -1788,6 +1793,7 @@ function personalizationPanel() {
     backdropSetting("mida-sh-backdrop", "Seasonal Hub backdrop", "A picture behind the Seasonal Hub, darkened and blurred. Without one it uses the Inventory's picture. It stays on this computer.", "Using the Inventory's backdrop."),
     overlaysSetting(),
     setting("Open the sidebar on hover", "While the sidebar is collapsed, pointing at it opens it over the page, without resizing the page.", toggle("flyout", p.sidebarFlyout, (v) => updatePrefs({ sidebarFlyout: v }), "Open the sidebar on hover"), { row: true }),
+    setting("Keep MIDA on top", "MIDA's window stays above other windows, so it can sit beside the game (play in windowed or borderless mode). Also the pin button in the sidebar.", toggle("on-top", p.alwaysOnTop, (v) => updatePrefs({ alwaysOnTop: v }), "Keep MIDA on top"), { row: true }),
     setting("Fit the sidebar to its contents", "The sidebar is only as tall as your modules and buttons, instead of running down the whole window.", toggle("fit", p.sidebarFit, (v) => updatePrefs({ sidebarFit: v }), "Fit the sidebar to its contents"), { row: true }),
     setting("Show the address bar", "The bar above the site with back, forward, reload and the page's address.", toggle("address", p.showAddressBar, (v) => updatePrefs({ showAddressBar: v }), "Show the address bar"), { row: true }),
     setting("Site controls corner", "With the address bar hidden, back, forward and reload float in this corner of the site.", corners, { disabled: !hidden }),

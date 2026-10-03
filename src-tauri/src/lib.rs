@@ -814,6 +814,11 @@ fn apply_prefs(app: &AppHandle, before: &Prefs) {
             }
         }
     }
+    if now.always_on_top != before.always_on_top {
+        if let Some(window) = app.get_window(WINDOW) {
+            let _ = window.set_always_on_top(now.always_on_top);
+        }
+    }
     if now.show_address_bar {
         close_controls(app);
     } else {
@@ -1859,6 +1864,9 @@ fn create_window(app: &AppHandle) -> tauri::Result<()> {
         .on_permission_request(|_, _| PermissionResponse::Deny);
     let shell = window.add_child(shell, LogicalPosition::new(0.0, 0.0), LogicalSize::new(width, height))?;
     window.show()?;
+    if prefs(app).always_on_top {
+        let _ = window.set_always_on_top(true);
+    }
     // Interface size, only when changed (zooming before the page is on screen can leave it blank).
     let scale = prefs(app).ui_scale;
     if scale != 100 {
