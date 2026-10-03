@@ -1,0 +1,45 @@
+/* The Armor optimizer (armor.js), on the Seasonal Hub's look (sh-* classes from seasonal.css). */
+
+.ao-layout { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ao-layout > .sh-col { position: sticky; top: 0; gap: 16px; }
+.ao .linkish { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.78rem; cursor: pointer; }
+.ao .linkish:hover { text-decoration: underline; }
+.ao-target { display: grid; grid-template-columns: 104px 1fr 34px; align-items: center; gap: 10px; min-height: 34px; }
+.ao-target__name { display: flex; align-items: center; gap: 6px; font-size: 0.86rem; }
+.ao-target__name img { width: 20px; height: 20px; object-fit: contain; }
+.ao-target input { width: 100%; accent-color: var(--accent); }
+.ao-target__value { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.ao-choice { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 10px; min-height: 38px; }
+.ao-choice__label { color: var(--mist); font-size: 0.8rem; }
+.ao-choice .select { width: 100%; min-width: 0; }
+.ao-message { margin: 4px 0 10px; padding: 8px 10px; border-left: 2px solid var(--accent); background: rgba(var(--accent-rgb), 0.08); font-size: 0.86rem; }
+.ao-message.is-error { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.ao-builds { display: flex; flex-direction: column; gap: 8px; }
+.ao-build { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "pieces stats" "foot foot"; gap: 8px 16px; padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; }
+.ao-build:first-child { border-color: rgba(var(--accent-rgb), 0.35); }
+.ao-build.is-worn { border-color: color-mix(in srgb, var(--cream) 25%, transparent); }
+.ao-build__pieces { grid-area: pieces; display: flex; gap: 4px; }
+.ao-piece { position: relative; display: block; width: 48px; height: 48px; border: 2px solid #6c6c6c; background: #2a2a2a; overflow: hidden; }
+.ao-piece.tier-6 { border-color: #ceae33; }
+.ao-piece.tier-5 { border-color: #7a4fa8; }
+.ao-piece.tier-4 { border-color: #4f76a8; }
+.ao-piece.is-mw { box-shadow: 0 0 0 1px #e9cf6e; }
+.ao-piece img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ao-piece__mark { pointer-events: none; }
+.ao-piece__away { position: absolute; right: 0; bottom: 0; min-width: 14px; padding: 0 2px; background: rgba(0, 0, 0, 0.8); color: #fff; font-size: 0.62rem; font-style: normal; font-weight: 700; line-height: 14px; text-align: center; }
+.ao-build__stats { grid-area: stats; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ao-stat, .ao-total { display: inline-flex; align-items: center; gap: 5px; min-width: 62px; min-height: 30px; padding: 0 8px; background: rgba(0, 0, 0, 0.3); font-variant-numeric: tabular-nums; }
+.ao-stat img { width: 18px; height: 18px; object-fit: contain; }
+.ao-stat small, .ao-total small { color: var(--mist); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.ao-stat.is-met strong { color: var(--accent); }
+.ao-stat.is-short strong { color: var(--danger); }
+.ao-total { margin-left: auto; border: 1px solid var(--rule); }
+.ao-build__foot { grid-area: foot; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ao-build__note { color: var(--mist); font-size: 0.8rem; }
+.ao-build__busy { color: var(--accent); font-size: 0.84rem; }
+
+@media (max-width: 1000px) {
+  .ao-layout { grid-template-columns: 1fr; }
+  .ao-layout > .sh-col { position: static; }
+  .ao-build { grid-template-columns: 1fr; grid-template-areas: "pieces" "stats" "foot"; }
+}

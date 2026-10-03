@@ -1904,6 +1904,34 @@ pub fn item_parts(profile: &Value) -> Value {
     })
 }
 
+/// The six armor stats (Armor 3.0's Weapons, Health, Class, Grenade, Super, Melee; their hashes kept from before).
+pub const ARMOR_STATS: [u64; 6] = [2996146975, 392767087, 1943323491, 1735777505, 144602215, 4244567218];
+
+/// For the Armor optimizer: every armor piece's six stats as Bungie reports them now (mods and masterwork included),
+/// from `item_parts`, plus the stats' names and icons. { stats: [{ hash, name, icon }], pieces: { instance: [six] } }.
+pub async fn armor_stats(parts: &Value) -> Value {
+    let mut pieces = Map::new();
+    if let Some(all) = parts["stats"].as_object() {
+        for (instance, entry) in all {
+            let values = &entry["stats"];
+            if !ARMOR_STATS.iter().any(|h| values[h.to_string()].is_object()) {
+                continue;
+            }
+            let six: Vec<i64> = ARMOR_STATS.iter().map(|h| values[h.to_string()]["value"].as_i64().unwrap_or(0)).collect();
+            pieces.insert(instance.clone(), json!(six));
+        }
+    }
+    let defs = entities("DestinyStatDefinition", &ARMOR_STATS).await;
+    let stats: Vec<Value> = ARMOR_STATS
+        .iter()
+        .map(|h| {
+            let d = defs.get(h).cloned().unwrap_or(Value::Null);
+            json!({ "hash": h, "name": d["displayProperties"]["name"], "icon": icon_url(d["displayProperties"]["icon"].as_str().unwrap_or("")) })
+        })
+        .collect();
+    json!({ "stats": stats, "pieces": pieces })
+}
+
 /// One item in the shape Bungie's item endpoint answers with, from `item_parts` (None when it isn't there).
 pub fn item_from_parts(parts: &Value, instance: &str) -> Option<Value> {
     if !parts["sockets"][instance].is_object() || !parts["instances"][instance].is_object() {

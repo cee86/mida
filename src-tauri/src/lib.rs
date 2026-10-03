@@ -1332,6 +1332,39 @@ async fn d2_clan(webview: Webview, app: AppHandle) -> Value {
     )
 }
 
+/// The Armor optimizer: every armor piece's stats. From the profile read made after the inventory loaded when it's
+/// recent, else a fresh one (and that's kept for item cards too).
+#[tauri::command]
+async fn d2_armor(webview: Webview, app: AppHandle, fresh: Option<bool>) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            progress(&app, "armor", 0.1, "Checking your sign-in");
+            let a = account(&app).await?;
+            let cached = if fresh == Some(true) {
+                None
+            } else {
+                hub(&app).item_parts.lock().unwrap().as_ref().filter(|(at, _)| auth::now() < at + 600).map(|(_, p)| p.clone())
+            };
+            let parts = match cached {
+                Some(p) => p,
+                None => {
+                    progress(&app, "armor", 0.3, "Reading your armor's stats from Bungie");
+                    let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "102,201,205,300,304,305,309,310").await?;
+                    let p = bungie::item_parts(&profile);
+                    *hub(&app).item_parts.lock().unwrap() = Some((auth::now(), p.clone()));
+                    p
+                }
+            };
+            progress(&app, "armor", 0.8, "Reading the stat names");
+            Ok(bungie::armor_stats(&parts).await)
+        }
+        .await,
+    )
+}
+
 /// The Weekly planner: each character's weekly checklist.
 #[tauri::command]
 async fn d2_planner(webview: Webview, app: AppHandle) -> Value {
@@ -1984,6 +2017,7 @@ pub fn run() {
             d2_vendors,
             d2_planner,
             d2_clan,
+            d2_armor,
             d2_pass,
             d2_claim,
             d2_rotators,

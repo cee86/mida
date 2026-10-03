@@ -32,6 +32,7 @@
     d2Seasonal: (character) => invoke("d2_seasonal", { character }),
     d2Vendors: (character) => invoke("d2_vendors", { character }),
     d2Planner: () => invoke("d2_planner"),
+    d2Armor: (fresh) => invoke("d2_armor", { fresh: fresh === true }),
     d2Clan: () => invoke("d2_clan"),
     d2Pass: (character, pass, season) => invoke("d2_pass", { character, pass, season }),
     d2Claim: (character, season, index) => invoke("d2_claim", { character, season, index }),

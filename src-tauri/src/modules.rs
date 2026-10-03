@@ -41,6 +41,7 @@ pub const TABS: &[BuiltInTab] = &[
     BuiltInTab { game: "destiny2", id: "tab-inventory", name: "Inventory", blurb: "Move gear between your characters and the vault.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-seasonal", name: "Seasonal Hub", blurb: "Orders, daily and weekly objectives, and your season pass track.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-quests", name: "Quests", blurb: "Every quest a character has picked up.", sign_in: true },
+    BuiltInTab { game: "destiny2", id: "tab-armor", name: "Armor optimizer", blurb: "Finds the armor combinations that get closest to the stats you want, and equips them.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-clan", name: "Clan", blurb: "Your clan: who's online, what they're playing, and the member list.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-vendors", name: "Vendors", blurb: "Every vendor you can visit: what they sell, what it costs and when they reset.", sign_in: true },
     BuiltInTab { game: "destiny2", id: "tab-rad", name: "RAD assistant", blurb: "Raids and dungeons: encounters, loot, tips and maps.", sign_in: false },
