@@ -299,3 +299,19 @@
 
 @container (max-width: 1250px) { .sh-row3 { grid-template-columns: 1fr 1fr; } .sh-row3 > :first-child { grid-column: 1 / -1; } }
 @container (max-width: 760px) { .sh-row3 { grid-template-columns: 1fr; } }
+
+/* Layout from the owner's sketch (3 Oct 2026): Guardian Rank + clan side by side under the weekly rewards, the
+   checklist across the whole width, the pass's rank and name in a column beside its reward track. */
+.sh-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.sh-pair > .sh-box { height: 100%; }
+.sh-checks { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.sh-passrow { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 20px; align-items: center; }
+.sh-passrow .sh-pass { grid-template-columns: auto minmax(0, 1fr); gap: 16px; }
+.sh-passrow .sh-pass__title { font-size: 1.8rem; }
+.sh-passrow .sh-pass__pick { max-width: min(100%, 380px); }
+@container (max-width: 1250px) {
+  .sh-passrow { grid-template-columns: 1fr; }
+}
+@container (max-width: 760px) {
+  .sh-pair { grid-template-columns: 1fr; }
+}

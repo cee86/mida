@@ -4,10 +4,10 @@
 //
 //   [ SEASONAL HUB · season name ............................... character · refresh ]
 //   [ active orders        ] [ weekly rewards ........................ ]  [ bounties  ]
-//                            [ daily / weekly reset countdowns        ]  [ on this   ]
-//                                                                         [ character ]
-//   ( rank )  PASS NAME  [past passes ▾]        [ season pass bonuses ]  [           ]
-//   [ season pass rewards: a column per rank, free row over pass row     ]  [           ]
+//   [                      ] [ daily / weekly reset countdowns        ]  [ on this   ]
+//   [                      ] [ guardian rank    ] [ clan this week    ]  [ character ]
+//   [ weekly checklist, across the whole width                        ]  [           ]
+//   ( rank ) PASS NAME [past ▾] [ season pass rewards: a column per rank ] [         ]
 //   [ rewards to claim: this pass | every pass, with Claim buttons       ]  [           ]
 //   then Bungie's alerts and a data check, folded away.
 //
@@ -578,11 +578,17 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, un
       hub?.error ? el("p", { class: "tab__error", text: hub.error }) : null,
       // The hub's daily and weekly objectives aren't in Bungie's public data (checked live through
       // every record tree, vendor and hidden item), so the top row is orders and weekly rewards.
-      el("div", { class: "sh-grid" }, orders(ready), el("div", { class: "sh-right sh-right--one" }, weeklyRewards(ready), resets())),
-      el("div", { class: "sh-row3" }, checklist(ready), guardianRank(ready), clanWeekly(ready)),
-      passHeader(ready, pass),
+      // The owner's layout (3 Oct 2026): Guardian Rank and the clan's week under the weekly rewards, the
+      // checklist across the whole width, and the pass's rank and name beside its reward track.
+      el(
+        "div",
+        { class: "sh-grid" },
+        orders(ready),
+        el("div", { class: "sh-right sh-right--one" }, weeklyRewards(ready), resets(), el("div", { class: "sh-pair" }, guardianRank(ready), clanWeekly(ready))),
+      ),
+      checklist(ready),
+      el("div", { class: "sh-passrow" }, passHeader(ready, pass), track(pass)),
       passError ? el("p", { class: "tab__error", text: passError }) : null,
-      track(pass),
       claimables(ready),
       ...folded(ready),
     );

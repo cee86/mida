@@ -161,6 +161,11 @@ backdrop like the hub). Left: view icons (All, Raids, Dungeons, This week, Today
 Grid = cards in sections, a card opens its row in the list; List = `<details>` rows with "Coming up" and caveats
 (`mida-rot-mode`). The Ascendant Challenge rotator is folded into the Dreaming City card (which follows its saved index).
 
+**Seasonal Hub layout (3 Oct 2026, owner's sketch):** top row = Active orders | Weekly rewards, the reset
+countdowns, then Guardian Rank and Clan this week side by side (`.sh-pair`); the Weekly checklist across the whole
+width (cards 280px+ each); the pass's rank ring and name in a column beside its reward track (`.sh-passrow`, stacked
+under 1250px); then rewards to claim.
+
 **Rotators, round 2 (3 Oct 2026, owner):** views now match seals.report's Featured sidebar exactly (Everything,
 Raids, Dungeons, Other activities, same icons; old saved views fall back to Other), sections inside stay Raids,
 Dungeons, This week, Today, Weekly checklist. Cards show the activity's loading-screen art like seals.report:
