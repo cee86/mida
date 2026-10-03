@@ -413,6 +413,8 @@ impl View<'_> {
             v["title"] = json!(title);
             v["earned"] = json!(earned);
             v["gildable"] = json!(rec.is_some_and(|r| r.gildable));
+            // Lets the Director find the season's seal by its text when the season doesn't name it.
+            v["description"] = json!(n.description);
         }
         Some(v)
     }

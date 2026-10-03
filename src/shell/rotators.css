@@ -15,9 +15,11 @@
 .rt-reset { display: inline-flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, 0.8); font-size: 0.86rem; }
 .rt-reset svg { width: 16px; height: 16px; }
 
-/* Sections sharing a row (the "This week" view's pinnacle, Distortion and Crucible): each as wide as its cards. */
+/* Sections sharing a row (the "This week" view's Dungeons | Pinnacle and Distortion | Crucible): each exactly as wide as
+   its cards at the usual card width, so the heading's rule ends with its last card (no empty space under it). */
 .rt-rowset { display: flex; flex-wrap: wrap; gap: 0 22px; align-items: start; }
-.rt-section.is-inrow { flex: var(--n, 1) 1 calc(var(--n, 1) * 230px); min-width: 0; }
+.rt-section.is-inrow { flex: 0 1 calc(var(--n, 1) * 236px + (var(--n, 1) - 1) * 14px); min-width: 0; }
+.rt-section.is-inrow .rt-cards { grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); }
 
 /* Cards: one shape for all (picture strip with the type in its corner, name, details, time + source at the foot). */
 .rt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
@@ -61,7 +63,7 @@
 .rt-card__line.is-weapon { color: var(--cream); }
 .rt-card.is-unknown .rt-card__line.is-info:first-of-type { color: var(--mist-dim); font-style: italic; }
 .rt-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 6px; }
-.rt-card__time { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-left: 2px solid var(--accent); background: rgba(0, 0, 0, 0.3); color: var(--cream); font-size: 0.84rem; }
+.rt-card__time { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-left: 2px solid var(--accent); background: rgba(0, 0, 0, 0.3); color: var(--cream); font-size: 0.84rem; white-space: nowrap; }
 .rt-card__time.is-plain { border-left-color: var(--rule); color: var(--mist); }
 .rt-card__time svg { width: 14px; height: 14px; flex-shrink: 0; }
 

@@ -125,12 +125,12 @@
 .gd-game__art { display: grid; place-items: center; }
 .gd-game__art img { width: 32px; height: 32px; object-fit: contain; }
 
-/* Journey: the drawn rank badge, and faint linework filling the box behind its three columns. */
-.gd-journey, .gd-chars { position: relative; }
-.gd-journey > :not(.gd-art), .gd-chars > :not(.gd-art) { position: relative; }
-.gd-art { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.gd-art__lines { width: 100%; height: 100%; color: var(--cream); opacity: 0.07; stroke-width: 1; }
-.gd-journey__grid { align-items: stretch; }
+/* Journey: the drawn rank badge (the faint linework behind boxes is boxart.js). */
+/* Three columns as wide as their contents with equal space between them (the owner: "spacing between all elements
+   even"); the commendation bar sets its column's width. */
+.gd-journey__grid { grid-template-columns: repeat(3, auto); justify-content: space-between; align-items: stretch; }
+.gd-com { width: clamp(240px, 26vw, 380px); }
+@media (max-width: 1100px) { .gd-journey__grid { grid-template-columns: 1fr; } .gd-com { width: auto; } }
 .gd-journey__grid > div { display: flex; flex-direction: column; }
 .gd-journey__grid > div > :not(.gd-sub) { margin-block: auto; }
 .gd-rank__head { gap: 16px; }

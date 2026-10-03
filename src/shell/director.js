@@ -20,6 +20,7 @@ import { recordsTab } from "./records.js";
 import { wallpaper } from "./wallpaper.js";
 import { articleReader, loadPicture } from "./news.js";
 import { glyph } from "./glyphs.js";
+import { withArt } from "./boxart.js";
 import { ROTATORS, withSaved, rotatorNow } from "./d2/rotators.js";
 import { featuredRotation, RAID_NAMES, DUNGEON_NAMES } from "./d2/rotations.js";
 
@@ -114,9 +115,23 @@ export function directorTab(ctx, container, deps) {
     if (op) return pages.show(`ops-${op.id}-${who}`, op.name, (host) => opsPage(host, op));
   }
 
+  // The season's seal. Bungie's season definition names it (`sealPresentationNodeHash`), but Monument of Triumph's
+  // came back empty, so otherwise it's found among the active seals: one whose name, title or description mentions the
+  // season, else a known season → title pair (the owner: Monument of Triumph's title is Immortal).
+  const SEASON_TITLES = { "monument of triumph": "immortal" };
+  async function findSeal() {
+    if (dir?.season?.seal) return dir.season.seal;
+    const r = await ctx.hub.d2Records(null, false);
+    const seals = r?.ok ? (r.data.seals?.active ?? []) : [];
+    const season = String(dir?.season?.name ?? "").toLowerCase();
+    if (!season) return null;
+    const text = (x) => `${x.name} ${x.title ?? ""} ${x.description ?? ""}`.toLowerCase();
+    const known = SEASON_TITLES[season];
+    return (seals.find((x) => text(x).includes(season)) ?? (known ? seals.find((x) => String(x.title ?? "").toLowerCase() === known || String(x.name).toLowerCase() === known) : null))?.hash ?? null;
+  }
+
   // The season: its seal and triumphs (the Triumphs screen at the seal) and the Tenets (vendors named Tenet).
   function seasonPage(host) {
-    const seal = dir?.season?.seal;
     const sealHost = el("div", { class: "sub__host" });
     const tenetHost = el("div", { class: "sub__host" });
     let shown = null;
@@ -129,8 +144,11 @@ export function directorTab(ctx, container, deps) {
       if (built.has(which)) return;
       built.add(which);
       if (which === "seal") {
-        if (seal) recordsTab(ctx, sealHost, { loadingView, problemView, start: { node: seal, title: "Seal" }, wallpaper: wall });
-        else sealHost.replaceChildren(el("div", { class: "tab" }, el("p", { class: "tab__note", text: "Bungie doesn't name a seal for this season." })));
+        sealHost.replaceChildren(loadingView(ctx, "Finding the season's seal…", "records"));
+        findSeal().then((seal) => {
+          if (seal) recordsTab(ctx, sealHost, { loadingView, problemView, start: { node: seal, title: "Seal" }, wallpaper: wall });
+          else sealHost.replaceChildren(el("div", { class: "tab" }, el("p", { class: "tab__note", text: "Couldn't find this season's seal: Bungie doesn't name it, and no active seal mentions the season." })));
+        });
       } else {
         vendorsTab(ctx, tenetHost, {
           ...deps,
@@ -145,6 +163,106 @@ export function directorTab(ctx, container, deps) {
     const body = el("div", { class: "dr-season-body" });
     host.replaceChildren(el("div", { class: "dr-season" }, el("div", { class: "dr-season-bar" }, switcher), body));
     show(shown ?? "seal");
+  }
+
+  // The season banner's picture: the player's choice for this season (one of Bungie's pictures, or their own file,
+  // kept on this computer as `mida-season-art`), else the first Bungie gives (hubs.rs ranks the event card's art first).
+  const ART_KEY = "mida-season-art";
+  function seasonArt() {
+    const s = dir?.season;
+    if (!s) return null;
+    try {
+      const saved = JSON.parse(localStorage.getItem(ART_KEY) || "null");
+      if (saved?.season === s.name && saved.picture) return saved.picture;
+    } catch {}
+    return s.image ?? null;
+  }
+  function setSeasonArt(picture) {
+    try {
+      if (picture) localStorage.setItem(ART_KEY, JSON.stringify({ season: dir?.season?.name, picture }));
+      else localStorage.removeItem(ART_KEY);
+    } catch {
+      return false;
+    }
+    draw();
+    return true;
+  }
+  // A picture file shrunk to at most 1920 wide, as a data address (never uploaded anywhere).
+  const readPicture = (file) =>
+    new Promise((resolve, reject) => {
+      const fail = () => reject(new Error("That file isn't a picture MIDA can read."));
+      if (!file?.type?.startsWith("image/")) return fail();
+      const reader = new FileReader();
+      reader.onerror = fail;
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = fail;
+        img.onload = () => {
+          const scale = Math.min(1, 1920 / img.naturalWidth);
+          const canvas = el("canvas", { width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) });
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  function seasonArtPage(host) {
+    const paint = (problem = null) => {
+      const current = seasonArt();
+      const options = dir?.season?.images ?? [];
+      const file = el("input", { type: "file", accept: "image/*", hidden: true });
+      file.addEventListener("change", async () => {
+        try {
+          const picture = await readPicture(file.files[0]);
+          paint(setSeasonArt(picture) ? null : "That picture is too big to keep; try a smaller one.");
+        } catch (e) {
+          paint(e.message);
+        }
+      });
+      host.replaceChildren(
+        el(
+          "div",
+          { class: "tab dr sh" },
+          backdrop(),
+          el("header", { class: "sh-top" }, el("div", { class: "sh-top__text" }, el("span", { class: "sh-top__kicker", text: dir?.season?.name ?? "Season" }), el("h1", { class: "sh-top__title", text: "Season picture" }))),
+          el(
+            "div",
+            { class: "sh-body" },
+            el(
+              "div",
+              { class: "sh-main" },
+              el(
+                "section",
+                { class: "sh-box" },
+                label("Bungie's pictures for this season", String(options.length)),
+                options.length
+                  ? el(
+                      "div",
+                      { class: "dr-arts" },
+                      ...options.map((o) => {
+                        const pic = el("span", { class: "dr-art__pic" });
+                        pic.style.backgroundImage = `url("${o.url}")`;
+                        return el("button", { class: `dr-art${current === o.url ? " is-on" : ""}`, type: "button", "aria-pressed": String(current === o.url), onclick: () => (setSeasonArt(o.url), paint()) }, pic, el("small", { text: o.from }));
+                      }),
+                    )
+                  : el("p", { class: "tab__note", text: "Bungie didn't send any pictures for this season." }),
+              ),
+              el(
+                "section",
+                { class: "sh-box" },
+                label("Your own picture"),
+                el("p", { class: "tab__note", text: "Any picture on this computer (concept art, a screenshot...). It stays on this computer and is used until the season changes." }),
+                el("div", { class: "dr-art-tools" }, el("button", { class: "btn", type: "button", text: "Choose a picture…", onclick: () => file.click() }), el("button", { class: "btn", type: "button", text: "Back to Bungie's picture", onclick: () => (setSeasonArt(null), paint()) }), file),
+                problem ? el("p", { class: "tab__error", text: problem }) : null,
+              ),
+            ),
+          ),
+        ),
+      );
+    };
+    paint();
+    host.midaShown = () => paint();
   }
 
   // Friends: Bungie.net friends, online first.
@@ -265,6 +383,69 @@ export function directorTab(ctx, container, deps) {
     );
   }
 
+  // ---------- A drop's card (hover or focus) ----------
+  // What the item is, from its definition (d2_item_def, read once per item): its description, and for weapons the
+  // frame and base stats as bars, on the Seasonal Hub's reward-card look.
+  const TIERS = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Common", 2: "Basic" };
+  const defs = new Map(); // item hash -> d2_item_def answer (or the promise of it)
+  let tip = null;
+  let tipFor = null;
+  function hideTip() {
+    tipFor = null;
+    if (tip) tip.hidden = true;
+  }
+  window.addEventListener("scroll", hideTip, true);
+  async function showTip(anchor, r) {
+    tipFor = anchor;
+    if (!tip) {
+      tip = el("div", { class: "sh-tip dr-tip", role: "tooltip" });
+      document.body.append(tip);
+    }
+    const paint = (d) => {
+      if (tipFor !== anchor || !document.body.contains(anchor)) return;
+      const stats = (d?.stats ?? []).filter((x) => x.value != null);
+      tip.className = `sh-tip dr-tip sh-tip--t${r.tier ?? 0}`;
+      tip.replaceChildren(
+        el("div", { class: "sh-tip__head" }, el("strong", { text: r.name || d?.name || "Reward" }), el("span", { text: [r.typeName || d?.typeName, TIERS[r.tier]].filter(Boolean).join(" · ") })),
+        el(
+          "div",
+          { class: "sh-tip__body" },
+          r.quantity > 1 ? el("div", { class: "sh-tip__qty", text: `×${Number(r.quantity).toLocaleString()}` }) : null,
+          d?.frame ? el("div", { class: "dr-tip__frame" }, d.frame.icon ? el("img", { src: d.frame.icon, alt: "" }) : null, el("span", {}, el("strong", { text: d.frame.name }), d.frame.description ? el("small", { text: d.frame.description }) : null)) : null,
+          stats.length
+            ? el(
+                "div",
+                { class: "dr-tip__stats" },
+                ...stats.map((x) => {
+                  const fill = el("span");
+                  fill.style.width = `${Math.max(0, Math.min(100, x.value))}%`;
+                  return el("div", { class: "dr-tip__stat" }, el("span", { text: x.name }), x.bar ? el("span", { class: "dr-tip__bar" }, fill) : el("span"), el("strong", { text: String(x.value) }));
+                }),
+              )
+            : null,
+          (d?.description || r.description) && !stats.length ? el("p", { text: d?.description || r.description }) : null,
+          d?.flavor ? el("p", { class: "dr-tip__flavor", text: d.flavor }) : null,
+          d === undefined ? el("div", { class: "sh-tip__meta", text: "Reading…" }) : null,
+        ),
+      );
+      tip.hidden = false;
+      const a = anchor.getBoundingClientRect();
+      let left = a.right + 8;
+      if (left + tip.offsetWidth > window.innerWidth - 8) left = a.left - tip.offsetWidth - 8;
+      let top = a.top;
+      if (top + tip.offsetHeight > window.innerHeight - 8) top = window.innerHeight - tip.offsetHeight - 8;
+      tip.style.left = `${Math.max(8, left)}px`;
+      tip.style.top = `${Math.max(8, top)}px`;
+    };
+    const known = defs.get(r.hash);
+    if (known && !(known instanceof Promise)) return paint(known);
+    paint(undefined);
+    if (!known) defs.set(r.hash, ctx.hub.d2ItemDef(r.hash).then((x) => (x?.ok ? x.data : null)));
+    const d = await defs.get(r.hash);
+    defs.set(r.hash, d);
+    paint(d);
+  }
+
   function activityCard(a, kickerText = null) {
     const engrams = a.rewards.filter((r) => /engram/i.test(`${r.name} ${r.typeName}`));
     const weapons = a.rewards.filter((r) => r.kind === 3);
@@ -272,7 +453,15 @@ export function directorTab(ctx, container, deps) {
     const art = el("span", { class: "dr-act__art" });
     if (a.image) art.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.75)), url("${a.image}")`;
     const kicker = kickerText || (a.traits ?? []).find((t) => /ops/i.test(t)) || a.type || (a.pvp ? "Crucible" : "Activity");
-    const reward = (r) => el("span", { class: `dr-reward tier-${r.tier}`, title: `${r.name}${r.typeName ? ` · ${r.typeName}` : ""}${r.quantity > 1 ? ` ×${r.quantity}` : ""}` }, r.icon ? el("img", { src: r.icon, alt: "", loading: "lazy" }) : el("span", { text: r.name.slice(0, 2) }));
+    const reward = (r) => {
+      const node = el("span", { class: `dr-reward tier-${r.tier}`, tabindex: "0", "aria-label": r.name }, r.icon ? el("img", { src: r.icon, alt: "", loading: "lazy" }) : el("span", { text: r.name.slice(0, 2) }));
+      const show = () => showTip(node, r);
+      node.addEventListener("pointerenter", show);
+      node.addEventListener("focus", show);
+      node.addEventListener("pointerleave", hideTip);
+      node.addEventListener("blur", hideTip);
+      return node;
+    };
     return el(
       "div",
       { class: `dr-act${a.featured ? " is-featured" : ""}` },
@@ -311,7 +500,8 @@ export function directorTab(ctx, container, deps) {
       s?.ends ? el("span", { class: "dr-season-banner__ends" }, until(ctx, s.ends, " left")) : null,
       el("span", { class: "dr-season-banner__go", text: "Seal, triumphs and Tenets ›" }),
     );
-    if (s?.image) seasonBanner.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,0.75), rgba(0,0,0,0.15)), url("${s.image}")`;
+    const art = seasonArt();
+    if (art) seasonBanner.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,0.75), rgba(0,0,0,0.15)), url("${art}")`;
     const r = s?.rank;
     const pass = el(
       "button",
@@ -329,7 +519,8 @@ export function directorTab(ctx, container, deps) {
       el("span", { class: "dr-clan__text", text: "Who's online, what they're playing and the member list" }),
       el("small", { class: "dr-more", text: "Open your clan ›" }),
     );
-    return el("div", { class: "dr-banners" }, seasonBanner, el("div", { class: "dr-side" }, pass, clan));
+    const picture = s ? el("button", { class: "btn btn--small dr-season-pic", type: "button", text: "Change picture", onclick: () => pages.show("season-art", "Season picture", (host) => seasonArtPage(host)) }) : null;
+    return el("div", { class: "dr-banners" }, el("div", { class: "dr-season-wrap" }, seasonBanner, picture), el("div", { class: "dr-side" }, withArt(pass, "dial"), withArt(clan, "orbit")));
   }
 
   // The five alerts; a slot Bungie's list doesn't have says so (in its place, so the order stays).
@@ -419,7 +610,7 @@ export function directorTab(ctx, container, deps) {
     const body = el(
       "div",
       { class: "sh-body" },
-      el("div", { class: "sh-main" }, newsStrip(), el("div", { class: "dr-sections" }, ...SECTIONS.map(([id, name, note]) => shortcut(id, name, note))), banners(), alerts(), opsBoxes(), check()),
+      el("div", { class: "sh-main" }, newsStrip(), el("div", { class: "dr-sections" }, ...SECTIONS.map(([id, name, note]) => shortcut(id, name, note))), banners(), withArt(alerts(), "rings"), withArt(opsBoxes(), "lattice"), check()),
     );
     root.replaceChildren(homeBackdrop, top, body);
     body.scrollTop = scroll;

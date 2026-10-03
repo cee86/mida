@@ -1,6 +1,7 @@
 // Pages inside a tab (the Guardian and Director tabs): a page opens over the tab's home with a back bar on top
 // ("‹ Director · Vendors") and the screen underneath. Each page is built once and kept, so going back and forth is
-// instant; the tab's home stays built too.
+// instant; the tab's home stays built too. Esc goes back one step at a time: inside the page first when it has steps of
+// its own (it sets `midaBack` on its host, returning true when it went back), then to the tab's home.
 
 export function subpages(ctx, container, homeName) {
   const { el, svg } = ctx;
@@ -31,6 +32,13 @@ export function subpages(ctx, container, homeName) {
     current = null;
     if (home) container.replaceChildren(home);
   }
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !current || !document.body.contains(container)) return;
+    // A menu, dialog or card that's open takes Esc first.
+    if (document.querySelector("dialog[open]") || document.getElementById("menu")?.hidden === false) return;
+    if (pages.get(current)?.midaBack?.()) return;
+    back();
+  });
   return {
     show,
     back,

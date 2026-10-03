@@ -12,9 +12,13 @@
 import { wallpaper } from "./wallpaper.js";
 import { featuredRotation, distortionSchedule, distortionImages } from "./d2/rotations.js";
 import { ROTATORS, withSaved, rotatorNow, lastReset } from "./d2/rotators.js";
-import { FEATURED_SECTIONS, LANDING_ROWS, LANDING_SECTIONS } from "./d2/featured-sections.js";
+import { FEATURED_SECTIONS } from "./d2/featured-sections.js";
 import { featuredWeek, artCandidates, DREAMING_CITY_ART } from "./d2/featured-week.js";
 
+// The "This week" view, MIDA's own layout (the owner, 3 Oct 2026; seals.report's LANDING_ROWS stays the site's): Raids,
+// then Dungeons | Pinnacle activities, then Distortion | Crucible. Vendors keep their own view in the sidebar.
+const WEEK_ROWS = [["raids"], ["dungeons", "pinnacle"], ["distortion", "crucible"]];
+const WEEK_SECTIONS = new Set(WEEK_ROWS.flat());
 const VIEW_KEY = "mida-rot-view2";
 const MODE_KEY = "mida-rot-mode";
 const read = (key, fallback) => {
@@ -151,7 +155,7 @@ export function rotatorsTab(ctx, { until, remote = () => null }) {
     ...FEATURED_SECTIONS.filter((s) => filled.has(s.id)).map((s) => ({ id: s.id, label: s.title, expansion: Boolean(s.expansion) })),
   ].sort((a, b) => Number(Boolean(a.expansion)) - Number(Boolean(b.expansion)));
   if (!VIEWS.some((v) => v.id === view)) view = "week";
-  const shows = (section) => view === "all" || view === section || (view === "week" && LANDING_SECTIONS.has(section));
+  const shows = (section) => view === "all" || view === section || (view === "week" && WEEK_SECTIONS.has(section));
   const titles = new Map(FEATURED_SECTIONS.map((s) => [s.id, s.title]));
 
   // ---------- Pieces ----------
@@ -249,7 +253,7 @@ export function rotatorsTab(ctx, { until, remote = () => null }) {
   function gridView() {
     const bySection = new Map(FEATURED_SECTIONS.map((s) => [s.id, []]));
     for (const c of cards) if (shows(c.section)) (bySection.get(c.section) ?? bySection.get("events")).push(c);
-    const layout = view === "week" ? LANDING_ROWS : FEATURED_SECTIONS.map((s) => [s.id]);
+    const layout = view === "week" ? WEEK_ROWS : FEATURED_SECTIONS.map((s) => [s.id]);
     const sectionEl = (id, inRow) => {
       const list = bySection.get(id);
       const extra = id === "raids" || id === "dungeons" ? `Next week: ${(id === "raids" ? rotation.next.raids : rotation.next.dungeons).join(" · ")}` : null;

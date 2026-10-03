@@ -3,11 +3,12 @@
 // with a diamond and a bright stretch):
 //
 //   [ SEASONAL HUB · season name ............................... character · refresh ]
-//   [ active orders        ] [ weekly rewards ........................ ]  [ bounties  ]
-//   [                      ] [ daily / weekly reset countdowns        ]  [ on this   ]
-//   [                      ] [ guardian rank    ] [ clan this week    ]  [ character ]
-//   [ weekly checklist, across the whole width                        ]  [           ]
+//   [ active orders        ] [ daily / weekly reset countdowns        ]  [ bounties  ]
+//   [                      ] [ daily challenges ] [ weekly challenges ]  [ on this   ]
+//   [                      ] [ (compact cards)  ] [                   ]  [ character ]
+//   [ weekly rewards track, across the width                          ]  [           ]
 //   ( rank ) PASS NAME [past ▾] [ season pass rewards: a column per rank ] [         ]
+//   [ clan this week                                                  ]  [           ]
 //   [ rewards to claim: this pass | every pass, with Claim buttons       ]  [           ]
 //   then Bungie's alerts and a data check, folded away.
 //
@@ -18,6 +19,7 @@
 // found for tuning.
 
 import { wallpaper } from "./wallpaper.js";
+import { withArt } from "./boxart.js";
 const DAY = 24 * 3600e3;
 
 // Destiny's resets: daily at 17:00 UTC, weekly on Tuesdays at 17:00 UTC.
@@ -167,23 +169,21 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
     return el(
       "div",
       { class: "sh-col" },
-      section("Active orders", list.length ? String(list.length) : null, body),
+      withArt(section("Active orders", list.length ? String(list.length) : null, body), "rings"),
     );
   }
 
   // ---------- Event challenges ----------
 
-  // The season's daily and weekly challenges (the Companion app's "Event challenges"): dailies first, then weeklies,
-  // each in an even grid under a heading saying what that kind pays (Rust sorts them by their rewards).
-  const CHALLENGE_KINDS = [
-    ["daily", "Daily challenges", "XP and Bright Dust · resets daily"],
-    ["weekly", "Weekly challenges", "Bonus loot: Legendary marks, engrams and 100 Bright Dust · resets Tuesday"],
-  ];
-  function challenges(hub) {
+  // The season's daily and weekly challenges (the Companion app's "Event challenges"), each kind its own section
+  // (Rust sorts them by their rewards). The two sit side by side beside the Active
+  // orders, their cards compact (one column, a two-line description).
+  const CHALLENGE_KINDS = { daily: "Daily challenges", weekly: "Weekly challenges" };
+  function challenges(hub, kind) {
     const groups = hub?.challenges?.groups ?? [];
-    if (!groups.length) return null;
-    const all = groups.flatMap((g) => g.records);
-    const done = all.filter((r) => r.complete).length;
+    const list = groups.filter((g) => g.kind === kind).flatMap((g) => g.records);
+    const title = CHALLENGE_KINDS[kind];
+    if (!list.length) return hub ? null : section(title, null, note("Reading…"));
     const card = (r) =>
       el(
         "div",
@@ -209,18 +209,9 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
       );
     return el(
       "section",
-      { class: "sh-box sh-challenges" },
-      label(hub.challenges.title ? `Event challenges · ${hub.challenges.title}` : "Event challenges", `${done} of ${all.length} done`),
-      ...CHALLENGE_KINDS.map(([kind, title, pays]) => {
-        const list = groups.filter((g) => g.kind === kind).flatMap((g) => g.records);
-        if (!list.length) return null;
-        return el(
-          "div",
-          { class: `sh-challenge-group sh-challenge-group--${kind}` },
-          el("div", { class: "sh-challenge-group__head" }, el("h3", { class: "sh-challenge-group__name", text: title }), el("span", { class: "sh-challenge-group__pays", text: pays }), el("span", { class: "sh-challenge-group__count", text: `${list.filter((r) => r.complete).length} of ${list.length}` })),
-          el("div", { class: "sh-challenge-list" }, ...list.map(card)),
-        );
-      }),
+      { class: `sh-box sh-challenges sh-challenge-group--${kind}` },
+      label(title, `${list.filter((r) => r.complete).length} of ${list.length} done`),
+      el("div", { class: "sh-challenge-list" }, ...list.map(card)),
     );
   }
 
@@ -313,63 +304,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
     );
   }
 
-  // ---------- Weekly checklist, Guardian Rank, clan ----------
-
-  function checklist(hub) {
-    const list = hub?.checklist ?? [];
-    const done = list.filter((c) => c.done).length;
-    return section(
-      "Weekly checklist",
-      list.length ? `${done} / ${list.length} done` : null,
-      list.length
-        ? el(
-            "div",
-            { class: "sh-checks" },
-            ...list.map((c) =>
-              el(
-                "div",
-                { class: `sh-check-row${c.done ? " is-done" : ""}`, title: c.description || c.name },
-                el("span", { class: "sh-check-row__icon" }, c.icon ? el("img", { src: c.icon, alt: "", loading: "lazy" }) : null),
-                el(
-                  "span",
-                  { class: "sh-check-row__text" },
-                  el("strong", { text: c.name }),
-                  c.entries?.length > 1 ? el("span", { class: "sh-check-row__entries" }, ...c.entries.map((e) => el("span", { class: `sh-chip${e.earned ? " is-on" : ""}`, text: e.name }))) : null,
-                  c.progress?.length && !c.done ? meter(Math.round(c.progress.reduce((n, o) => n + percent(o), 0) / c.progress.length)) : null,
-                ),
-                el("span", { class: `sh-check-row__state${c.done ? " is-done" : c.known ? "" : " is-unknown"}`, text: c.done ? "Done" : c.known ? "To do" : "–" }),
-              ),
-            ),
-          )
-        : note(hub ? "Bungie lists no weekly milestones for this character." : "Reading…"),
-    );
-  }
-
-  function guardianRank(hub) {
-    const g = hub?.guardian;
-    if (!g) return section("Guardian Rank", null, note(hub ? "Not found in Bungie's data." : "Reading…"));
-    const steps = g.next?.steps ?? [];
-    const doneSteps = steps.filter((x) => x.done).length;
-    return section(
-      "Guardian Rank",
-      g.highest > g.rank ? `Highest ${g.highest}` : null,
-      el(
-        "div",
-        { class: "sh-guardian" },
-        el("span", { class: "sh-guardian__rank" }, el("span", { text: String(g.rank) })),
-        el("span", { class: "sh-guardian__text" }, el("strong", { text: g.name || `Rank ${g.rank}` }), el("span", { class: "tab__note", text: g.max ? `Rank ${g.rank} of ${g.max}` : "" })),
-      ),
-      g.next
-        ? el(
-            "div",
-            { class: "sh-guardian__next" },
-            el("div", { class: "sh-guardian__nexthead" }, el("span", { text: `Next: ${g.next.name || `Rank ${g.next.rank}`}` }), el("span", { text: steps.length ? `${doneSteps} / ${steps.length}` : "" })),
-            steps.length ? meter(Math.round((doneSteps / steps.length) * 100)) : null,
-            el("ul", { class: "sh-guardian__steps" }, ...steps.filter((x) => !x.done).slice(0, 6).map((x) => el("li", { text: x.name, title: x.description || "" }))),
-          )
-        : note(g.max && g.rank >= g.max ? "Top rank reached." : ""),
-    );
-  }
+  // ---------- Clan ----------
 
   function clanWeekly(hub) {
     const clan = hub?.clan;
@@ -623,20 +558,18 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
       hub?.error ? el("p", { class: "tab__error", text: hub.error }) : null,
       // While this character's hub is being read: one bar, kept across redraws so it doesn't restart.
       hub === null ? (hubBar ??= el("div", { class: "sh-loading" }, progressBar(ctx, "seasonal", "Reading the hub from Bungie…"))) : ((hubBar = null), null),
-      // The top row is orders and weekly rewards; the daily and weekly Event challenges (from the season's event
-      // card, v0.8.11) sit across the width under it, when Bungie lists them.
-      // The owner's layout (3 Oct 2026): Guardian Rank and the clan's week under the weekly rewards, the
-      // checklist across the whole width, and the pass's rank and name beside its reward track.
+      // The owner's layout (3 Oct 2026, second pass): Active orders with the daily and weekly challenges side by side
+      // beside them, then the weekly reward track, then the season pass's track; the clan's week after those.
       el(
         "div",
         { class: "sh-grid" },
         orders(ready),
-        el("div", { class: "sh-right sh-right--one" }, weeklyRewards(ready), resets(), el("div", { class: "sh-pair" }, guardianRank(ready), clanWeekly(ready))),
+        el("div", { class: "sh-right sh-right--one" }, resets(), el("div", { class: "sh-pair sh-challenge-pair" }, withArt(challenges(ready, "daily"), "dial"), withArt(challenges(ready, "weekly"), "orbit"))),
       ),
-      challenges(ready),
-      checklist(ready),
+      withArt(weeklyRewards(ready), "lattice"),
       el("div", { class: "sh-passrow" }, passHeader(ready, pass), track(pass)),
       passError ? el("p", { class: "tab__error", text: passError }) : null,
+      withArt(clanWeekly(ready), "dial"),
       claimables(ready),
       ...folded(ready),
     );

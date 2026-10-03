@@ -321,9 +321,8 @@
 .sh-challenge-group__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin: 6px 0 10px; padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); }
 .sh-challenge-group__name { margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
 .sh-challenge-group--weekly .sh-challenge-group__name { color: var(--accent); }
-.sh-challenge-group__pays { color: var(--mist); font-size: 0.8rem; }
 .sh-challenge-group__count { margin-left: auto; color: var(--mist); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-.sh-challenge-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; align-items: stretch; }
+.sh-challenge-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; align-items: stretch; }
 .sh-challenge { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 10px; background: rgba(255, 255, 255, 0.035); border: 1px solid color-mix(in srgb, var(--cream) 8%, transparent); }
 .sh-challenge-group--weekly .sh-challenge { border-left: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); }
 .sh-challenge.is-done { opacity: 0.62; }
@@ -336,3 +335,17 @@
 .sh-challenge__claim { padding: 0 6px; border: 1px solid var(--accent); color: var(--accent); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .sh-challenge__rewards { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 2px; }
 .sh-challenge__rewards .sh-tile { width: 34px; height: 34px; }
+/* Daily | Weekly challenges side by side: compact cards in one column each. */
+.sh-challenge-pair { align-items: start; }
+.sh-challenge-pair > .sh-box { height: auto; }
+.sh-challenge-pair .sh-challenge-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.sh-challenge-pair .sh-challenge { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 8px; }
+.sh-challenge-pair .sh-challenge__icon { width: 36px; height: 36px; }
+.sh-challenge-pair .sh-challenge__desc { -webkit-line-clamp: 2; font-size: 0.76rem; }
+.sh-challenge-pair .sh-challenge__body { gap: 4px; }
+.sh-challenge-pair .sh-challenge__rewards .sh-tile { width: 28px; height: 28px; }
+/* Faint linework behind a box (boxart.js): clipped in its own frame so the corner marks stay visible. */
+.has-art { position: relative; }
+.has-art > :not(.box-art) { position: relative; }
+.box-art { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.box-art__lines { width: 100%; height: 100%; color: var(--cream); opacity: 0.07; fill: none; stroke: currentColor; stroke-width: 1; }

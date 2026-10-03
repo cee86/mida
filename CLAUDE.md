@@ -308,6 +308,32 @@ ticks) when Bungie sends no rank art, the rank name letterspaced, "Highest rank 
 listed ("Next: rank 11 · Paragon" otherwise; the top ranks list none). Characters and Journey have faint astral
 linework behind them (`journeyArt`, clipped in its own frame so the box corners still show). **Unverified live:** how the GM
 alert and the raid/dungeon are named and flagged in component 204.
+
+**Owner batch (3 Oct 2026, after v0.9.5):** Triumphs: seals are just their own art, larger (no drawn shield behind),
+and every seal/medallion grid spreads its rows evenly (`evenGrid` in records.js: as many across as fit, then the same
+number in every row; one short row keeps normal widths). Collections: Items | Badges at the same height, the item
+categories as big tiles (2 across, growing to fill) and the badges 12 to a page with ‹ › (`BADGE_PAGE`). Guardian's
+"Exotic Catalysts" opens straight at the catalysts (`start.child` = /catalyst/i picks that child of Bungie's "Patterns &
+Catalysts" node). **Esc** goes back one step anywhere inside Guardian and Director (subpages.js; a page with steps of
+its own sets `host.midaBack`, records.js does), never while a menu or dialog is open. Journey's three columns are as
+wide as their contents with equal space between. **Seasonal Hub** (owner's order): Active orders | reset timers, Daily
+challenges | Weekly challenges (each its own section, side by side with compact one-column cards); then Weekly rewards; then the season pass track;
+then Clan this week; the weekly checklist and Guardian Rank sections are gone (Rust still reads them; harmless).
+**Drop cards** on the Director's activity cards: hover/focus shows the item from its definition (`d2_item_def`,
+bungie.rs `item_definition`: description, flavour, a weapon's frame and base stats as bars). **Season picture:**
+hubs.rs `director` sends every big picture Bungie has for the season (`images`: the season event card's images, the
+reward pass's `images`, the season background) and uses the first; "Change picture" on the banner opens a page to
+pick one of them or a picture file of the player's own (kept on this computer as `mida-season-art`, for that season
+only). Whether the event card or pass actually carries Monument of Triumph art is **unverified**. **Season seal:** Monument of Triumph's season definition names no seal
+(`sealPresentationNodeHash` empty; the owner saw "no seal"), so the season page finds it among the active seals: one
+whose name, title or description mentions the season (records.rs seal summaries now carry `description`), else a known
+season → title pair (`SEASON_TITLES`: Monument of Triumph → Immortal). **Box linework** (boxart.js, owner liked it on Journey and Characters):
+`withArt(box, variant)` puts faint lines behind a box (rings, dial, orbit or lattice; 7% of the text colour, clipped in
+its own frame); used on Guardian (every box), Director (pass, clan, alerts, Ops), the Seasonal Hub (orders, challenges,
+weekly rewards, clan) and Triumphs (titles, triumphs). **Rotators "This week"** is MIDA's own layout (`WEEK_ROWS` in
+rotators.js; the synced featured-sections.js keeps the site's): Raids; Dungeons | Pinnacle activities; Distortion |
+Crucible. Vendors only in its own sidebar view. Sections sharing a row are exactly as wide as their cards (236px each),
+so a heading's rule ends at its last card.
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
   tabs without one fall back to the old Seasonal Hub picture, then the Inventory's, then MIDA's backdrop (RAD shows none
@@ -340,7 +366,7 @@ Seasonal Hub shows them across the width under the top row; the data check lists
 cards, their challenges node and groups. **Confirmed live by the owner (3 Oct 2026):** this finds the daily and weekly objectives. Their
 nodes don't say which is which, so `challenge_is_weekly` sorts by reward (owner's rule: weekly = bonus loot, Legendary
 marks, engrams, 100 Bright Dust; daily = XP and ~20 Bright Dust), and the box shows "Daily challenges" then "Weekly
-challenges", each with what it pays, in an even grid (descriptions clamped to three lines).
+challenges" (the reward note under each heading was removed at the owner's request, 3 Oct 2026), in an even grid (descriptions clamped to three lines).
 
 **Rotators, round 3 (3 Oct 2026, owner: "bring everything up to date with seals.report"):** the tab now mirrors
 seals.report's Featured v0.58. `src/shell/d2/` holds unchanged copies of seals.report's rotations.js, rotators.js,
@@ -715,6 +741,9 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.6 (3 Oct 2026, owner): seals without the drawn shield, even rows, Items | paged Badges, Exotic Catalysts first, Esc
+  goes back, Seasonal Hub reorganised (challenges side by side), drop hover cards, season picture chooser, season seal
+  found by name, box linework (boxart.js), Rotators "This week" rows.
 * v0.9.5 (3 Oct 2026, owner): Ops sorted by Bungie's activity types (no traits are sent); thin commendation bar
   without the key; flat character cards; drawn rank badge and faint linework; Guardian as two independent columns.
 * v0.9.4 (3 Oct 2026, owner): Guardian laid out from the owner's sketch; the app's icons redrawn (glyphs.js); five fixed

@@ -26,6 +26,7 @@
     d2Character: (character) => invoke("d2_character", { character }),
     d2Pull: (item) => invoke("d2_pull", { item }),
     d2Item: (instance, hash) => invoke("d2_item", { instance, hash }),
+    d2ItemDef: (hash) => invoke("d2_item_def", { hash }),
     d2Lock: (instance, character, locked) => invoke("d2_lock", { instance, character, locked }),
     d2Plug: (instance, character, socket, plug) => invoke("d2_plug", { instance, character, socket, plug }),
     d2Loadout: (character, index) => invoke("d2_loadout", { character, index }),

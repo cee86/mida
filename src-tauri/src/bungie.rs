@@ -2096,6 +2096,44 @@ pub async fn prefetch_cards(profile: &Value, m: &Manifest) {
     }
 }
 
+/// An item from its definition alone (no copy of it needed): what it is, its description and flavour text, and for
+/// weapons the frame (the first socket's plug) and base stats in the stat group's order. For the Portal's drops.
+pub async fn item_definition(hash: u64, m: &Manifest) -> Value {
+    let def = entity("DestinyInventoryItemDefinition", hash).await.unwrap_or(Value::Null);
+    let mini = m.items.get(&(hash as u32)).cloned().unwrap_or_default();
+    let mut stats = Vec::new();
+    if let Some(g) = match def["stats"]["statGroupHash"].as_u64() {
+        Some(h) => entity("DestinyStatGroupDefinition", h).await,
+        None => None,
+    } {
+        let hashes: Vec<u64> = g["scaledStats"].as_array().into_iter().flatten().filter_map(|x| x["statHash"].as_u64()).collect();
+        let defs = entities("DestinyStatDefinition", &hashes).await;
+        for scaled in g["scaledStats"].as_array().into_iter().flatten() {
+            let Some(stat) = scaled["statHash"].as_u64() else { continue };
+            let Some(value) = def["stats"]["stats"][stat.to_string()]["value"].as_i64() else { continue };
+            let name = defs.get(&stat).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or("");
+            if !name.is_empty() {
+                stats.push(json!({ "name": name, "value": value, "bar": !scaled["displayAsNumeric"].as_bool().unwrap_or(false) }));
+            }
+        }
+    }
+    let frame = def["sockets"]["socketEntries"][0]["singleInitialItemHash"].as_u64().filter(|_| mini.kind == 3).and_then(|h| m.items.get(&(h as u32))).map(|p| json!({ "name": p.name, "description": p.description, "icon": icon_url(&p.icon) }));
+    json!({
+        "hash": hash,
+        "name": if mini.name.is_empty() { def["displayProperties"]["name"].clone() } else { json!(mini.name) },
+        "icon": icon_url(&mini.icon),
+        "typeName": mini.type_name,
+        "tier": mini.tier,
+        "kind": mini.kind,
+        "ammo": mini.ammo,
+        "damage": def["defaultDamageType"],
+        "description": def["displayProperties"]["description"],
+        "flavor": def["flavorText"],
+        "frame": frame,
+        "stats": stats,
+    })
+}
+
 pub async fn item_details(item: &Value, hash: u64, plug_sets: &Value, m: &Manifest) -> Value {
     let def = entity("DestinyInventoryItemDefinition", hash).await.unwrap_or(Value::Null);
     let mini = m.items.get(&(hash as u32)).cloned().unwrap_or_default();

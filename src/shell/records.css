@@ -20,16 +20,16 @@
 .rc-shields { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 18px 14px; padding-top: 6px; }
 .rc-shields--legacy { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 12px 10px; }
 .rc-shield { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 6px 4px; border: 0; background: transparent; color: var(--cream); cursor: pointer; }
-.rc-shield__art { position: relative; display: grid; place-items: center; width: 96px; height: 112px; clip-path: polygon(50% 0, 100% 10%, 100% 62%, 50% 100%, 0 62%, 0 10%); background: linear-gradient(180deg, #3d3326, #1e1a14); filter: saturate(0.6) brightness(0.75); transition: transform 160ms ease, filter 160ms ease; }
-.rc-shield__art::after { content: ""; position: absolute; inset: 0; clip-path: inherit; box-shadow: inset 0 0 0 2px rgba(180, 150, 100, 0.55); }
-.rc-shield__art img { width: 86%; height: 86%; object-fit: contain; }
-.rc-shield.is-earned .rc-shield__art { filter: none; background: linear-gradient(180deg, #5a4520, #2a1f0e); }
-.rc-shield.is-earned .rc-shield__art::after { box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 18px rgba(217, 184, 103, 0.5); }
+/* Just the seal's own art, larger (no shield drawn behind it); unearned ones dimmed. */
+.rc-shield__art { display: grid; place-items: center; width: 112px; height: 130px; filter: saturate(0.6) brightness(0.75); transition: transform 160ms ease, filter 160ms ease; }
+.rc-shield__art img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); }
+.rc-shield.is-earned .rc-shield__art { filter: none; }
+.rc-shield.is-earned .rc-shield__art img { filter: drop-shadow(0 0 10px rgba(217, 184, 103, 0.35)); }
 .rc-shield:hover .rc-shield__art { transform: translateY(-3px); filter: none; }
-.rc-shield .rc-bar { width: 84px; }
+.rc-shield .rc-bar { width: 96px; }
 .rc-shield__title { max-width: 100%; overflow: hidden; font-size: 0.8rem; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .rc-shield.is-earned .rc-shield__title { color: var(--gold); }
-.rc-shield.is-legacy .rc-shield__art { width: 64px; height: 75px; filter: grayscale(1) brightness(0.7); }
+.rc-shield.is-legacy .rc-shield__art { width: 76px; height: 88px; filter: grayscale(1) brightness(0.7); }
 .rc-shield.is-legacy.is-earned .rc-shield__art { filter: grayscale(1) brightness(1.05); }
 .rc-shield.is-legacy .rc-shield__title { font-size: 0.72rem; color: var(--mist); }
 
@@ -46,22 +46,24 @@
 .rc-medal.is-legacy .rc-medal__ring { width: 64px; height: 64px; filter: grayscale(0.7); }
 .rc-medal.is-legacy .rc-medal__ring img { width: 56px; height: 56px; padding: 9px; }
 
-/* Collections overview. */
-.rc-cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.rc-cat { display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; align-items: center; column-gap: 10px; padding: 8px; border: 1px solid color-mix(in srgb, var(--cream) 14%, transparent); background: rgba(255, 255, 255, 0.03); color: var(--cream); text-align: left; cursor: pointer; }
+/* Collections overview: Items and Badges side by side at the same height; the item tiles grow to fill theirs. */
+.rc-coll > .sh-box { display: flex; flex-direction: column; }
+.rc-cats { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 10px; }
+.rc-cat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 120px; padding: 14px; border: 1px solid color-mix(in srgb, var(--cream) 14%, transparent); background: rgba(255, 255, 255, 0.03); color: var(--cream); text-align: center; cursor: pointer; }
+.rc-cat .rc-bar { width: 70%; margin-top: 4px; }
 .rc-cat:hover { background: var(--hover); border-color: color-mix(in srgb, var(--cream) 35%, transparent); }
 .rc-cat.is-done { border-color: var(--gold); }
-.rc-cat__icon { grid-row: span 2; display: grid; place-items: center; width: 44px; height: 44px; }
-.rc-cat__icon { overflow: hidden; }
-.rc-cat__icon img { width: 44px; height: 44px; object-fit: contain; }
-.rc-cat__name { font-weight: 600; font-size: 0.88rem; }
-.rc-cat__count { color: var(--mist); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
-.rc-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.rc-cat__icon { display: grid; place-items: center; width: 72px; height: 72px; overflow: hidden; }
+.rc-cat__icon img { width: 72px; height: 72px; object-fit: contain; }
+.rc-cat__name { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; letter-spacing: 0.04em; }
+.rc-cat__count { color: var(--mist); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.rc-badges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rc-pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: auto; padding-top: 12px; color: var(--mist); font-size: 0.84rem; font-variant-numeric: tabular-nums; }
 .rc-badge { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid color-mix(in srgb, var(--cream) 14%, transparent); background: rgba(255, 255, 255, 0.03); color: var(--cream); text-align: left; cursor: pointer; }
 .rc-badge:hover { background: var(--hover); }
 .rc-badge.is-done { border-color: var(--gold); }
-.rc-badge__art { display: flex; justify-content: center; align-items: center; height: 70px; overflow: hidden; }
-.rc-badge__art img { height: 70px; width: auto; max-width: 100%; object-fit: contain; }
+.rc-badge__art { display: flex; justify-content: center; align-items: center; height: 84px; overflow: hidden; }
+.rc-badge__art img { height: 84px; width: auto; max-width: 100%; object-fit: contain; }
 .rc-badge__name { overflow: hidden; font-size: 0.82rem; white-space: nowrap; text-overflow: ellipsis; }
 
 /* Where you are. */
@@ -71,9 +73,9 @@
 /* A seal: panel left, tiles right. */
 .rc-seal { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .rc-seal__panel { position: sticky; top: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 16px; text-align: center; }
-.rc-seal__art { display: grid; place-items: center; width: 150px; height: 175px; clip-path: polygon(50% 0, 100% 10%, 100% 62%, 50% 100%, 0 62%, 0 10%); background: linear-gradient(180deg, #3d3326, #1e1a14); }
-.rc-seal__art img { width: 86%; height: 86%; object-fit: contain; }
-.rc-seal__panel.is-earned .rc-seal__art { background: linear-gradient(180deg, #5a4520, #2a1f0e); box-shadow: inset 0 0 24px rgba(217, 184, 103, 0.5); }
+.rc-seal__art { display: grid; place-items: center; width: 160px; height: 186px; filter: saturate(0.6) brightness(0.8); }
+.rc-seal__art img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5)); }
+.rc-seal__panel.is-earned .rc-seal__art { filter: none; }
 .rc-seal__panel.is-legacy .rc-seal__art { filter: grayscale(1); }
 .rc-seal__name { margin: 0; font-family: var(--font-display); font-size: 1.3rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .rc-seal__desc { margin: 0; color: var(--mist); font-size: 0.86rem; }
@@ -162,6 +164,7 @@
 @media (max-width: 1100px) {
   .rc-browse.has-detail { grid-template-columns: minmax(200px, 240px) minmax(0, 1fr); }
   .rc-browse.has-detail .rc-detail { grid-column: 1 / -1; position: static; }
+  .rc-badges { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 860px) {
   .rc-seal, .rc-browse, .rc-browse.has-detail { grid-template-columns: 1fr; }

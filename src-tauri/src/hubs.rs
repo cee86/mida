@@ -147,10 +147,37 @@ pub async fn director(profile: &Value, token: &str) -> Value {
     let hash = profile["profile"]["data"]["currentSeasonHash"].as_u64().unwrap_or(0);
     let def = if hash != 0 { entity("DestinySeasonDefinition", hash).await.unwrap_or(Value::Null) } else { Value::Null };
     let pass_hash = def["seasonPassList"].as_array().and_then(|l| l.last()).and_then(|p| p["seasonPassHash"].as_u64()).or(def["seasonPassHash"].as_u64());
-    let pass_name = match pass_hash {
-        Some(h) => entity("DestinySeasonPassDefinition", h).await.map(|p| p["displayProperties"]["name"].clone()).unwrap_or(Value::Null),
+    let pass_def = match pass_hash {
+        Some(h) => entity("DestinySeasonPassDefinition", h).await.unwrap_or(Value::Null),
         None => Value::Null,
     };
+    let pass_name = pass_def["displayProperties"]["name"].clone();
+    // Every big picture Bungie gives the season, best first: the season's event card (core settings
+    // `seasonalHubEventCardHash`), the reward pass's theme, then the season's own background. The Director shows the
+    // first and lets the player pick another (or their own picture) when it isn't the art they want.
+    let mut images: Vec<Value> = Vec::new();
+    let mut add = |from: &str, path: Option<&str>| {
+        let url = icon_url(path.unwrap_or(""));
+        if url.is_string() && !images.iter().any(|i| i["url"] == url) {
+            images.push(json!({ "from": from, "url": url }));
+        }
+    };
+    let settings = bungie::get("/Settings/", None).await.unwrap_or(Value::Null);
+    if let Some(card_hash) = settings["destiny2CoreSettings"]["seasonalHubEventCardHash"].as_u64().filter(|h| *h != 0) {
+        if let Some(card) = entity("DestinyEventCardDefinition", card_hash).await {
+            for key in ["themeBackgroundImagePath", "cardCompleteWrapImagePath", "cardIncompleteImagePath", "cardCompleteImagePath", "ownedImagePath", "unownedImagePath"] {
+                add(&format!("Event card ({key})"), card["images"][key].as_str());
+            }
+        }
+    }
+    if let Some(images_of_pass) = pass_def["images"].as_object() {
+        for (key, v) in images_of_pass {
+            if key.to_lowercase().contains("background") || key.to_lowercase().contains("image") {
+                add(&format!("Reward pass ({key})"), v.as_str());
+            }
+        }
+    }
+    add("Season background", def["backgroundImagePath"].as_str());
     json!({
         "characters": bungie::characters(profile),
         "pass": pass_name,
@@ -161,7 +188,8 @@ pub async fn director(profile: &Value, token: &str) -> Value {
             "rank": summary["rank"],
             "description": def["displayProperties"]["description"],
             "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
-            "image": icon_url(def["backgroundImagePath"].as_str().unwrap_or("")),
+            "image": images.first().map(|i| i["url"].clone()).unwrap_or(Value::Null),
+            "images": images,
             "seal": def["sealPresentationNodeHash"],
         },
     })

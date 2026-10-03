@@ -11,6 +11,7 @@
 // Everything comes from d2_records (records.rs): the overview, or one node at a time (kept here once read).
 
 import { wallpaper } from "./wallpaper.js";
+import { withArt } from "./boxart.js";
 const VIEWS = [
   ["seals", "Seals"],
   ["triumphs", "Triumphs"],
@@ -21,6 +22,8 @@ const pct = (p, g) => (g > 0 ? Math.min(100, Math.round((p / g) * 100)) : 0);
 
 // `start`: open at a view ({ view: "triumphs" }) or at one node ({ node: hash | "patterns" }); a node start hides the
 // Seals | Triumphs | Collections switch and its crumbs begin at that node (the Guardian tab's collection pages).
+// `start.child` (a pattern) opens straight at the node's child whose name matches (Exotic Catalysts inside Bungie's
+// "Patterns & Catalysts").
 export function recordsTab(ctx, container, { loadingView, problemView, start: startAt = null, wallpaper: wall = "tab-guardian" }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab rc sh" });
@@ -32,6 +35,8 @@ export function recordsTab(ctx, container, { loadingView, problemView, start: st
   let pick = {}; // node hash → the section chosen inside it
   let item = null; // the collectible picked in a collections node
   let showDone = true;
+  let badgePage = 0; // the Badges box's page
+  const BADGE_PAGE = 12;
   const nodes = new Map(); // hash → d2_records answer
   const waiting = new Set();
   let toTop = false; // a new screen starts at the top
@@ -61,7 +66,39 @@ export function recordsTab(ctx, container, { loadingView, problemView, start: st
     const r = await ctx.hub.d2Records(hash);
     waiting.delete(hash);
     nodes.set(hash, r?.ok ? r.data : { error: r?.error ?? "Something went wrong." });
+    const child = startAt?.child && hash === base[0] ? r?.data?.children?.find((c) => startAt.child.test(c.name)) : null;
+    if (child) {
+      base[0] = child.hash;
+      path = [child.hash];
+      return fetchNode(child.hash);
+    }
     if (document.body.contains(root)) draw();
+  }
+  // Esc (subpages.js): one step back inside this screen, while there's a step to go back.
+  container.midaBack = () => {
+    if (item) {
+      item = null;
+      draw();
+      return true;
+    }
+    if (path.length <= base.length) return false;
+    back(path.length - 1 <= base.length ? 0 : path.length - 1);
+    return true;
+  };
+
+  // Rows as even as they can be: as many columns as fit, then spread so every row holds the same number (20 medallions
+  // that fit 17 across become two rows of 10).
+  function evenGrid(grid, count, min, gap) {
+    const fit = () => {
+      const width = grid.clientWidth;
+      if (!width) return;
+      const across = Math.max(1, Math.floor((width + gap) / (min + gap)));
+      const rows = Math.ceil(count / across);
+      // One row: keep the usual width per item instead of stretching a few across the whole box.
+      grid.style.gridTemplateColumns = `repeat(${rows === 1 ? across : Math.ceil(count / rows)}, minmax(0, 1fr))`;
+    };
+    new ResizeObserver(fit).observe(grid);
+    return grid;
   }
 
   // ---------- Pieces ----------
@@ -89,6 +126,7 @@ export function recordsTab(ctx, container, { loadingView, problemView, start: st
     );
   }
 
+  // A big item category tile (icon, name, owned / total, bar), sized to fill the Items box beside the badges.
   function categoryTile(n) {
     return el(
       "button",
@@ -96,6 +134,7 @@ export function recordsTab(ctx, container, { loadingView, problemView, start: st
       el("span", { class: "rc-cat__icon" }, n.icon ? el("img", { src: n.icon, alt: "", loading: "lazy" }) : null),
       el("span", { class: "rc-cat__name", text: n.name }),
       el("span", { class: "rc-cat__count", text: n.goal ? `${number(n.progress)} / ${number(n.goal)}` : "" }),
+      n.goal ? bar(n.progress, n.goal, n.complete) : null,
     );
   }
 
@@ -163,29 +202,48 @@ export function recordsTab(ctx, container, { loadingView, problemView, start: st
     const { active, legacy } = home.seals;
     const earned = active.filter((s) => s.earned).length;
     return [
-      el("section", { class: "sh-box" }, label("Titles", `${earned} of ${active.length} earned`), el("div", { class: "rc-shields" }, ...active.map((s) => shield(s, false)))),
-      legacy.length ? el("section", { class: "sh-box" }, label("Legacy titles", `${legacy.filter((s) => s.earned).length} of ${legacy.length} earned`), el("div", { class: "rc-shields rc-shields--legacy" }, ...legacy.map((s) => shield(s, true)))) : null,
+      withArt(el("section", { class: "sh-box" }, label("Titles", `${earned} of ${active.length} earned`), evenGrid(el("div", { class: "rc-shields" }, ...active.map((s) => shield(s, false))), active.length, 124, 14)), "rings"),
+      legacy.length ? el("section", { class: "sh-box" }, label("Legacy titles", `${legacy.filter((s) => s.earned).length} of ${legacy.length} earned`), evenGrid(el("div", { class: "rc-shields rc-shields--legacy" }, ...legacy.map((s) => shield(s, true))), legacy.length, 84, 10)) : null,
     ];
   }
 
   function triumphsScreen() {
     const { active, legacy } = home.triumphs;
     return [
-      el("section", { class: "sh-box" }, label("Triumphs", `Active score ${number(home.scores.active)}`), el("div", { class: "rc-medals" }, ...active.map((n) => medallion(n, false)))),
-      legacy.length ? el("section", { class: "sh-box" }, label("Legacy triumphs", `Legacy score ${number(home.scores.legacy)}`), el("div", { class: "rc-medals rc-medals--legacy" }, ...legacy.map((n) => medallion(n, true)))) : null,
+      withArt(el("section", { class: "sh-box" }, label("Triumphs", `Active score ${number(home.scores.active)}`), evenGrid(el("div", { class: "rc-medals" }, ...active.map((n) => medallion(n, false))), active.length, 132, 12)), "dial"),
+      legacy.length ? el("section", { class: "sh-box" }, label("Legacy triumphs", `Legacy score ${number(home.scores.legacy)}`), evenGrid(el("div", { class: "rc-medals rc-medals--legacy" }, ...legacy.map((n) => medallion(n, true))), legacy.length, 100, 12)) : null,
     ];
   }
 
+  // Items | Badges, the same height: the badges come a page at a time (BADGE_PAGE), the item tiles grow to match.
   function collectionsScreen() {
     const { categories, badges } = home.collections;
     const owned = categories.reduce((a, c) => a + (c.progress || 0), 0);
     const total = categories.reduce((a, c) => a + (c.goal || 0), 0);
+    const pages = Math.max(1, Math.ceil(badges.length / BADGE_PAGE));
+    badgePage = Math.min(badgePage, pages - 1);
+    const shown = badges.slice(badgePage * BADGE_PAGE, (badgePage + 1) * BADGE_PAGE);
+    const turn = (step) => ((badgePage = (badgePage + step + pages) % pages), draw());
     return [
       el(
         "div",
         { class: "sh-pair rc-coll" },
         el("section", { class: "sh-box" }, label("Items", total ? `${number(owned)} / ${number(total)}` : null), el("div", { class: "rc-cats" }, ...categories.map(categoryTile))),
-        el("section", { class: "sh-box" }, label("Badges", `${badges.filter((b) => b.complete).length} / ${badges.length}`), el("div", { class: "rc-badges" }, ...badges.map(badgeCard))),
+        el(
+          "section",
+          { class: "sh-box" },
+          label("Badges", `${badges.filter((b) => b.complete).length} / ${badges.length}`),
+          el("div", { class: "rc-badges" }, ...shown.map(badgeCard)),
+          pages > 1
+            ? el(
+                "div",
+                { class: "rc-pager" },
+                el("button", { class: "btn btn--small", type: "button", "aria-label": "Previous badges", text: "‹", onclick: () => turn(-1) }),
+                el("span", { text: `Page ${badgePage + 1} of ${pages}` }),
+                el("button", { class: "btn btn--small", type: "button", "aria-label": "Next badges", text: "›", onclick: () => turn(1) }),
+              )
+            : null,
+        ),
       ),
     ];
   }

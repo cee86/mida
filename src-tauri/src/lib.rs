@@ -1203,6 +1203,21 @@ fn forget_card(app: &AppHandle, instance: &str) {
     }
 }
 
+/// An item from its definition alone (the Director's activity drops): public game data, no sign-in needed.
+#[tauri::command]
+async fn d2_item_def(webview: Webview, app: AppHandle, hash: u32) -> Value {
+    if !from_shell(&webview) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            let m = manifest(&app).await?;
+            Ok(bungie::item_definition(hash as u64, &m).await)
+        }
+        .await,
+    )
+}
+
 /// An item's card (hover/click in Inventory).
 #[tauri::command]
 async fn d2_item(webview: Webview, app: AppHandle, instance: String, hash: u32) -> Value {
@@ -2238,6 +2253,7 @@ pub fn run() {
             d2_character,
             d2_pull,
             d2_item,
+            d2_item_def,
             d2_lock,
             d2_plug,
             d2_loadout,

@@ -17,6 +17,7 @@ import { recordsTab } from "./records.js";
 import { armorTab } from "./armor.js";
 import { wallpaper } from "./wallpaper.js";
 import { glyph } from "./glyphs.js";
+import { withArt } from "./boxart.js";
 
 const number = (n) => (n == null ? "–" : Number(n).toLocaleString());
 const ago = (iso) => {
@@ -105,19 +106,6 @@ export function guardianTab(ctx, container, deps) {
       ["M50 4l3 6-3 6-3-6zM50 84l3 6-3 6-3-6zM4 50l6-3 6 3-6 3zM84 50l6-3 6 3-6 3z", { fill: "currentColor", stroke: "none" }],
     ]);
 
-  // Faint astral linework behind the Characters and Journey boxes: rings and ticks around the rank, arcs and a lattice across the rest.
-  // (Clipped by its own frame, so the box's corner marks outside the edge stay visible.)
-  const journeyArt = () =>
-    el("div", { class: "gd-art" }, drawing("gd-art__lines", "0 0 1200 300", [
-      [ring(150, 175, 120) + ring(150, 175, 96) + ring(150, 175, 160), { "stroke-width": "1" }],
-      [ticks(150, 175, 160, 170, 72), { "stroke-width": "1" }],
-      ["M150 15V335M-10 175H310M37 62L263 288M263 62L37 288", { "stroke-width": "0.7", "stroke-dasharray": "3 7" }],
-      ["M300 300A420 420 0 0 1 1180 90M360 300A360 360 0 0 1 1180 150", { "stroke-width": "1" }],
-      [Array.from({ length: 9 }, (_, i) => `M${560 + i * 70} 0L${700 + i * 70} 300M${700 + i * 70} 0L${560 + i * 70} 300`).join(""), { "stroke-width": "0.6", opacity: "0.6" }],
-      [ring(1040, 120, 70) + ring(1040, 120, 50), { "stroke-width": "1" }],
-      ["M1040 40l6 12-6 12-6-12zM1040 176l6 12-6 12-6-12z", { fill: "currentColor", stroke: "none" }],
-    ]));
-
   // ---------- Sections ----------
 
   function characterCard(c) {
@@ -155,12 +143,14 @@ export function guardianTab(ctx, container, deps) {
 
   // The three characters as flat banners.
   function characters() {
-    return el(
-      "section",
-      { class: "sh-box gd-chars" },
-      journeyArt(),
-      label("Characters", g ? String(g.characters.length) : null),
-      g ? el("div", { class: "gd-char-list" }, ...g.characters.map(characterCard)) : waiting("guardian", "Reading your Guardians…"),
+    return withArt(
+      el(
+        "section",
+        { class: "sh-box gd-chars" },
+        label("Characters", g ? String(g.characters.length) : null),
+        g ? el("div", { class: "gd-char-list" }, ...g.characters.map(characterCard)) : waiting("guardian", "Reading your Guardians…"),
+      ),
+      "orbit",
     );
   }
 
@@ -263,7 +253,7 @@ export function guardianTab(ctx, container, deps) {
             )
           : el("p", { class: "tab__note", text: "No titles earned yet." }),
     );
-    return el("section", { class: "sh-box gd-journey" }, journeyArt(), label("Journey"), el("div", { class: "gd-journey__grid" }, rankBox, comBox, sealsBox));
+    return withArt(el("section", { class: "sh-box gd-journey" }, label("Journey"), el("div", { class: "gd-journey__grid" }, rankBox, comBox, sealsBox)), "rings");
   }
 
   function triumphs() {
@@ -283,7 +273,7 @@ export function guardianTab(ctx, container, deps) {
     const cats = rec?.collections?.categories ?? [];
     const owned = cats.reduce((a, c) => a + (c.progress || 0), 0);
     const total = cats.reduce((a, c) => a + (c.goal || 0), 0);
-    const node = (key, name, hash, icon, note) => shortcut(icon, name, hash || key === "patterns" ? note : "Not in Bungie's data", () => (hash || key === "patterns") && openRecords(key, name, key === "items" ? { view: "collections" } : { node: key === "patterns" ? "patterns" : hash, title: name }), hash || key === "patterns" ? "" : " is-off");
+    const node = (key, name, hash, icon, note) => shortcut(icon, name, hash || key === "patterns" ? note : "Not in Bungie's data", () => (hash || key === "patterns") && openRecords(key, name, key === "items" ? { view: "collections" } : { node: key === "patterns" ? "patterns" : hash, title: name, child: key === "catalysts" ? /catalyst/i : null }), hash || key === "patterns" ? "" : " is-off");
     return el(
       "section",
       { class: "sh-box gd-colls" },
@@ -352,7 +342,7 @@ export function guardianTab(ctx, container, deps) {
       el("div", { class: "sh-top__tools" }, currencies(), el("button", { class: "btn btn--small", type: "button", text: "Refresh", onclick: () => start(true) })),
     );
     const scroll = root.querySelector(".sh-body")?.scrollTop ?? 0;
-    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, el("div", { class: "gd-layout" }, el("div", { class: "gd-col" }, characters(), journey(), recentGames()), el("div", { class: "gd-col" }, gear(), triumphs(), collections()))));
+    const body = el("div", { class: "sh-body" }, el("div", { class: "sh-main" }, el("div", { class: "gd-layout" }, el("div", { class: "gd-col" }, characters(), journey(), withArt(recentGames(), "lattice")), el("div", { class: "gd-col" }, withArt(gear(), "dial"), withArt(triumphs(), "orbit"), withArt(collections(), "dial")))));
     root.replaceChildren(backdrop, top, body);
     body.scrollTop = scroll;
   }
