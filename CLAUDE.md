@@ -264,24 +264,18 @@ tab-director, once).
   missing). A data check lists the trait names Bungie gave and what's featured. **Unverified live:** whether the featured
   flag, traits and visible rewards look like the game's Portal, how the Tenets are named, and the friends scope.
 
-**Companion-app redesign and wallpapers (3 Oct 2026, owner's screenshots of the iOS Companion app):**
-* **Guardian** now follows the app: currencies in the title band (component 103 in `d2_guardian`); each character as its
-  emblem's full nameplate (emblem square, class, race, power, the emblem's tracker name + value); Vault / Postmaster /
-  Armor optimizer buttons; JOURNEY (bold capitals over a white rule, `.gd-head`): Guardian Rank badge (the rank node's
-  own art when Bungie has one, else our numbered disc), rank name, steps to the next, Highest Rank; commendations total
-  with one bar split by category colour and a legend; **Titles = any three earned seals** (worn titles first; the
-  "recently earned" tracking was dropped at the owner's request); a Triumphs row with the active score. COLLECTIONS:
-  two big tiles across with Bungie's node icons where it has them (`rootInfo` in the records overview): Items, Shaping
-  Progress (weapon patterns), Lore, Stat Trackers, Medals, Patterns & Catalysts (the exotic catalysts root; the app's
-  names). RECENT GAMES: a character bar (an invisible select over it, ▾) and that character's last 10 games, two cards
-  across (activity icon, name, playlist, time; `d2_recent` now returns every character's games with an `icon`).
-* **Director** follows the app: a character picker in the title band (the Portal is read for that character,
-  `d2_portal(character)`); Seasonal Hub / Friends (online count) / Vendors / Quests as big tiles; the season banner
-  (season icon, name, description, time left) to the seal + Tenets page; Rewards Pass (badge, "Rewards Pass: <pass
-  name>", a bar with "Rank n" and XP); Clan; VANGUARD ALERTS lists **every** activity (featured first, then Pinnacle,
-  Fireteam, Solo, Arena, then by name) as art cards (kind, full name, tags, focused weapon, bonus drops), with "Ops
-  Categories" at the right of the heading opening the four groups (Bungie's trait description/icon when sent, else the
-  app's text) and each group's activities.
+**Companion app touches, then a revert (3 Oct 2026):** v0.9.1 rebuilt Guardian and Director to the app's page layout; the
+owner meant the screenshots for individual pieces only, so the v0.9.0 layouts and shortcut buttons are back (same boxes,
+sh-* look), keeping from the app: currencies in Guardian's title band; Bungie's own icons for the collection
+shortcuts where it has them (`rootInfo`), else line icons after the app's; the app's names (Shaping Progress, Stat
+Trackers, Patterns & Catalysts = the exotic catalysts root); the rank's own art when Bungie sends it; commendations
+with one split colour bar above the per-category rows; **Titles = any three earned seals** (worn first; the
+"recently earned" tracking is gone); app-style icons on the Director's section buttons; "Rewards Pass: <name>"; the
+Friends button showing how many are online. The Director's Vanguard alerts lists **every** activity (featured first,
+then Pinnacle, Fireteam, Solo, Arena) instead of separate Ops buttons; "Ops Categories ›" in its heading opens the four
+groups (Bungie's trait description and icon when sent, else the app's text) and each group's activities. A character
+picker (the usual segmented one) chooses whose Portal is read; the latest Bungie articles sit in a short strip at the
+top (news.js).
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
   tabs without one fall back to the old Seasonal Hub picture, then the Inventory's, then MIDA's backdrop (RAD shows none

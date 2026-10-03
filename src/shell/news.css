@@ -55,7 +55,7 @@ img.is-missing { visibility: hidden; }
 .nw-article .btn { align-self: flex-start; margin-top: 10px; }
 
 /* The Director's news strip: the latest Bungie articles as banners, scrolling sideways. */
-.dr-news { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(420px, 78%); gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; }
-.dr-news__item { position: relative; display: flex; align-items: flex-end; min-height: 200px; padding: 0; border: 0; background: var(--ash); color: #fff; text-align: left; overflow: hidden; cursor: pointer; scroll-snap-align: start; }
+.dr-news { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(320px, 46%); gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; }
+.dr-news__item { position: relative; display: flex; align-items: flex-end; min-height: 130px; padding: 0; border: 0; background: var(--ash); color: #fff; text-align: left; overflow: hidden; cursor: pointer; scroll-snap-align: start; }
 .dr-news__item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.dr-news__item span { position: relative; width: 100%; padding: 40px 22px 16px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.85)); font-size: 1.5rem; font-weight: 500; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+.dr-news__item span { position: relative; width: 100%; padding: 40px 22px 16px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.85)); font-size: 1.1rem; font-weight: 500; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
