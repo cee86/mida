@@ -558,6 +558,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.8.8 (3 Oct 2026, owner): Inventory round (postmaster under its button with unpullable items dimmed, Refresh by
+  the search, item feed, in-game loadout grid in the side panel and dock).
 * v0.8.7 (3 Oct 2026, owner): Seasonal Hub layout from the owner's sketch, Rotators matching seals.report's Featured
   v0.58 (shared featured-week.js, the site's live week), loading bars, tabs kept built, fast item cards.
 * v0.8.6 (3 Oct 2026, owner): MIDA branding, multi-tool silhouette icon, Vendors tab, Rotators pictures and
