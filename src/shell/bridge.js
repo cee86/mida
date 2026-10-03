@@ -32,6 +32,7 @@
     d2Seasonal: (character) => invoke("d2_seasonal", { character }),
     d2Vendors: (character) => invoke("d2_vendors", { character }),
     d2Planner: () => invoke("d2_planner"),
+    d2Records: (node, fresh) => invoke("d2_records", { node: node ? String(node) : null, fresh: fresh === true }),
     d2Armor: (fresh) => invoke("d2_armor", { fresh: fresh === true }),
     d2Clan: () => invoke("d2_clan"),
     d2Pass: (character, pass, season) => invoke("d2_pass", { character, pass, season }),

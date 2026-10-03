@@ -91,7 +91,7 @@ async fn post(path: &str, token: &str, body: Value) -> Result<Value, String> {
 }
 
 /// Downloads one of Bungie's big definition files, reporting how far along it is between `from` and `to` (0 to 1).
-async fn download(path: &str, from: f64, to: f64) -> Result<Vec<u8>, String> {
+pub(crate) async fn download(path: &str, from: f64, to: f64) -> Result<Vec<u8>, String> {
     let mut res = client()
         .get(format!("{ROOT}{path}"))
         .timeout(Duration::from_secs(180))
@@ -280,7 +280,7 @@ pub async fn load_manifest(dir: &Path) -> Result<Manifest, String> {
 
 // ---------- Shaping a profile ----------
 
-fn icon_url(path: &str) -> Value {
+pub(crate) fn icon_url(path: &str) -> Value {
     if path.is_empty() { Value::Null } else { json!(format!("{ROOT}{path}")) }
 }
 
@@ -446,7 +446,7 @@ static REPORTER: std::sync::OnceLock<Reporter> = std::sync::OnceLock::new();
 pub fn set_reporter(f: Reporter) {
     let _ = REPORTER.set(f);
 }
-fn report(task: &str, fraction: f64, label: &str) {
+pub(crate) fn report(task: &str, fraction: f64, label: &str) {
     if let Some(f) = REPORTER.get() {
         f(task, fraction.clamp(0.0, 1.0), label);
     }
@@ -625,7 +625,7 @@ pub async fn character_details(profile: &Value, character: &str) -> Value {
     json!({ "stats": stats, "sets": bonuses, "light": c["light"], "loadouts": loadouts })
 }
 
-fn objectives(list: &Value, m: &Manifest) -> Vec<Value> {
+pub(crate) fn objectives(list: &Value, m: &Manifest) -> Vec<Value> {
     list.as_array()
         .into_iter()
         .flatten()

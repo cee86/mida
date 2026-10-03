@@ -15,6 +15,7 @@ import { vendorsTab } from "./vendors.js";
 import { plannerTab } from "./planner.js";
 import { clanTab } from "./clan.js";
 import { armorTab } from "./armor.js";
+import { recordsTab } from "./records.js";
 import { remind, postmasterCheck, REMINDERS, reminderChoices, setReminder } from "./reminders.js";
 import { rotatorsTab } from "./rotators.js";
 
@@ -193,6 +194,7 @@ const SIGN_IN = {
   "tab-quests": "Every quest a character has picked up. Starts on the character you played last; switch any time.",
   "tab-planner": "Each character's week in one place: the weekly milestones still to do, bounties ready to turn in, and your own to-do list that resets every Tuesday.",
   "tab-vendors": "Every vendor your character can visit: what they sell, what it costs, your rank with them and when their stock resets.",
+  "tab-records": "Your seals, triumphs and collections, laid out like the game's own screens: what's left for each title and where each item comes from.",
   "tab-armor": "Set the stats you want and it searches all your armor (vault included) for the combinations that get closest, then equips the one you pick.",
   "tab-clan": "Your clan at a glance: who's online and what they're playing, the member list with ranks, and the clan's level.",
 };
@@ -248,7 +250,7 @@ async function read(ctx, which, fresh) {
 window.hub?.onProgress?.((p) => window.dispatchEvent(new CustomEvent("mida-progress", { detail: p })));
 
 // A loading bar with a line under it saying what's happening. It follows the app's progress messages for `task`
-// ("inventory", "activity", "seasonal", "vendors", "planner", "clan", "armor") and the game data download every tab shares ("manifest"), and in
+// ("inventory", "activity", "seasonal", "vendors", "planner", "clan", "armor", "records") and the game data download every tab shares ("manifest"), and in
 // between creeps forward on its own (never past 95%) so a slow answer still shows movement. It stops itself once
 // it's off the screen.
 function progressBar(ctx, task, text) {
@@ -381,6 +383,11 @@ function planner(ctx, container) {
   plannerTab(ctx, container, { read, loadingView, problemView, until, remote: () => remoteRotators });
 }
 
+// Seals, triumphs and collections (records.js).
+function records(ctx, container) {
+  recordsTab(ctx, container, { loadingView, problemView });
+}
+
 // The best armor combinations for the stats you want (armor.js).
 function armor(ctx, container) {
   armorTab(ctx, container, { read, loadingView, problemView, characterPicker, lastCharacter });
@@ -414,7 +421,7 @@ const BUILDERS = {
   "tab-featured": featured,
   "tab-rad": rad,
 };
-const SIGNED_IN = { "tab-planner": planner, "tab-inventory": inventoryTab, "tab-quests": quests, "tab-seasonal": seasonal, "tab-vendors": vendors, "tab-clan": clan, "tab-armor": armor };
+const SIGNED_IN = { "tab-planner": planner, "tab-inventory": inventoryTab, "tab-quests": quests, "tab-seasonal": seasonal, "tab-vendors": vendors, "tab-clan": clan, "tab-armor": armor, "tab-records": records };
 
 // What a sign-in tab depends on: remount when the account changes.
 const accountKey = (ctx) => {

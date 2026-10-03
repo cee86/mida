@@ -23,6 +23,7 @@
 mod auth;
 mod bungie;
 mod modules;
+mod records;
 mod store;
 #[cfg(windows)]
 mod win;
@@ -115,6 +116,8 @@ struct Hub {
     manifest: tokio::sync::Mutex<Option<Arc<bungie::Manifest>>>,
     plug_sets: Mutex<Option<(u64, Value)>>, // the account's plug sets and when they were read
     item_parts: Mutex<Option<(u64, Value)>>, // every item's card details (bungie::item_parts) and when they were read
+    records: tokio::sync::Mutex<Option<Arc<records::Records>>>, // triumph, seal and collection definitions (Records tab)
+    records_profile: Mutex<Option<(u64, Arc<Value>)>>, // the player's records read and when (kept 5 minutes)
 }
 
 fn hub(app: &AppHandle) -> tauri::State<'_, Hub> {
@@ -1365,6 +1368,55 @@ async fn d2_armor(webview: Webview, app: AppHandle, fresh: Option<bool>) -> Valu
     )
 }
 
+/// The Records tab (triumphs, seals, collections): the overview, or one node when `node` is given.
+#[tauri::command]
+async fn d2_records(webview: Webview, app: AppHandle, node: Option<String>, fresh: Option<bool>) -> Value {
+    if !from_shell(&webview) || node.as_deref().is_some_and(|n| !is_id(n)) {
+        return fail("Something went wrong.");
+    }
+    answer(
+        async {
+            progress(&app, "records", 0.05, "Checking your sign-in");
+            let a = account(&app).await?;
+            progress(&app, "records", 0.1, "Reading Destiny's game data");
+            let m = manifest(&app).await?;
+            let defs = {
+                let state = hub(&app);
+                let mut slot = state.records.lock().await;
+                match slot.as_ref().filter(|r| r.version == m.version) {
+                    Some(r) => r.clone(),
+                    None => {
+                        progress(&app, "records", 0.15, "Reading triumphs and collections");
+                        let r = Arc::new(records::load(&state.dir, &m.version).await?);
+                        *slot = Some(r.clone());
+                        r
+                    }
+                }
+            };
+            let cached = if fresh == Some(true) { None } else { hub(&app).records_profile.lock().unwrap().as_ref().filter(|(at, _)| auth::now() < at + 300).map(|(_, p)| p.clone()) };
+            let profile = match cached {
+                Some(p) => p,
+                None => {
+                    progress(&app, "records", 0.6, "Reading your triumphs and collections from Bungie");
+                    let p = Arc::new(bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,700,800,900").await?);
+                    *hub(&app).records_profile.lock().unwrap() = Some((auth::now(), p.clone()));
+                    p
+                }
+            };
+            if profile["profileRecords"]["data"].is_null() {
+                return Err("Bungie isn't sharing this account's triumphs. Check your privacy settings on bungie.net.".into());
+            }
+            progress(&app, "records", 0.9, "Putting it together");
+            let view = records::View { r: &defs, m: &m, profile: &profile };
+            match node.and_then(|n| n.parse::<u32>().ok()) {
+                Some(h) => view.node(h).ok_or_else(|| "That section isn't in Destiny's data any more.".to_string()),
+                None => Ok(view.home()),
+            }
+        }
+        .await,
+    )
+}
+
 /// The Weekly planner: each character's weekly checklist.
 #[tauri::command]
 async fn d2_planner(webview: Webview, app: AppHandle) -> Value {
@@ -1961,6 +2013,8 @@ pub fn run() {
                 manifest: tokio::sync::Mutex::new(None),
                 plug_sets: Mutex::new(None),
                 item_parts: Mutex::new(None),
+                records: tokio::sync::Mutex::new(None),
+                records_profile: Mutex::new(None),
                 dir: dir.clone(),
                 store: Mutex::new(Store::open(dir)),
                 statuses: Mutex::new(HashMap::new()),
@@ -2018,6 +2072,7 @@ pub fn run() {
             d2_planner,
             d2_clan,
             d2_armor,
+            d2_records,
             d2_pass,
             d2_claim,
             d2_rotators,
