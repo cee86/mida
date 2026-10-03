@@ -12,6 +12,7 @@ import { inventory as inventoryScreen, loadoutDock } from "./inventory.js";
 import { seasonalHub } from "./seasonal.js";
 import { questsTab } from "./quests.js";
 import { vendorsTab } from "./vendors.js";
+import { remind, postmasterCheck, REMINDERS, reminderChoices, setReminder } from "./reminders.js";
 import { rotatorsTab } from "./rotators.js";
 
 const CLOCK = ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z", "M12 7v5l3 2"];
@@ -231,6 +232,7 @@ async function read(ctx, which, fresh) {
   const promise = which === "inventory" ? ctx.hub.d2Inventory() : ctx.hub.d2Activity();
   cache[which] = { at: Date.now(), promise };
   const result = await promise;
+  if (which === "inventory" && result?.ok && cache[which]?.promise === promise) postmasterCheck(ctx, result.data);
   // Failures aren't kept: the next try asks again.
   if (!result?.ok && cache[which]?.promise === promise) cache[which] = null;
   return result;
@@ -453,6 +455,19 @@ window.midaTabs = {
       this.dock(container, ctx);
     }
   },
+  // Reminders (reminders.js), called by shell.js once a minute on Destiny 2 profiles. Events come from seals.report's
+  // weekly answer, asked for here too (at most every 30 minutes) when the Rotators tab hasn't been opened.
+  remind(ctx) {
+    if (Date.now() - rotatorsAskedAt > 30 * 60e3) {
+      rotatorsAskedAt = Date.now();
+      ctx.hub.d2Rotators().then((reply) => {
+        if (reply?.week || Object.keys(reply?.saved ?? {}).length) remoteRotators = reply;
+        remind(ctx, remoteRotators);
+      });
+    }
+    remind(ctx, remoteRotators);
+  },
+  reminders: { list: REMINDERS, choices: reminderChoices, set: setReminder },
   update(id, container, ctx) {
     if (SIGNED_IN[id] && container.dataset.account !== accountKey(ctx)) {
       cache.inventory = cache.activity = null;

@@ -525,7 +525,13 @@ function mountTab(id, container) {
 window.addEventListener("mida-tabs-ready", () => {
   for (const pane of panes) pane.key = null;
   if (state) renderStage();
+  remindNow();
 });
+// Reminders (resets, Xûr, events, postmaster) on Destiny 2 profiles: checked once a minute, shown in the bell.
+function remindNow() {
+  if (state?.profile?.game === "destiny2") window.midaTabs?.remind?.(tabContext());
+}
+setInterval(remindNow, 60_000);
 
 // Dragging the divider between the two pages.
 {
@@ -693,6 +699,7 @@ const NOTE_ICONS = {
   update: ["M12 4v11M7 10l5 5 5-5M5 20h14"],
   error: ["M12 3l10 18H2z", "M12 10v5M12 18h0"],
   info: ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 11v6M12 7.5h0"],
+  reminder: ["M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 20a2 2 0 0 0 4 0"],
 };
 const ago = (at) => {
   const m = Math.round((Date.now() - at) / 60000);
@@ -1858,12 +1865,22 @@ function tabsPanel() {
       : el("button", { class: "btn btn--small btn--primary", type: "button", disabled: !a.available || a.busy || null, text: a.busy ? "Waiting…" : "Sign in", onclick: () => hub.signIn() }),
     { row: true },
   );
+  // Reminders shown in the bell (reminders.js; saved on this PC).
+  const r = window.midaTabs?.reminders;
+  const reminders = r
+    ? [
+        el("h2", { text: "Reminders" }),
+        el("p", { text: "Shown in MIDA's notifications (the bell in the sidebar), never as Windows pop-ups." }),
+        ...r.list.map(([id, name, help]) => setting(name, help, toggle(`reminder-${id}`, r.choices()[id], (v) => r.set(id, v), name), { row: true })),
+      ]
+    : [];
   return [
     ...intro,
     account,
     ...all.map((t) =>
       setting(t.name, `${t.blurb}${t.signIn ? " Needs a Bungie sign-in." : ""}`, toggle(`tab-${t.id}`, state.tabs.includes(t.id), (v) => set(t.id, v), `Show ${t.name}`), { row: true }),
     ),
+    ...reminders,
   ];
 }
 
