@@ -1140,7 +1140,8 @@ pub async fn vendor_screen(vendors: &Value, progressions: &Value, currencies: &V
     let has_sales = |k: &str| sales.get(k).and_then(|s| s["saleItems"].as_object()).is_some_and(|o| !o.is_empty());
     let mut rest: Vec<u64> = states.keys().filter(|k| has_sales(k)).filter_map(|k| k.parse().ok()).filter(|h| !grouped.iter().any(|(g, _)| g == h)).collect();
     rest.sort_unstable();
-    let keys: Vec<u64> = grouped.iter().map(|(h, _)| *h).chain(rest.iter().copied()).take(200).collect();
+    // Up to 500 (the owner's account lists ~260 with something for sale; 200 cut off everything after them).
+    let keys: Vec<u64> = grouped.iter().map(|(h, _)| *h).chain(rest.iter().copied()).take(500).collect();
     let group_of: HashMap<u64, u64> = grouped.iter().copied().collect();
     let defs = entities("DestinyVendorDefinition", &keys).await;
     // Items that may open another vendor: Bungie's menu links are plain or dummy items (item types 0 and 20).
@@ -1190,8 +1191,12 @@ pub async fn vendor_screen(vendors: &Value, progressions: &Value, currencies: &V
     let mut out = Vec::new();
     for hash in keys.clone() {
         let Some(def) = defs.get(&hash) else { continue };
-        let name = def["displayProperties"]["name"].as_str().unwrap_or("");
-        if name.is_empty() || def["visible"].as_bool() == Some(false) {
+        // Some menus have no name of their own (Bungie leaves it blank; the Eververse store's pages may be these): named
+        // after their first display category instead, else "Menu".
+        let own_name = def["displayProperties"]["name"].as_str().unwrap_or("");
+        let fallback = def["displayCategories"].as_array().into_iter().flatten().filter_map(|c| c["displayProperties"]["name"].as_str()).find(|n| !n.is_empty()).unwrap_or("Menu").to_string();
+        let name: &str = if own_name.is_empty() { &fallback } else { own_name };
+        if def["visible"].as_bool() == Some(false) && !own_name.is_empty() {
             continue;
         }
         let key = hash.to_string();
@@ -1308,6 +1313,7 @@ pub async fn vendor_screen(vendors: &Value, progressions: &Value, currencies: &V
             "hash": hash,
             "name": name,
             "subtitle": def["displayProperties"]["subtitle"],
+            "unnamed": own_name.is_empty(),
             "description": def["displayProperties"]["description"],
             "icon": icon_url(icon),
             "art": icon_url(location["backgroundImagePath"].as_str().unwrap_or("")),

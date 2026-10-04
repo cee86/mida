@@ -17,9 +17,40 @@
 // keeps the list where it was scrolled. Characters come from the shared "activity" read.
 
 import { wallpaper } from "./wallpaper.js";
+import { withArt } from "./boxart.js";
 const SEARCH = ["M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z", "M20 20l-4-4"];
 const LOCK = ["M7 11V8a5 5 0 0 1 10 0v3", "M5 11h14v10H5z"];
 const STORE = ["M4 9l2-5h12l2 5", "M4 9h16v11H4z", "M9 20v-6h6v6"];
+const HOME = ["M3 11l9-7 9 7", "M5 10v10h14V10", "M10 20v-6h4v6"];
+
+// Each vendor page's backdrop: an abstract wallpaper in the colours of the vendor's activity (the owner preferred this
+// to Bungie's location art, which comes out blurry), as [glow, mid, deep] colours and a linework pattern (boxart.js).
+// Matched on the vendor's name, title, place and group; the first match wins.
+const THEMES = [
+  [/zavala|vanguard/i, ["#e0812f", "#1e3a5c", "#0a121d"], "dial"],
+  [/shaxx|crucible|trials|saint-14|osiris/i, ["#c8352b", "#3b1517", "#0d0a0b"], "rings"],
+  [/drifter|gambit/i, ["#33b071", "#103d2e", "#061310"], "orbit"],
+  [/tess|eververse/i, ["#d05fd0", "#3b1f5c", "#110a1d"], "lattice"],
+  [/xûr|xur|strange|nine/i, ["#41c2b1", "#2d1f4a", "#0a0b17"], "orbit"],
+  [/ada-1|armor synthesis/i, ["#d0413f", "#2c1013", "#0c0809"], "lattice"],
+  [/banshee|gunsmith|weapons/i, ["#6b98c8", "#1e2d40", "#0a0f16"], "dial"],
+  [/rahool|cryptarch|decoding|engram/i, ["#3fbcb8", "#15404a", "#07131a"], "rings"],
+  [/tenet|monument/i, ["#ecd9a0", "#5e4a26", "#110f08"], "dial"],
+  [/nimbus|neomuna|quinn|pouka|cloud strider/i, ["#ff62a8", "#2b2f95", "#0b0b24"], "orbit"],
+  [/eris|moon|lectern|hellmouth/i, ["#86e070", "#15331c", "#070d08"], "rings"],
+  [/petra|dreaming|reef|spider|awoken/i, ["#b989f0", "#203d5e", "#0a0c1a"], "orbit"],
+  [/variks|europa|elsie|exo stranger|eliksni/i, ["#a6d8ff", "#26425f", "#0a1018"], "lattice"],
+  [/devrim|edz|failsafe|nessus|shaw han|cosmodrome/i, ["#c9a24a", "#2d3324", "#0c0d08"], "rings"],
+  [/ikora|warlock|subclass|aspects|fragments|grenades|melees|supers|abilities|movement|void|solar|arc|stasis|strand|prismatic/i, ["#7f8cff", "#232a52", "#0a0b18"], "dial"],
+  [/pale heart|final shape|micah|hawthorne|suraya/i, ["#e6eefc", "#3a4c6e", "#0b0f18"], "orbit"],
+  [/kepler|edge of fate|desert|lodi|failsafe/i, ["#f0a35a", "#4a2a1a", "#120a07"], "rings"],
+];
+const DEFAULT_THEME = [["#8aa0bb", "#1f2733", "#0b0e13"], "rings"];
+const themeOf = (v) => {
+  const text = `${v.name} ${v.subtitle ?? ""} ${v.destination ?? ""} ${v.group ?? ""}`;
+  const hit = THEMES.find(([re]) => re.test(text));
+  return hit ? [hit[1], hit[2]] : DEFAULT_THEME;
+};
 const TIER_NAMES = { 6: "Exotic", 5: "Legendary", 4: "Rare", 3: "Uncommon", 2: "Common" };
 const CLASS_NAMES = { 0: "Titan", 1: "Hunter", 2: "Warlock" };
 const clean = (text) => String(text ?? "").replace(/\[[^\]]*\]\s*/g, "").trim();
@@ -133,8 +164,9 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
   function vendorView(v, all = []) {
     if (!v) return el("section", { class: "sh-box" }, label("Vendor"), el("p", { class: "tab__note", text: "Pick a vendor on the left." }));
     const rank = v.rank && v.rank.next > 0 ? v.rank : null;
-    const page = el("div", { class: `vd-page${v.art ? " has-art" : ""}` });
-    if (v.art) page.style.backgroundImage = `url("${v.art}")`;
+    const page = el("div", { class: "vd-page" });
+    const [colors, pattern] = themeOf(v);
+    ["--vd-a", "--vd-b", "--vd-c"].forEach((name, i) => page.style.setProperty(name, colors[i]));
     const left = el(
       "div",
       { class: "vd-page__left" },
@@ -215,6 +247,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
         flags,
       ),
     );
+    withArt(page, pattern);
     return el("div", { class: "vd-main" }, crumbs(all), page);
   }
 
@@ -264,16 +297,22 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     // Eververse's daily offers, wherever Bungie keeps them: every category named like the store's ("Primary Bright Dust
     // Offers", "Silver Offers"...) in any vendor, kiosks included; else Tess's items that cost Bright Dust.
     const everything = byCharacter[chosen()]?.vendors ?? all;
-    const storeCats = [];
-    for (const v of everything) {
+    // Tess, her sub-menus and Bungie's unnamed menus that sell for Bright Dust or Silver: their categories with such
+    // items; the ones named like the store's daily page ("... Offers", "Daily ...") when there are any.
+    const paid = (it) => (it.costs ?? []).some((c) => /bright dust|silver/i.test(c.name));
+    const family = everything.filter((v) => v === ever || (ever && v.parent === ever.hash) || (v.unnamed && v.categories.some((c) => c.items.some(paid))));
+    let storeCats = [];
+    for (const v of family) {
       for (const c of v.categories) {
-        if (!/bright dust|silver|eververse/i.test(c.name ?? "")) continue;
+        const list = c.items.filter(paid).filter(matches);
+        if (!list.length) continue;
         const had = storeCats.find((x) => x.name === c.name);
-        const list = c.items.filter(matches);
         if (had) had.items.push(...list.filter((it) => !had.items.some((x) => x.hash === it.hash)));
-        else if (list.length) storeCats.push({ name: c.name, items: list, vendor: v });
+        else storeCats.push({ name: c.name || "Offers", items: list, vendor: v });
       }
     }
+    const daily = storeCats.filter((c) => /offer|daily/i.test(c.name));
+    if (daily.length) storeCats = daily;
     const dust = storeCats.length ? [] : items(ever, (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name)));
     const ada = find(/ada-1/i);
     const shaders = items(ada, (it) => /shader/i.test(`${it.typeName} ${it.name}`));
@@ -354,7 +393,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
       : el(
           "button",
           { class: "vd-row vd-row--home", type: "button", "aria-current": String(picked == null), onclick: () => pick(null) },
-          el("span", { class: "vd-row__icon" }, ctx.svg(STORE)),
+          el("span", { class: "vd-row__icon vd-row__icon--home" }, ctx.svg(HOME)),
           el("span", { class: "vd-row__text" }, el("span", { class: "vd-row__name", text: "Vendors home" }), el("span", { class: "vd-row__where", text: "Ranks, Bright Dust offers, shaders" })),
         );
     const list = el(

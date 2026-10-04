@@ -90,45 +90,56 @@
 .vd .linkish { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; letter-spacing: normal; text-transform: none; cursor: pointer; }
 .vd .linkish:hover { text-decoration: underline; }
 
-/* A vendor's page, after the game's vendor screen: art across the page (fixed while the panel scrolls), name and
-   description at the lower left, a frosted panel on the right. */
-.vd-page { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 1.05fr); min-height: calc(100vh - 170px); border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); background: linear-gradient(135deg, #1a1f27, #0d1015); background-size: cover; background-position: left top; background-attachment: fixed; }
-.vd-page__left { position: sticky; top: 0; align-self: end; display: flex; flex-direction: column; gap: 6px; padding: 28px 28px 34px; color: #fff; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9); }
-.vd-page__kicker { padding-bottom: 6px; border-bottom: 2px solid rgba(255, 255, 255, 0.75); align-self: flex-start; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
-.vd-page__name { margin: 0; font-family: var(--font-display); font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.05; }
-.vd-page__desc { max-width: 52ch; margin: 4px 0 0; font-size: 0.92rem; line-height: 1.45; color: rgba(255, 255, 255, 0.88); white-space: pre-line; }
-.vd-page__where { color: rgba(255, 255, 255, 0.7); font-size: 0.8rem; }
-.vd-page__right { display: flex; flex-direction: column; gap: 18px; padding: 22px 24px 26px; background: linear-gradient(180deg, rgba(64, 78, 92, 0.55), rgba(24, 30, 38, 0.82)); backdrop-filter: blur(10px); border-left: 1px solid rgba(255, 255, 255, 0.12); }
-.vd-rankhead { display: grid; grid-template-columns: 96px 1fr; gap: 18px; align-items: center; padding-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.18); }
-.vd-rankhead__icon { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: radial-gradient(circle, rgba(10, 20, 32, 0.95) 60%, rgba(255, 255, 255, 0.12)); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15); overflow: hidden; }
-.vd-rankhead__icon img { width: 80%; height: 80%; object-fit: contain; }
-.vd-rankhead__icon > svg { width: 50%; height: 50%; color: var(--mist); }
-.vd-rankhead__text { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #fff; }
-.vd-rankhead__title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
-.vd-rankhead .sh-meter { height: 8px; background: rgba(255, 255, 255, 0.18); }
-.vd-rankhead__n { color: rgba(255, 255, 255, 0.75); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-.vd-rankhead__label { margin-top: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.5); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
-.vd-rankhead__desc { margin: 0; color: rgba(255, 255, 255, 0.88); font-size: 0.9rem; line-height: 1.4; }
-.vd-facts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; color: #fff; font-size: 0.86rem; }
-.vd-wallet { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+/* A vendor's page, after the game's vendor screen: an abstract wallpaper in the activity's colours (--vd-a glow, --vd-b,
+   --vd-c deep; linework from boxart.js), name and description at the lower left, a frosted panel on the right. Compact,
+   with large type and small tiles (the owner: "bigger text and smaller shapes"). */
+.vd-page { position: relative; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(460px, 1.1fr); min-height: calc(100vh - 170px); border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); background:
+    radial-gradient(ellipse 70% 60% at 18% 78%, color-mix(in srgb, var(--vd-a) 55%, transparent), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 70% 10%, color-mix(in srgb, var(--vd-a) 22%, transparent), transparent 70%),
+    linear-gradient(160deg, var(--vd-b), var(--vd-c) 75%); overflow: hidden; }
+.vd-page .box-art__lines { color: var(--vd-a); opacity: 0.22; }
+.vd-page.has-boxart > .vd-page__left { position: sticky; top: 0; align-self: end; display: flex; flex-direction: column; gap: 8px; padding: 24px 26px 30px; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8); }
+.vd-page__kicker { align-self: flex-start; padding-bottom: 6px; border-bottom: 3px solid rgba(255, 255, 255, 0.85); font-size: 1rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
+.vd-page__name { margin: 0; font-family: var(--font-display); font-size: clamp(2.2rem, 3.4vw, 3.4rem); font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; line-height: 1; }
+.vd-page__desc { max-width: 46ch; margin: 2px 0 0; font-size: 1.05rem; line-height: 1.4; color: rgba(255, 255, 255, 0.9); white-space: pre-line; }
+.vd-page__where { color: rgba(255, 255, 255, 0.75); font-size: 0.92rem; }
+.vd-page > .vd-page__right { display: flex; flex-direction: column; gap: 12px; padding: 18px 22px 22px; background: linear-gradient(180deg, rgba(120, 140, 160, 0.28), rgba(20, 26, 34, 0.7)); backdrop-filter: blur(8px); border-left: 1px solid rgba(255, 255, 255, 0.14); color: #fff; }
+.vd-rankhead { display: grid; grid-template-columns: 88px 1fr; gap: 16px; align-items: center; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.22); }
+.vd-rankhead__icon { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: radial-gradient(circle, rgba(10, 22, 36, 0.95) 62%, rgba(255, 255, 255, 0.14)); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18); overflow: hidden; }
+.vd-rankhead__icon img { width: 82%; height: 82%; object-fit: contain; }
+.vd-rankhead__icon > svg { width: 46%; height: 46%; color: rgba(255, 255, 255, 0.7); }
+.vd-rankhead__text { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.vd-rankhead__title { font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.05; }
+.vd-rankhead .sh-meter { height: 9px; background: rgba(255, 255, 255, 0.2); }
+.vd-rankhead .sh-meter > span { background: #4f9be6; }
+.vd-rankhead__n { color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.vd-rankhead__label { margin-top: 4px; padding-bottom: 3px; border-bottom: 2px solid rgba(255, 255, 255, 0.55); font-size: 0.92rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; }
+.vd-rankhead__desc { margin: 0; color: rgba(255, 255, 255, 0.9); font-size: 1rem; line-height: 1.35; }
+.vd-facts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; font-size: 1rem; }
+.vd-wallet { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-left: auto; }
 .vd-wallet__item { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .vd-wallet__item img { width: 22px; height: 22px; object-fit: contain; }
-.vd-sec { display: flex; flex-direction: column; gap: 10px; }
-.vd-sec__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 5px; border-bottom: 1px solid rgba(255, 255, 255, 0.45); color: rgba(255, 255, 255, 0.92); font-size: 0.92rem; letter-spacing: 0.06em; text-transform: uppercase; }
-.vd-sec__extra { color: rgba(255, 255, 255, 0.75); font-size: 0.82rem; }
+.vd-sec { display: flex; flex-direction: column; gap: 8px; }
+.vd-sec__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 4px; border-bottom: 2px solid rgba(255, 255, 255, 0.4); color: rgba(255, 255, 255, 0.88); font-size: 1.08rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.vd-sec__extra { color: rgba(255, 255, 255, 0.75); font-size: 1rem; }
 .vd-cat .vd-sec__head { margin-top: 8px; }
-.vd-page .vd-items { grid-template-columns: repeat(auto-fill, 84px); justify-content: start; }
-.vd-page .vd-item .sh-tile { width: 80px; height: 80px; }
+.vd-page .vd-items { grid-template-columns: repeat(auto-fill, 60px); gap: 8px 6px; justify-content: start; }
+.vd-page .vd-item .sh-tile { width: 60px; height: 60px; }
+.vd-page .vd-item__costs .vd-cost { color: rgba(255, 255, 255, 0.85); font-size: 0.8rem; }
 .vd-page .vd-items .vd-item.is-link { grid-column: span 3; align-items: stretch; }
-.vd-page .vd-item.is-link .sh-tile { width: 100%; max-width: none; height: 84px; }
+.vd-page .vd-item.is-link .sh-tile { width: 100%; max-width: none; height: 64px; }
 /* Menu links (they open a sub-menu): wide banner tiles, like the game's. */
 .vd-items .vd-item.is-link { grid-column: span 2; }
-.vd-item.is-link .sh-tile, .vd-menu { display: flex; align-items: center; justify-content: center; width: 100%; max-width: 230px; height: 84px; border: 2px solid rgba(255, 255, 255, 0.7); background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 12px), linear-gradient(90deg, #26446b, #1c3354); }
-.vd-item.is-link .sh-tile img:first-child { width: auto; height: 76%; object-fit: contain; }
-.vd-menus { display: flex; flex-wrap: wrap; gap: 10px; }
-.vd-menu { gap: 10px; padding: 0 14px; color: #fff; font-weight: 600; cursor: pointer; }
+.vd-item.is-link .sh-tile, .vd-menu { display: flex; align-items: center; justify-content: center; width: 100%; max-width: 200px; height: 64px; border: 2px solid rgba(255, 255, 255, 0.7); background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 12px), linear-gradient(90deg, #26446b, #1c3354); }
+.vd-item.is-link .sh-tile img:first-child { width: auto; height: 74%; object-fit: contain; }
+.vd-menus { display: flex; flex-wrap: wrap; gap: 8px; }
+.vd-menu { gap: 10px; padding: 0 12px; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
 .vd-menu:hover, .vd-item.is-link:hover .sh-tile { border-color: #fff; filter: brightness(1.15); }
-.vd-menu img, .vd-menu svg { width: 54px; height: 54px; object-fit: contain; }
+.vd-menu img, .vd-menu svg { width: 40px; height: 40px; object-fit: contain; }
+/* The home row's icon (a house), centred. */
+.vd-row__icon { display: grid; place-items: center; }
+.vd-row__icon > svg { width: 22px; height: 22px; margin: 0; color: var(--mist); }
+.vd-row__icon--home > svg { color: var(--accent); }
 @container (max-width: 1100px) {
   .vd-page { grid-template-columns: 1fr; }
   .vd-page__left { position: static; align-self: start; }
