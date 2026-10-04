@@ -10,7 +10,7 @@
 .vd-row:hover { background: var(--hover); }
 .vd-row[aria-current="true"] { background: rgba(255, 255, 255, 0.08); border-color: color-mix(in srgb, var(--cream) 35%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .vd-row__icon { display: block; width: 38px; height: 38px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
-.vd-row__icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vd-row__icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .vd-row__text { display: flex; flex-direction: column; min-width: 0; }
 .vd-row__name { overflow: hidden; font-weight: 600; font-size: 0.92rem; white-space: nowrap; text-overflow: ellipsis; }
 .vd-row__where { overflow: hidden; color: var(--mist); font-size: 0.76rem; white-space: nowrap; text-overflow: ellipsis; }
@@ -18,15 +18,18 @@
 /* The chosen vendor: art banner, then a box per sale category. */
 .vd-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .vd-hero { display: grid; grid-template-columns: 76px 1fr; gap: 16px; align-items: end; min-height: 120px; padding: 18px 18px 16px; border: 1px solid color-mix(in srgb, var(--cream) 12%, transparent); background: linear-gradient(90deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.2)); background-size: cover; background-position: center; }
-.vd-hero.has-art { min-height: 190px; }
+/* Vendor art is a wide scene with the vendor's face in its upper half: show the top of it, a little taller. */
+.vd-hero.has-art { min-height: 240px; background-position: center 18%; }
 .vd-hero__icon { display: block; width: 76px; height: 76px; border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(0, 0, 0, 0.4); overflow: hidden; }
-.vd-hero__icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vd-hero__icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.vd-hero__icon > svg, .vd-row__icon > svg { display: block; width: 60%; height: 60%; margin: 20%; color: var(--mist); }
 .vd-hero__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
 .vd-hero__kicker { color: rgba(255, 255, 255, 0.75); font-size: 0.74rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
 .vd-hero__name { margin: 0; font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1.1; }
 .vd-hero__subtitle { color: rgba(255, 255, 255, 0.8); font-size: 0.88rem; }
 .vd-hero__facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-top: 6px; font-size: 0.84rem; }
-.vd-rank { display: grid; grid-template-columns: auto 140px auto; align-items: center; gap: 10px; }
+.vd-rank { display: grid; grid-template-columns: 26px auto 140px auto; align-items: center; gap: 10px; }
+.vd-rank__icon { width: 26px; height: 26px; object-fit: contain; }
 .vd-rank .sh-meter { height: 4px; }
 .vd-rank__n { color: rgba(255, 255, 255, 0.7); font-variant-numeric: tabular-nums; }
 .vd-reset { color: rgba(255, 255, 255, 0.85); }
@@ -41,6 +44,19 @@
 .vd-item__mark { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .vd-item:focus-visible .sh-tile { outline: 2px solid #fff; outline-offset: -1px; }
 .vd-item.is-blocked .sh-tile { opacity: 0.55; }
+/* Rank rewards and the like: claimed (ticked, dimmed), ready to claim (marked), locked (dimmed with a lock). */
+.vd-item.is-claimed .sh-tile > img:first-child { opacity: 0.45; }
+.vd-item.is-claimed .sh-tile { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.vd-item.is-claimable .sh-tile { box-shadow: 0 0 0 2px var(--accent); }
+.vd-item.is-locked .sh-tile > img:first-child { opacity: 0.4; filter: grayscale(0.6); }
+.vd-item__lock { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 18px; height: 18px; background: rgba(0, 0, 0, 0.75); color: #fff; }
+.vd-item__lock svg { width: 12px; height: 12px; }
+.sh-tip__meta.is-claimed { color: var(--accent); }
+/* The kiosks and sub-vendors, folded at the bottom of the list. */
+.vd-fold > summary { list-style: none; cursor: pointer; }
+.vd-fold > summary::-webkit-details-marker { display: none; }
+.vd-fold > summary .sh-label__text::before { content: "▸ "; }
+.vd-fold[open] > summary .sh-label__text::before { content: "▾ "; }
 .vd-item__costs { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 6px; min-height: 16px; }
 .vd-cost { display: inline-flex; align-items: center; gap: 3px; color: var(--mist); font-size: 0.74rem; font-variant-numeric: tabular-nums; }
 .vd-cost img { width: 14px; height: 14px; object-fit: contain; }

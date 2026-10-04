@@ -54,6 +54,7 @@ use url::Url;
 const WINDOW: &str = "main";
 const SHELL: &str = "shell";
 const CONTROLS: &str = "controls";
+const READER: &str = "reader";
 const BACKGROUND: Color = Color(14, 16, 19, 255);
 const UPDATE_CHECK_EVERY: Duration = Duration::from_secs(4 * 60 * 60);
 /// The floating site controls box, in shell pixels, and its gap from the stage's corner.
@@ -1603,6 +1604,48 @@ async fn open_news(webview: Webview, app: AppHandle, url: String) {
     }
 }
 
+/// Opens a news link in MIDA's reader pop-up (a window of its own over MIDA), only links the feeds listed. The page is
+/// treated like a module page: web pages only, no permissions, no access to MIDA itself (no capability names this
+/// window), and anything it opens as a new window goes to the system browser. One reader: a second article replaces
+/// the first. Its title follows the page's.
+#[tauri::command]
+async fn read_news(webview: Webview, app: AppHandle, url: String) {
+    if !from_shell(&webview) || !hub(&app).news_links.lock().unwrap().contains(&url) {
+        return;
+    }
+    let Ok(target) = Url::parse(&url) else { return };
+    if !is_web(&target) {
+        return;
+    }
+    if let Some(reader) = app.get_webview_window(READER) {
+        let _ = reader.navigate(target);
+        let _ = reader.unminimize();
+        let _ = reader.set_focus();
+        return;
+    }
+    let on_open = app.clone();
+    let built = tauri::WebviewWindowBuilder::new(&app, READER, WebviewUrl::External(target))
+        .title("MIDA · Reading")
+        .inner_size(1100.0, 820.0)
+        .min_inner_size(520.0, 400.0)
+        .center()
+        .background_color(BACKGROUND)
+        .zoom_hotkeys_enabled(true)
+        .on_navigation(|url| is_web(url))
+        .on_permission_request(|_, _| PermissionResponse::Deny)
+        .on_new_window(move |url, _| {
+            open_external(&on_open, &url);
+            NewWindowResponse::Deny
+        })
+        .on_document_title_changed(|page, title| {
+            let _ = page.set_title(&format!("{} · MIDA", clean_text(&title, 120)));
+        })
+        .build();
+    if let Ok(reader) = built {
+        let _ = reader.set_focus();
+    }
+}
+
 /// The Weekly planner: each character's weekly checklist.
 #[tauri::command]
 async fn d2_planner(webview: Webview, app: AppHandle) -> Value {
@@ -2154,7 +2197,13 @@ fn create_window(app: &AppHandle) -> tauri::Result<()> {
                 let _ = shell.set_size(*size);
             }
         }
-        WindowEvent::CloseRequested { .. } => save_window_place(&app_handle),
+        WindowEvent::CloseRequested { .. } => {
+            save_window_place(&app_handle);
+            // The news reader pop-up goes with the main window (it would keep MIDA running otherwise).
+            if let Some(reader) = app_handle.get_webview_window(READER) {
+                let _ = reader.close();
+            }
+        }
         _ => {}
     });
     Ok(())
@@ -2271,6 +2320,7 @@ pub fn run() {
             d2_news,
             news_image,
             open_news,
+            read_news,
             d2_pass,
             d2_claim,
             d2_rotators,

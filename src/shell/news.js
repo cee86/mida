@@ -10,7 +10,9 @@
 //
 // Text is always shown as text. Pictures from bungie.net load directly; the rest come through the app (news_image),
 // which only fetches pictures the feeds listed. Links open in the browser through the app (open_news), which only
-// opens links the feeds listed. `articleReader` and `loadPicture` are also used by the Director's news strip.
+// opens links the feeds listed. Pages with no article in the feed (the D2 Community Hub's posts, Bluesky link cards)
+// open in MIDA's reader pop-up instead (read_news: a window of its own, same rules as a module page). `articleReader`
+// and `loadPicture` are also used by the Director's news strip.
 
 import { subpages } from "./subpages.js";
 import { wallpaper } from "./wallpaper.js";
@@ -67,6 +69,8 @@ export function loadPicture(ctx, url, cls = "", alt = "") {
   return img;
 }
 const openLink = (ctx, url) => url && ctx.hub.openNews(url);
+// Pages the feeds only link to (the D2 Community Hub's posts, link cards) open in MIDA's reader pop-up (read_news).
+const readLink = (ctx, url) => url && ctx.hub.readNews(url);
 
 // A Bungie article, whole: its picture, title, date, then its text and pictures as blocks.
 export function articleReader(ctx, host, item, wall) {
@@ -156,7 +160,7 @@ export function newsTab(ctx, container, deps = {}) {
         it.external?.uri
           ? el(
               "button",
-              { class: "nw-link", type: "button", onclick: () => openLink(ctx, it.external.uri) },
+              { class: "nw-link", type: "button", title: "Read it here", onclick: () => readLink(ctx, it.external.uri) },
               it.external.thumb ? loadPicture(ctx, it.external.thumb, "nw-link__thumb") : null,
               el("span", { class: "nw-link__text" }, el("strong", { text: it.external.title || it.external.uri }), it.external.description ? el("span", { text: it.external.description }) : null, el("small", { text: hostOf(it.external.uri) })),
             )
@@ -170,14 +174,14 @@ export function newsTab(ctx, container, deps = {}) {
     return el(
       "article",
       { class: "nw-card nw-card--rss" },
-      it.image ? el("button", { class: "nw-card__hero", type: "button", "aria-label": it.title, onclick: () => openLink(ctx, it.link) }, loadPicture(ctx, it.image)) : null,
+      it.image ? el("button", { class: "nw-card__hero", type: "button", "aria-label": `Read ${it.title}`, onclick: () => readLink(ctx, it.link) }, loadPicture(ctx, it.image)) : null,
       el(
         "div",
         { class: "nw-card__body" },
         el("div", { class: "nw-card__meta" }, el("span", { class: "nw-source nw-source--community", text: it.sourceName }), it.author?.name ? el("span", { text: it.author.name }) : null, el("span", { text: when(it.at) })),
         it.title ? el("h2", { class: "nw-card__title", text: it.title }) : null,
         it.text ? el("p", { class: "nw-card__text", text: it.text }) : null,
-        el("div", { class: "nw-card__actions" }, el("button", { class: "btn btn--small", type: "button", text: "Open", onclick: () => openLink(ctx, it.link) })),
+        el("div", { class: "nw-card__actions" }, el("button", { class: "btn btn--small btn--primary", type: "button", text: "Read", onclick: () => readLink(ctx, it.link) }), el("button", { class: "btn btn--small", type: "button", text: "Open in browser", onclick: () => openLink(ctx, it.link) })),
       ),
     );
   }

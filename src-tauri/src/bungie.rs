@@ -1107,26 +1107,42 @@ fn sale_status(flags: u64) -> Option<&'static str> {
 }
 
 /// Every vendor a character can visit (component 400 enabled, a visible definition, something for sale), for the
-/// Vendors tab: name, location, group (Tower, destinations...), background art, rank, reset time, and the items
-/// for sale by category with their costs and whether they can be bought. At most 80 vendors.
+/// Vendors tab: name, location, group, background art, rank, reset time, and the items for sale by category with
+/// their costs and state (claimed, ready to claim, locked...).
+///
+/// Grouped and ordered as Bungie's Companion app does (the response's `vendorGroups`: Tower, destinations, the season's
+/// vendors...); vendors outside every group are kiosks and sub-vendors (subclass pieces, Focused Decoding, attunements),
+/// sent after the rest with `extra: true`. At most 200.
 pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
     let empty = json!({ "vendors": [] });
     let (Some(states), Some(sales)) = (vendors["vendors"]["data"].as_object(), vendors["sales"]["data"].as_object()) else { return empty };
-    let keys: Vec<u64> = states
-        .iter()
-        .filter(|(k, v)| v["enabled"].as_bool() != Some(false) && sales.get(*k).and_then(|s| s["saleItems"].as_object()).is_some_and(|o| !o.is_empty()))
-        .filter_map(|(k, _)| k.parse().ok())
-        .take(80)
-        .collect();
+    let usable = |k: &str| states.get(k).is_some_and(|v| v["enabled"].as_bool() != Some(false)) && sales.get(k).and_then(|s| s["saleItems"].as_object()).is_some_and(|o| !o.is_empty());
+    // Bungie's own grouping and order first, then everything else.
+    let mut grouped: Vec<(u64, u64)> = Vec::new(); // (vendor, group)
+    for g in vendors["vendorGroups"]["data"]["groups"].as_array().into_iter().flatten() {
+        let Some(group) = g["vendorGroupHash"].as_u64() else { continue };
+        for v in g["vendorHashes"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()) {
+            if usable(&v.to_string()) && !grouped.iter().any(|(h, _)| *h == v) {
+                grouped.push((v, group));
+            }
+        }
+    }
+    let mut rest: Vec<u64> = states.keys().filter(|k| usable(k)).filter_map(|k| k.parse().ok()).filter(|h| !grouped.iter().any(|(g, _)| g == h)).collect();
+    rest.sort_unstable();
+    let keys: Vec<u64> = grouped.iter().map(|(h, _)| *h).chain(rest.iter().copied()).take(200).collect();
+    let group_of: HashMap<u64, u64> = grouped.iter().copied().collect();
     let defs = entities("DestinyVendorDefinition", &keys).await;
     let location_of = |hash: u64, def: &Value| {
         let index = states[&hash.to_string()]["vendorLocationIndex"].as_u64().unwrap_or(0) as usize;
         def["locations"].as_array().and_then(|l| l.get(index).or(l.first())).cloned().unwrap_or(Value::Null)
     };
     let destinations: Vec<u64> = defs.iter().filter_map(|(h, d)| location_of(*h, d)["destinationHash"].as_u64()).filter(|h| *h != 0).collect::<HashSet<_>>().into_iter().collect();
-    let groups: Vec<u64> = defs.values().filter_map(|d| d["groups"][0]["vendorGroupHash"].as_u64()).collect::<HashSet<_>>().into_iter().collect();
+    let groups: Vec<u64> = group_of.values().copied().chain(defs.values().filter_map(|d| d["groups"][0]["vendorGroupHash"].as_u64())).collect::<HashSet<_>>().into_iter().collect();
     let destination_defs = entities("DestinyDestinationDefinition", &destinations).await;
     let group_defs = entities("DestinyVendorGroupDefinition", &groups).await;
+    // Each vendor's reputation track (rank name and the rank's own icon).
+    let progressions: Vec<u64> = keys.iter().filter_map(|h| states[&h.to_string()]["progression"]["progressionHash"].as_u64()).collect::<HashSet<_>>().into_iter().collect();
+    let progression_defs = entities("DestinyProgressionDefinition", &progressions).await;
     let horizon = years_later(&chrono_now(), 2);
     let mut out = Vec::new();
     for hash in keys {
@@ -1139,7 +1155,8 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
         let state = &states[&key];
         let location = location_of(hash, def);
         let destination = location["destinationHash"].as_u64().and_then(|h| destination_defs.get(&h)).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or("");
-        let group = def["groups"][0]["vendorGroupHash"].as_u64().and_then(|h| group_defs.get(&h)).and_then(|g| g["categoryName"].as_str()).unwrap_or("");
+        let group_hash = group_of.get(&hash).copied().or(def["groups"][0]["vendorGroupHash"].as_u64());
+        let group = group_hash.and_then(|h| group_defs.get(&h)).and_then(|g| g["categoryName"].as_str()).unwrap_or("");
         let display = def["displayCategories"].as_array().cloned().unwrap_or_default();
         let sale_items = sales[&key]["saleItems"].as_object().cloned().unwrap_or_default();
         let objectives_of = &vendors["itemComponents"][&key]["objectives"]["data"];
@@ -1166,6 +1183,13 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
                     })
                     .collect();
                 let objs = objectives(&objectives_of[&index_key]["objectives"], m);
+                // Claimed / ready to claim / locked, from the sale's state flags (DestinyVendorItemState: 2 reward
+                // available, 4 complete, 128 owned, 262144 locked) and its sale status (4096 already owned).
+                let augments = sale["augments"].as_u64().unwrap_or(0);
+                let status_flags = sale["saleStatus"].as_u64().unwrap_or(0);
+                let claimed = augments & 128 != 0 || status_flags & 4096 != 0 || (augments & 4 != 0 && objs.is_empty());
+                let claimable = !claimed && augments & 2 != 0;
+                let locked = !claimed && (augments & 262144 != 0 || status_flags & (4 | 8 | 32 | 64) != 0);
                 items.push(json!({
                     "hash": item_hash,
                     "name": d.name,
@@ -1178,7 +1202,11 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
                     "classType": d.class,
                     "quantity": sale["quantity"],
                     "costs": costs,
-                    "status": sale_status(sale["saleStatus"].as_u64().unwrap_or(0)),
+                    "status": if claimed { Some("Claimed") } else if claimable { Some("Ready to claim") } else { sale_status(status_flags) },
+                    "claimed": claimed,
+                    "claimable": claimable,
+                    "locked": locked,
+                    "flags": [augments, status_flags],
                     "objectives": objs,
                 }));
             }
@@ -1191,17 +1219,28 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
         }
         let refresh = state["nextRefreshDate"].as_str().filter(|d| *d < horizon.as_str()).map(str::to_string);
         let progression = &state["progression"];
+        let track = progression["progressionHash"].as_u64().and_then(|h| progression_defs.get(&h));
+        // The rank's own icon (its step's), else the track's.
+        let level = progression["level"].as_u64().unwrap_or(0) as usize;
+        let rank_icon = track
+            .and_then(|t| t["steps"].as_array().and_then(|steps| steps.get(level.min(steps.len().saturating_sub(1)))).and_then(|st| st["icon"].as_str()).filter(|i| !i.is_empty()).or(t["displayProperties"]["icon"].as_str()))
+            .unwrap_or("");
+        let rank_name = track.and_then(|t| t["steps"].as_array()?.get(level)?["stepName"].as_str()).unwrap_or("");
+        // Vendor icons: Bungie leaves `icon` empty or a plain disc on some; the other icons stand in.
+        let dp = &def["displayProperties"];
+        let icon = ["smallTransparentIcon", "icon", "mapIcon", "largeTransparentIcon", "largeIcon"].iter().filter_map(|k| dp[*k].as_str()).find(|i| !i.is_empty()).unwrap_or("");
         out.push(json!({
             "hash": hash,
             "name": name,
             "subtitle": def["displayProperties"]["subtitle"],
             "description": def["displayProperties"]["description"],
-            "icon": icon_url(def["displayProperties"]["icon"].as_str().unwrap_or("")),
+            "icon": icon_url(icon),
             "art": icon_url(location["backgroundImagePath"].as_str().unwrap_or("")),
             "destination": destination,
             "group": group,
+            "extra": !group_of.contains_key(&hash),
             "refresh": refresh,
-            "rank": if progression.is_object() { json!({ "level": progression["level"], "progress": progression["progressToNextLevel"], "next": progression["nextLevelAt"], "resets": progression["currentResetCount"] }) } else { Value::Null },
+            "rank": if progression.is_object() { json!({ "level": progression["level"], "progress": progression["progressToNextLevel"], "next": progression["nextLevelAt"], "resets": progression["currentResetCount"], "icon": icon_url(rank_icon), "name": rank_name }) } else { Value::Null },
             "categories": categories,
         }));
     }

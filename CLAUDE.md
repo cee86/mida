@@ -339,7 +339,21 @@ and Vendors heroes already used, and it pulled the cards' corner labels into the
 Records: a start node with a single child opens at that child (Medals, Lore: Bungie wraps their sections in one node),
 so the sections become the sidebar and the first shows. **News "All"**: the cards as a grid left to right
 (`nw-grid`), Bungie Server Status's posts as short rows in a side column like the Seasonal Hub's bounties (`nw-side`);
-the other filters stay one column.
+the other filters stay one column. **Reader pop-up** (owner, 4 Oct 2026): pages the feeds only link to (the D2 Community Hub's
+posts, Bluesky link cards) open in MIDA's own window (`read_news`, label `reader`) instead of the browser: only links
+the feeds listed, web pages only, permissions denied, new windows go to the system browser, no capability names it (no
+IPC), one reader at a time (a second article replaces the first), its title follows the page, and it closes with
+the main window. "Open in browser" stays on community cards. **Vendors overhaul** (owner's bug list, 4 Oct 2026): grouped and ordered by the
+response's `vendorGroups` (what the Companion app uses) instead of each definition's first group; vendors in no group
+(subclass pieces, attunements, Focused Decoding, Collections kiosks: the owner's 51 "Other") come last, folded as
+"Kiosks and more" (not folded on the Tenets page, which filters by name). The 80-vendor cap that dropped vendors at
+random (likely why only one Monument of Triumph Tenet showed) is now 200, grouped vendors first. Vendor icons fall back
+through smallTransparentIcon, icon, mapIcon, largeTransparentIcon, largeIcon (Bungie's `icon` is a plain disc on some);
+a drawn shop icon when none. The rank shows its track step's icon and name (DestinyProgressionDefinition). Sale items
+read `augments` (DestinyVendorItemState 2 reward available, 4 complete, 128 owned, 262144 locked) and saleStatus
+(4096 owned): claimed = ticked and dimmed, ready to claim = accent ring, locked = dimmed with a lock; **unverified on live
+data**, so each vendor has a data check listing every item's raw flags. Art banners are taller and show the top of the
+scene. Picking a vendor keeps the list's scroll position (the page starts at the top).
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
   tabs without one fall back to the old Seasonal Hub picture, then the Inventory's, then MIDA's backdrop (RAD shows none
@@ -747,6 +761,9 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.8 (4 Oct 2026, owner): news reader pop-up for the Community Hub and link cards; Vendors overhaul (Bungie's
+  groups and order, kiosks folded, 200-vendor cap, claimed/ready/locked rewards, rank icons, icon fallbacks, banner,
+  list scroll kept).
 * v0.9.7 (4 Oct 2026, owner): Seasonal Hub top row level, Medals and Lore open at their sections, Rotators corner labels
   fixed, News "All" as a grid with Server Status beside it.
 * v0.9.6 (3 Oct 2026, owner): seals without the drawn shield, even rows, Items | paged Badges, Exotic Catalysts first, Esc

@@ -42,6 +42,7 @@
     d2News: (fresh) => invoke("d2_news", { fresh: fresh === true }),
     newsImage: (url) => invoke("news_image", { url: String(url) }),
     openNews: (url) => invoke("open_news", { url: String(url) }),
+    readNews: (url) => invoke("read_news", { url: String(url) }),
     d2Armor: (fresh) => invoke("d2_armor", { fresh: fresh === true }),
     d2Clan: () => invoke("d2_clan"),
     d2Pass: (character, pass, season) => invoke("d2_pass", { character, pass, season }),
