@@ -1113,7 +1113,12 @@ fn sale_status(flags: u64) -> Option<&'static str> {
 /// Grouped and ordered as Bungie's Companion app does (the response's `vendorGroups`: Tower, destinations, the season's
 /// vendors...); vendors outside every group are kiosks and sub-vendors (subclass pieces, Focused Decoding, attunements),
 /// sent after the rest with `extra: true`. At most 200.
-pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
+///
+/// Sub-menus: a sale item that opens another vendor (its definition's `preview.previewVendorHash`, e.g. Xûr's "More
+/// Strange Offers", Ikora's subclass trees) is sent with `opens`, and that vendor with `parent`, so the screen shows it
+/// inside its parent. A vendor without its own rank (Xûr) reads its faction's progression from `progressions` (the
+/// character's component 202 progressions).
+pub async fn vendor_screen(vendors: &Value, progressions: &Value, m: &Manifest) -> Value {
     let empty = json!({ "vendors": [] });
     let (Some(states), Some(sales)) = (vendors["vendors"]["data"].as_object(), vendors["sales"]["data"].as_object()) else { return empty };
     let usable = |k: &str| states.get(k).is_some_and(|v| v["enabled"].as_bool() != Some(false)) && sales.get(k).and_then(|s| s["saleItems"].as_object()).is_some_and(|o| !o.is_empty());
@@ -1132,6 +1137,32 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
     let keys: Vec<u64> = grouped.iter().map(|(h, _)| *h).chain(rest.iter().copied()).take(200).collect();
     let group_of: HashMap<u64, u64> = grouped.iter().copied().collect();
     let defs = entities("DestinyVendorDefinition", &keys).await;
+    // Items that may open another vendor: Bungie's menu links are plain or dummy items (item types 0 and 20).
+    let mut link_items: Vec<u64> = Vec::new();
+    for k in &keys {
+        for sale in sales[&k.to_string()]["saleItems"].as_object().into_iter().flat_map(|o| o.values()) {
+            if let Some(h) = sale["itemHash"].as_u64() {
+                if m.items.get(&(h as u32)).is_some_and(|d| d.kind == 0 || d.kind == 20) && !link_items.contains(&h) {
+                    link_items.push(h);
+                }
+            }
+        }
+    }
+    let link_defs = entities("DestinyInventoryItemDefinition", &link_items).await;
+    let opens_of = |item: u64| -> Option<u64> { link_defs.get(&item).and_then(|d| d["preview"]["previewVendorHash"].as_u64()).filter(|v| *v != 0 && *v != item && keys.contains(v)) };
+    let mut parent_of: HashMap<u64, u64> = HashMap::new();
+    for k in &keys {
+        for sale in sales[&k.to_string()]["saleItems"].as_object().into_iter().flat_map(|o| o.values()) {
+            if let Some(child) = sale["itemHash"].as_u64().and_then(&opens_of) {
+                if child != *k && !group_of.contains_key(&child) {
+                    parent_of.entry(child).or_insert(*k);
+                }
+            }
+        }
+    }
+    // Vendors with no rank of their own (Xûr): their faction's progression.
+    let factions: Vec<u64> = keys.iter().filter(|h| !states[&h.to_string()]["progression"].is_object()).filter_map(|h| defs.get(h)?["factionHash"].as_u64()).filter(|f| *f != 0).collect::<HashSet<_>>().into_iter().collect();
+    let faction_defs = entities("DestinyFactionDefinition", &factions).await;
     let location_of = |hash: u64, def: &Value| {
         let index = states[&hash.to_string()]["vendorLocationIndex"].as_u64().unwrap_or(0) as usize;
         def["locations"].as_array().and_then(|l| l.get(index).or(l.first())).cloned().unwrap_or(Value::Null)
@@ -1141,11 +1172,17 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
     let destination_defs = entities("DestinyDestinationDefinition", &destinations).await;
     let group_defs = entities("DestinyVendorGroupDefinition", &groups).await;
     // Each vendor's reputation track (rank name and the rank's own icon).
-    let progressions: Vec<u64> = keys.iter().filter_map(|h| states[&h.to_string()]["progression"]["progressionHash"].as_u64()).collect::<HashSet<_>>().into_iter().collect();
-    let progression_defs = entities("DestinyProgressionDefinition", &progressions).await;
+    let track_hashes: Vec<u64> = keys
+        .iter()
+        .filter_map(|h| states[&h.to_string()]["progression"]["progressionHash"].as_u64())
+        .chain(faction_defs.values().filter_map(|f| f["progressionHash"].as_u64()))
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    let progression_defs = entities("DestinyProgressionDefinition", &track_hashes).await;
     let horizon = years_later(&chrono_now(), 2);
     let mut out = Vec::new();
-    for hash in keys {
+    for hash in keys.clone() {
         let Some(def) = defs.get(&hash) else { continue };
         let name = def["displayProperties"]["name"].as_str().unwrap_or("");
         if name.is_empty() || def["visible"].as_bool() == Some(false) {
@@ -1207,6 +1244,7 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
                     "claimable": claimable,
                     "locked": locked,
                     "flags": [augments, status_flags],
+                    "opens": opens_of(item_hash),
                     "objectives": objs,
                 }));
             }
@@ -1218,8 +1256,9 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
             continue;
         }
         let refresh = state["nextRefreshDate"].as_str().filter(|d| *d < horizon.as_str()).map(str::to_string);
-        let progression = &state["progression"];
-        let track = progression["progressionHash"].as_u64().and_then(|h| progression_defs.get(&h));
+        let faction_track = def["factionHash"].as_u64().and_then(|f| faction_defs.get(&f)).and_then(|f| f["progressionHash"].as_u64());
+        let progression = if state["progression"].is_object() { &state["progression"] } else { faction_track.map(|h| &progressions[h.to_string()]).unwrap_or(&Value::Null) };
+        let track = progression["progressionHash"].as_u64().or(faction_track).and_then(|h| progression_defs.get(&h));
         // The rank's own icon (its step's), else the track's.
         let level = progression["level"].as_u64().unwrap_or(0) as usize;
         let rank_icon = track
@@ -1239,6 +1278,7 @@ pub async fn vendor_screen(vendors: &Value, m: &Manifest) -> Value {
             "destination": destination,
             "group": group,
             "extra": !group_of.contains_key(&hash),
+            "parent": parent_of.get(&hash),
             "refresh": refresh,
             "rank": if progression.is_object() { json!({ "level": progression["level"], "progress": progression["progressToNextLevel"], "next": progression["nextLevelAt"], "resets": progression["currentResetCount"], "icon": icon_url(rank_icon), "name": rank_name }) } else { Value::Null },
             "categories": categories,

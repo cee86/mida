@@ -2,11 +2,14 @@
 // letterspaced labels over a rule, bracketed boxes; the sh-* classes come from seasonal.css):
 //
 //   [ VENDORS · n you can visit ............................ character · search · refresh ]
-//   [ Tower           ] [ vendor art: name, subtitle, location, rank (its icon), reset countdown ]
-//   [   Zavala        ] [ each sale category: item tiles with their costs, hover for details      ]
-//   [   Ada-1 ...     ]   (claimed rewards ticked and dimmed, ready-to-claim marked, locked ones dimmed with a lock)
-//   [ Destinations... ]
-//   [ ▸ Kiosks and more (folded) ]
+//   [ Vendors home    ] [ home: Vanguard / Crucible / Gambit ranks, Eververse's Bright Dust offers, Ada-1's shaders ]
+//   [ ▾ Tower         ] [ or a vendor: art, name, location, rank (its icon), reset countdown         ]
+//   [     Zavala      ] [   its sub-menus (Xûr's "More Strange Offers", Ikora's subclass trees)      ]
+//   [ ▾ Destinations  ] [   each sale category: item tiles with costs; hover for details             ]
+//   [ ▸ Kiosks and more ]  (claimed rewards ticked, ready-to-claim ringed, locked ones carry a lock)
+//
+// Sidebar groups fold (remembered while MIDA runs); a sub-menu opens on the right with the sidebar kept, a trail
+// above it leading back, and Esc steps back out of it.
 //
 // Data: d2_vendors (bungie.rs vendor_screen): every vendor the character can visit, grouped and ordered as Bungie's
 // Companion app does (`vendorGroups`), their location, rank, next reset and sale items with costs and state. Vendors
@@ -23,8 +26,9 @@ const clean = (text) => String(text ?? "").replace(/\[[^\]]*\]\s*/g, "").trim();
 const percent = (o) => (o.goal > 0 ? Math.min(100, Math.round((o.progress / o.goal) * 100)) : o.complete ? 100 : 0);
 
 const byCharacter = {}; // character id -> the d2_vendors answer, kept until Refresh
-let picked = null; // the chosen vendor's hash
-let extrasOpen = false; // the folded "Kiosks and more" group
+let picked = null; // the chosen vendor's hash (null: the vendors home)
+let trail = []; // sub-menus opened inside it, outermost first
+const folded = new Set(["Kiosks and more"]); // sidebar groups folded shut
 
 // `only` (optional): show just the vendors it accepts, under `title` (the Director's season page uses it for the
 // Tenets), with `empty` when none match.
@@ -94,6 +98,12 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
       ),
       el("span", { class: "vd-item__costs" }, ...(item.costs ?? []).slice(0, 3).map(cost)),
     );
+    // A menu link (it opens another vendor): click opens that sub-menu on the right.
+    if (item.opens) {
+      node.classList.add("is-link");
+      node.addEventListener("click", () => openSub(item.opens));
+      node.addEventListener("keydown", (event) => event.key === "Enter" && openSub(item.opens));
+    }
     node.addEventListener("pointerenter", () => showTip(node, item));
     node.addEventListener("focus", () => showTip(node, item));
     node.addEventListener("pointerleave", hideTip);
@@ -103,7 +113,20 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
 
   // ---------- The chosen vendor ----------
 
-  function vendorView(v) {
+  // Sub-menus: vendors whose `parent` is this one (or that its link items open).
+  function subsOf(v, all) {
+    const ids = new Set(all.filter((x) => x.parent === v.hash).map((x) => x.hash));
+    for (const c of v.categories) for (const it of c.items) if (it.opens) ids.add(it.opens);
+    ids.delete(v.hash);
+    return all.filter((x) => ids.has(x.hash));
+  }
+  function openSub(hash) {
+    trail = [...trail, hash];
+    toTop = true;
+    draw();
+  }
+
+  function vendorView(v, all = []) {
     if (!v) return el("section", { class: "sh-box" }, label("Vendor"), el("p", { class: "tab__note", text: "Pick a vendor on the left." }));
     const hero = el("div", { class: "vd-hero" });
     if (v.art) {
@@ -136,6 +159,26 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
         ),
       ),
     );
+    const subs = subsOf(v, all);
+    const subBox = subs.length
+      ? el(
+          "section",
+          { class: "sh-box vd-subs" },
+          label("Menus", `${subs.length}`),
+          el(
+            "div",
+            { class: "vd-sub-list" },
+            ...subs.map((x) =>
+              el(
+                "button",
+                { class: "vd-sub", type: "button", onclick: () => openSub(x.hash) },
+                el("span", { class: "vd-sub__icon" }, x.icon ? el("img", { src: x.icon, alt: "", loading: "lazy" }) : ctx.svg(STORE)),
+                el("span", { class: "vd-sub__text" }, el("strong", { text: x.name }), el("small", { text: `${x.categories.reduce((n, c) => n + c.items.length, 0)} items` })),
+              ),
+            ),
+          ),
+        )
+      : null;
     const sections = v.categories
       .map((c) => ({ ...c, items: c.items.filter(matches) }))
       .filter((c) => c.items.length)
@@ -151,10 +194,74 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     return el(
       "div",
       { class: "vd-main" },
+      crumbs(all),
       hero,
       v.description ? el("p", { class: "vd-desc", text: clean(v.description) }) : null,
+      subBox,
       ...(sections.length ? sections : [el("p", { class: "tab__note", text: search ? "Nothing here matches your search." : "Nothing for sale right now." })]),
       flags,
+    );
+  }
+
+  // The trail above a sub-menu: the vendor › sub-menu › ..., each step clickable.
+  function crumbs(all) {
+    if (!trail.length) return null;
+    const name = (h) => all.find((x) => x.hash === h)?.name ?? "Menu";
+    const steps = [picked, ...trail];
+    return el(
+      "nav",
+      { class: "vd-crumbs", "aria-label": "Where you are" },
+      ...steps.flatMap((h, i) => [
+        i ? el("span", { class: "vd-crumbs__sep", text: "›" }) : null,
+        i === steps.length - 1 ? el("span", { text: name(h) }) : el("button", { class: "linkish", type: "button", text: name(h), onclick: () => ((trail = trail.slice(0, i)), (toTop = true), draw()) }),
+      ]),
+    );
+  }
+
+  // ---------- The vendors home ----------
+  // Your Vanguard, Crucible and Gambit ranks (Zavala's, Shaxx's and the Drifter's tracks), Eververse's Bright Dust
+  // offers and Ada-1's shaders.
+  function home(all) {
+    const find = (re) => all.find((v) => re.test(`${v.name} ${v.subtitle ?? ""}`));
+    const reps = [
+      ["Vanguard", find(/zavala/i)],
+      ["Crucible", find(/shaxx/i)],
+      ["Gambit", find(/drifter/i)],
+    ];
+    const repCard = ([kind, v]) => {
+      const r = v?.rank;
+      return el(
+        "button",
+        { class: "vd-rep", type: "button", disabled: v ? null : true, onclick: () => v && pick(v.hash) },
+        el("span", { class: "vd-rep__icon" }, r?.icon ? el("img", { src: r.icon, alt: "" }) : v?.icon ? el("img", { src: v.icon, alt: "" }) : ctx.svg(STORE)),
+        el(
+          "span",
+          { class: "vd-rep__text" },
+          el("small", { text: kind }),
+          el("strong", { text: r ? `Rank ${r.level}${r.name ? ` · ${r.name}` : ""}` : v ? "No rank" : "Not found" }),
+          r?.next > 0 ? meter(Math.round((r.progress / r.next) * 100)) : null,
+          el("span", { class: "vd-rep__n", text: r?.next > 0 ? `${Number(r.progress).toLocaleString()} / ${Number(r.next).toLocaleString()}${r.resets ? ` · reset ${r.resets}×` : ""}` : v?.name ?? "" }),
+        ),
+      );
+    };
+    const items = (v, keep) => (v ? v.categories.flatMap((c) => c.items).filter(keep).filter(matches) : []);
+    const ever = find(/eververse|tess everis/i);
+    const dust = items(ever, (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name)));
+    const ada = find(/ada-1/i);
+    const shaders = items(ada, (it) => /shader/i.test(`${it.typeName} ${it.name}`));
+    const shelf = (title, v, list, none) =>
+      el(
+        "section",
+        { class: "sh-box vd-cat" },
+        label(title, v ? el("button", { class: "linkish", type: "button", text: `Open ${v.name} ›`, onclick: () => pick(v.hash) }) : null),
+        list.length ? el("div", { class: "vd-items" }, ...list.map(tile)) : el("p", { class: "tab__note", text: none }),
+      );
+    return el(
+      "div",
+      { class: "vd-main" },
+      el("section", { class: "sh-box" }, label("Reputation"), el("div", { class: "vd-reps" }, ...reps.map(repCard))),
+      shelf("Eververse · Bright Dust offers", ever, dust, ever ? "Nothing for Bright Dust right now." : "Eververse isn't in this character's vendor list."),
+      shelf("Ada-1 · Shaders", ada, shaders, ada ? "Ada-1 isn't selling shaders right now." : "Ada-1 isn't in this character's vendor list."),
     );
   }
 
@@ -163,22 +270,25 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
   function draw() {
     hideTip();
     const data = byCharacter[chosen()];
-    const all = (data?.vendors ?? []).filter((v) => !only || only(v));
+    const everything = data?.vendors ?? []; // sub-menus are looked up here (the Tenets page filters `all`)
+    const all = everything.filter((v) => !only || only(v));
     const visible = all.filter((v) => !search || v.name.toLowerCase().includes(search) || v.categories.some((c) => c.items.some(matches)));
-    if (!visible.some((v) => v.hash === picked)) picked = visible[0]?.hash ?? null;
+    // The home is the landing page (the Tenets page lands on its first vendor); a vendor that vanished goes home.
+    if (picked != null && !all.some((v) => v.hash === picked)) picked = null;
+    if (picked == null && only) picked = visible[0]?.hash ?? null;
+    trail = trail.filter((h) => everything.some((v) => v.hash === h));
     // Grouped and ordered like the Companion app (Bungie's vendor groups, in the order the vendors arrive); the kiosks
     // and sub-vendors outside every group fold away at the bottom (open while searching, or when one is picked).
+    // Sub-menus live inside their parent, not in the list (unless a search finds them).
     const groups = new Map();
-    const extras = [];
     for (const v of visible) {
-      if (v.extra && !only) {
-        extras.push(v);
-        continue;
-      }
-      const key = v.group || "Vendors";
+      if (v.parent && !search && !only) continue;
+      const key = v.extra && !only ? "Kiosks and more" : v.group || "Vendors";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(v);
     }
+    // Kiosks last.
+    const ordered = [...groups].sort((a, b) => Number(a[0] === "Kiosks and more") - Number(b[0] === "Kiosks and more"));
     const row = (v) =>
       el(
         "button",
@@ -186,19 +296,29 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
         el("span", { class: "vd-row__icon" }, v.icon ? el("img", { src: v.icon, alt: "", loading: "lazy" }) : ctx.svg(STORE)),
         el("span", { class: "vd-row__text" }, el("span", { class: "vd-row__name", text: v.name }), el("span", { class: "vd-row__where", text: v.subtitle && v.destination ? `${v.subtitle} · ${v.destination}` : v.destination || v.subtitle || "" })),
       );
-    const fold = extras.length
-      ? el(
-          "details",
-          { class: "vd-fold", open: extrasOpen || Boolean(search) || extras.some((v) => v.hash === picked) ? true : null, ontoggle: (event) => (extrasOpen = event.target.open) },
-          el("summary", {}, label("Kiosks and more", `${extras.length}`)),
-          ...extras.map(row),
-        )
-      : null;
+    // Each group folds (a search or the picked vendor keeps it open).
+    const group = ([name, vendors]) => {
+      const open = !folded.has(name) || Boolean(search) || vendors.some((v) => v.hash === picked);
+      return el(
+        "details",
+        { class: "vd-fold", open: open ? true : null, ontoggle: (event) => (event.target.open ? folded.delete(name) : folded.add(name)) },
+        el("summary", {}, label(name, `${vendors.length}`)),
+        ...vendors.map(row),
+      );
+    };
+    const homeRow = only
+      ? null
+      : el(
+          "button",
+          { class: "vd-row vd-row--home", type: "button", "aria-current": String(picked == null), onclick: () => pick(null) },
+          el("span", { class: "vd-row__icon" }, ctx.svg(STORE)),
+          el("span", { class: "vd-row__text" }, el("span", { class: "vd-row__name", text: "Vendors home" }), el("span", { class: "vd-row__where", text: "Ranks, Bright Dust offers, shaders" })),
+        );
     const list = el(
       "nav",
       { class: "vd-list", "aria-label": "Vendors" },
-      ...[...groups].flatMap(([name, vendors]) => [label(name, `${vendors.length}`), ...vendors.map(row)]),
-      fold,
+      homeRow,
+      ...ordered.map(group),
       visible.length ? null : el("p", { class: "tab__note", text: search ? "No vendor matches your search." : (empty ?? "Bungie listed no vendors for this character.") }),
     );
     // The Inventory's search box (inv-search in inventory.css).
@@ -230,7 +350,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
         { class: "sh-top__tools" },
         characterPicker(ctx, characters, chosen(), (id) => {
           lastCharacter.vendors = id;
-          picked = null;
+          trail = [];
           load(false);
         }),
         searchBox,
@@ -241,7 +361,8 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     const scroll = toTop ? 0 : (root.querySelector(".sh-body")?.scrollTop ?? 0);
     const listScroll = root.querySelector(".vd-list")?.scrollTop ?? 0;
     toTop = false;
-    const scroller = el("div", { class: "sh-body" }, el("div", { class: "vd-layout" }, list, vendorView(visible.find((v) => v.hash === picked))));
+    const shown = trail.length ? everything.find((v) => v.hash === trail[trail.length - 1]) : all.find((v) => v.hash === picked);
+    const scroller = el("div", { class: "sh-body" }, el("div", { class: "vd-layout" }, list, picked == null && !only ? home(all) : vendorView(shown, everything)));
     root.replaceChildren(backdrop, top, scroller, tip);
     scroller.scrollTop = scroll;
     list.scrollTop = listScroll;
@@ -249,9 +370,21 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
   let toTop = false;
   function pick(hash) {
     picked = hash;
+    trail = [];
     toTop = true;
     draw();
   }
+  // Esc (subpages.js): out of a sub-menu first, then back to the vendors home.
+  container.midaBack = () => {
+    if (trail.length) {
+      trail = trail.slice(0, -1);
+    } else if (picked != null && !only) {
+      picked = null;
+    } else return false;
+    toTop = true;
+    draw();
+    return true;
+  };
 
   async function load(fresh) {
     if (!characters.length || fresh) {

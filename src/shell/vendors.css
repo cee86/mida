@@ -40,19 +40,23 @@
 /* Sale items: the tile, then its costs underneath. */
 .vd-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 12px 10px; }
 .vd-item { display: flex; flex-direction: column; align-items: center; gap: 4px; outline: none; }
-.vd-item .sh-tile { width: 64px; height: 64px; opacity: 1; }
+/* Full colour, like the Inventory's tiles (the Seasonal Hub's "not earned yet" dimming doesn't apply here). */
+.vd-item .sh-tile, .vd-item .sh-tile:not(.is-earned):not(.is-claimed) { width: 64px; height: 64px; opacity: 1; }
+.vd-item.is-link { cursor: pointer; }
+.vd-item.is-link .sh-tile { cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 .vd-item__mark { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .vd-item:focus-visible .sh-tile { outline: 2px solid #fff; outline-offset: -1px; }
 .vd-item.is-blocked .sh-tile { opacity: 0.55; }
-/* Rank rewards and the like: claimed (ticked, dimmed), ready to claim (marked), locked (dimmed with a lock). */
-.vd-item.is-claimed .sh-tile > img:first-child { opacity: 0.45; }
+/* Rank rewards and the like: claimed (ticked, a little dimmed), ready to claim (ringed), locked (a lock, full colour:
+   it may only need a higher rank). */
+.vd-item.is-claimed .sh-tile > img:first-child { opacity: 0.6; }
 .vd-item.is-claimed .sh-tile { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .vd-item.is-claimable .sh-tile { box-shadow: 0 0 0 2px var(--accent); }
-.vd-item.is-locked .sh-tile > img:first-child { opacity: 0.4; filter: grayscale(0.6); }
 .vd-item__lock { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 18px; height: 18px; background: rgba(0, 0, 0, 0.75); color: #fff; }
 .vd-item__lock svg { width: 12px; height: 12px; }
 .sh-tip__meta.is-claimed { color: var(--accent); }
 /* The kiosks and sub-vendors, folded at the bottom of the list. */
+/* Sidebar groups fold. */
 .vd-fold > summary { list-style: none; cursor: pointer; }
 .vd-fold > summary::-webkit-details-marker { display: none; }
 .vd-fold > summary .sh-label__text::before { content: "▸ "; }
@@ -70,3 +74,33 @@
   .vd-layout { grid-template-columns: 1fr; }
   .vd-list { position: static; max-height: 320px; }
 }
+
+/* The vendors home row, the trail above a sub-menu, the sub-menu buttons, and the home's reputation cards. */
+.vd-row--home { margin-top: 10px; }
+.vd-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--mist); font-size: 0.88rem; }
+.vd-crumbs .linkish { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.vd-crumbs .linkish:hover { text-decoration: underline; }
+.vd-crumbs__sep { color: var(--mist-dim); }
+.vd-sub-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.vd-sub { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid color-mix(in srgb, var(--cream) 12%, transparent); background: rgba(255, 255, 255, 0.04); color: var(--cream); text-align: left; cursor: pointer; }
+.vd-sub:hover { border-color: var(--accent); background: var(--hover); }
+.vd-sub__icon { display: block; width: 40px; height: 40px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.vd-sub__icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.vd-sub__icon > svg { display: block; width: 60%; height: 60%; margin: 20%; color: var(--mist); }
+.vd-sub__text { display: flex; flex-direction: column; min-width: 0; }
+.vd-sub__text small { color: var(--mist); font-size: 0.76rem; }
+.vd-reps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.vd-rep { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 14px; padding: 12px; border: 1px solid color-mix(in srgb, var(--cream) 12%, transparent); background: rgba(255, 255, 255, 0.04); color: var(--cream); text-align: left; cursor: pointer; }
+.vd-rep:hover:not(:disabled) { border-color: var(--accent); background: var(--hover); }
+.vd-rep:disabled { opacity: 0.6; cursor: default; }
+.vd-rep__icon { display: block; width: 64px; height: 64px; }
+.vd-rep__icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.vd-rep__icon > svg { width: 100%; height: 100%; color: var(--mist); }
+.vd-rep__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.vd-rep__text small { color: var(--mist); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.vd-rep__text strong { font-family: var(--font-display); font-size: 1.1rem; }
+.vd-rep__text .sh-meter { height: 4px; }
+.vd-rep__n { color: var(--mist); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .vd-reps { grid-template-columns: 1fr; } }
+.vd .linkish { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; letter-spacing: normal; text-transform: none; cursor: pointer; }
+.vd .linkish:hover { text-decoration: underline; }

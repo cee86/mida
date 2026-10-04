@@ -353,7 +353,18 @@ a drawn shop icon when none. The rank shows its track step's icon and name (Dest
 read `augments` (DestinyVendorItemState 2 reward available, 4 complete, 128 owned, 262144 locked) and saleStatus
 (4096 owned): claimed = ticked and dimmed, ready to claim = accent ring, locked = dimmed with a lock; **unverified on live
 data**, so each vendor has a data check listing every item's raw flags. Art banners are taller and show the top of the
-scene. Picking a vendor keeps the list's scroll position (the page starts at the top).
+scene. Picking a vendor keeps the list's scroll position (the page starts at the top). **Vendors round 2** (owner, 4 Oct 2026): tiles are full colour (the
+Seasonal Hub's "not earned" 0.72 opacity no longer applies) and locked items aren't dimmed (just the lock: they may
+only need a higher rank). Vendors without their own rank (Xûr) use their faction's progression (DestinyFactionDefinition
+`progressionHash` → the character's component 202 progressions, now read alongside the vendors). **Sub-menus:** sale
+items of type 0/20 have their full definitions read (kept on disk); `preview.previewVendorHash` naming a listed vendor
+makes the item a link (`opens`) and that vendor a child (`parent`, only when it isn't in a Bungie group). Children leave
+the sidebar and show on their parent's page as a "Menus" box; opening one swaps the right side (sidebar kept), with a
+trail back and Esc stepping out (`container.midaBack`). Whether Bungie's menu links (Xûr's "More Strange Offers", Ikora's
+subclass trees) really carry previewVendorHash is **unverified**; the data check shows each item's flags. Sidebar groups
+fold (remembered while MIDA runs; Kiosks folded by default). **Vendors home** (default landing; the Tenets page lands on
+its first vendor): Vanguard, Crucible and Gambit ranks (Zavala's, Shaxx's and the Drifter's tracks, found by name),
+Eververse's items costing Bright Dust, and Ada-1's shaders.
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
   tabs without one fall back to the old Seasonal Hub picture, then the Inventory's, then MIDA's backdrop (RAD shows none
@@ -761,6 +772,9 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.9 (4 Oct 2026, owner): Vendors round 2: full-colour tiles, locked not dimmed, Xûr's rank via his faction,
+  sub-menus inside their vendor (sidebar kept, trail, Esc), folding sidebar groups, a Vendors home (ranks, Bright
+  Dust offers, Ada-1 shaders).
 * v0.9.8 (4 Oct 2026, owner): news reader pop-up for the Community Hub and link cards; Vendors overhaul (Bungie's
   groups and order, kiosks folded, 200-vendor cap, claimed/ready/locked rewards, rank icons, icon fallbacks, banner,
   list scroll kept).
