@@ -364,7 +364,16 @@ trail back and Esc stepping out (`container.midaBack`). Whether Bungie's menu li
 subclass trees) really carry previewVendorHash is **unverified**; the data check shows each item's flags. Sidebar groups
 fold (remembered while MIDA runs; Kiosks folded by default). **Vendors home** (default landing; the Tenets page lands on
 its first vendor): Vanguard, Crucible and Gambit ranks (Zavala's, Shaxx's and the Drifter's tracks, found by name),
-Eververse's items costing Bright Dust, and Ada-1's shaders.
+Eververse's items costing Bright Dust, and Ada-1's shaders. **Vendors round 3** (owner's in-game screenshots, 4 Oct 2026): each vendor page follows the
+game's vendor screen: the vendor's art across the page (fixed while scrolling), kicker / big name / description at the
+lower left, a frosted panel on the right with the rank (round icon, "STEP // RANK n", bar, "Faction reward" + the track's
+description), the inventory reset and your currencies (profile component 103, `currencies`), then each category under a
+plain ruled heading ("Prestige // n" on rank rewards); menu links are wide banner tiles. **Eververse:** the owner's Tess
+showed only exotic ornaments, so (1) sale items no category lists are now grouped by the vendor definition's
+`itemList[vendorItemIndex].displayCategoryIndex` instead of dropped, (2) disabled vendors with sales are kept (in "Kiosks
+and more", `disabled`), and (3) the home's "Eververse · Daily offers" gathers every category named like the store's
+(Bright Dust / Silver / Eververse) from any vendor. Where the store's daily offers really live is **unverified**: the
+home's data check lists every vendor Bungie sent (`check`: name, enabled, items for sale, shown).
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
   tabs without one fall back to the old Seasonal Hub picture, then the Inventory's, then MIDA's backdrop (RAD shows none
@@ -772,6 +781,9 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.10 (4 Oct 2026, owner): vendor pages laid out like the game's vendor screen (art, rank panel, currencies, ruled
+  categories, wide menu tiles); uncategorised and disabled vendors' items kept; Eververse daily offers gathered by
+  category name; a data check of every vendor Bungie sends.
 * v0.9.9 (4 Oct 2026, owner): Vendors round 2: full-colour tiles, locked not dimmed, Xûr's rank via his faction,
   sub-menus inside their vendor (sidebar kept, trail, Esc), folding sidebar groups, a Vendors home (ranks, Bright
   Dust offers, Ada-1 shaders).

@@ -1118,7 +1118,10 @@ fn sale_status(flags: u64) -> Option<&'static str> {
 /// Strange Offers", Ikora's subclass trees) is sent with `opens`, and that vendor with `parent`, so the screen shows it
 /// inside its parent. A vendor without its own rank (Xûr) reads its faction's progression from `progressions` (the
 /// character's component 202 progressions).
-pub async fn vendor_screen(vendors: &Value, progressions: &Value, m: &Manifest) -> Value {
+///
+/// Also sent: the account's currencies (`currencies`, profile component 103) for the vendor pages' currency row, and
+/// `check`: every vendor in the answer with whether it's shown (the data check, to find where items hide).
+pub async fn vendor_screen(vendors: &Value, progressions: &Value, currencies: &Value, m: &Manifest) -> Value {
     let empty = json!({ "vendors": [] });
     let (Some(states), Some(sales)) = (vendors["vendors"]["data"].as_object(), vendors["sales"]["data"].as_object()) else { return empty };
     let usable = |k: &str| states.get(k).is_some_and(|v| v["enabled"].as_bool() != Some(false)) && sales.get(k).and_then(|s| s["saleItems"].as_object()).is_some_and(|o| !o.is_empty());
@@ -1132,7 +1135,10 @@ pub async fn vendor_screen(vendors: &Value, progressions: &Value, m: &Manifest) 
             }
         }
     }
-    let mut rest: Vec<u64> = states.keys().filter(|k| usable(k)).filter_map(|k| k.parse().ok()).filter(|h| !grouped.iter().any(|(g, _)| g == h)).collect();
+    // Outside the groups, disabled vendors with something listed count too (they land in "Kiosks and more"): the
+    // Eververse store's pages may be among them.
+    let has_sales = |k: &str| sales.get(k).and_then(|s| s["saleItems"].as_object()).is_some_and(|o| !o.is_empty());
+    let mut rest: Vec<u64> = states.keys().filter(|k| has_sales(k)).filter_map(|k| k.parse().ok()).filter(|h| !grouped.iter().any(|(g, _)| g == h)).collect();
     rest.sort_unstable();
     let keys: Vec<u64> = grouped.iter().map(|(h, _)| *h).chain(rest.iter().copied()).take(200).collect();
     let group_of: HashMap<u64, u64> = grouped.iter().copied().collect();
@@ -1197,59 +1203,88 @@ pub async fn vendor_screen(vendors: &Value, progressions: &Value, m: &Manifest) 
         let display = def["displayCategories"].as_array().cloned().unwrap_or_default();
         let sale_items = sales[&key]["saleItems"].as_object().cloned().unwrap_or_default();
         let objectives_of = &vendors["itemComponents"][&key]["objectives"]["data"];
+        // One sale item as the screen shows it (None when the game data has no name for it).
+        let item_of = |index_key: &str| -> Option<Value> {
+            let Some(sale) = sale_items.get(index_key) else { return None };
+            let Some(item_hash) = sale["itemHash"].as_u64() else { return None };
+            let Some(d) = m.items.get(&(item_hash as u32)) else { return None };
+            if d.name.is_empty() {
+                return None;
+            }
+            let costs: Vec<Value> = sale["costs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|c| {
+                    let cost = m.items.get(&(c["itemHash"].as_u64()? as u32))?;
+                    Some(json!({ "name": cost.name, "icon": icon_url(&cost.icon), "quantity": c["quantity"] }))
+                })
+                .collect();
+            let objs = objectives(&objectives_of[index_key]["objectives"], m);
+            // Claimed / ready to claim / locked, from the sale's state flags (DestinyVendorItemState: 2 reward
+            // available, 4 complete, 128 owned, 262144 locked) and its sale status (4096 already owned).
+            let augments = sale["augments"].as_u64().unwrap_or(0);
+            let status_flags = sale["saleStatus"].as_u64().unwrap_or(0);
+            let claimed = augments & 128 != 0 || status_flags & 4096 != 0 || (augments & 4 != 0 && objs.is_empty());
+            let claimable = !claimed && augments & 2 != 0;
+            let locked = !claimed && (augments & 262144 != 0 || status_flags & (4 | 8 | 32 | 64) != 0);
+            Some(json!({
+                "hash": item_hash,
+                "name": d.name,
+                "icon": icon_url(&d.icon),
+                "watermark": icon_url(&d.watermark),
+                "typeName": d.type_name,
+                "description": d.description,
+                "tier": d.tier,
+                "kind": d.kind,
+                "classType": d.class,
+                "quantity": sale["quantity"],
+                "costs": costs,
+                "status": if claimed { Some("Claimed") } else if claimable { Some("Ready to claim") } else { sale_status(status_flags) },
+                "claimed": claimed,
+                "claimable": claimable,
+                "locked": locked,
+                "flags": [augments, status_flags],
+                "opens": opens_of(item_hash),
+                "objectives": objs,
+            }))
+        };
         let mut categories = Vec::new();
+        let mut used: HashSet<String> = HashSet::new();
         for cat in vendors["categories"]["data"][&key]["categories"].as_array().into_iter().flatten() {
             let index = cat["displayCategoryIndex"].as_u64().unwrap_or(0) as usize;
             let cat_name = display.get(index).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or("").to_string();
             let mut items = Vec::new();
-            for i in cat["itemIndexes"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()).take(120) {
+            for i in cat["itemIndexes"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()).take(160) {
                 let index_key = i.to_string();
-                let Some(sale) = sale_items.get(&index_key) else { continue };
-                let Some(item_hash) = sale["itemHash"].as_u64() else { continue };
-                let Some(d) = m.items.get(&(item_hash as u32)) else { continue };
-                if d.name.is_empty() {
-                    continue;
+                used.insert(index_key.clone());
+                if let Some(item) = item_of(&index_key) {
+                    items.push(item);
                 }
-                let costs: Vec<Value> = sale["costs"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|c| {
-                        let cost = m.items.get(&(c["itemHash"].as_u64()? as u32))?;
-                        Some(json!({ "name": cost.name, "icon": icon_url(&cost.icon), "quantity": c["quantity"] }))
-                    })
-                    .collect();
-                let objs = objectives(&objectives_of[&index_key]["objectives"], m);
-                // Claimed / ready to claim / locked, from the sale's state flags (DestinyVendorItemState: 2 reward
-                // available, 4 complete, 128 owned, 262144 locked) and its sale status (4096 already owned).
-                let augments = sale["augments"].as_u64().unwrap_or(0);
-                let status_flags = sale["saleStatus"].as_u64().unwrap_or(0);
-                let claimed = augments & 128 != 0 || status_flags & 4096 != 0 || (augments & 4 != 0 && objs.is_empty());
-                let claimable = !claimed && augments & 2 != 0;
-                let locked = !claimed && (augments & 262144 != 0 || status_flags & (4 | 8 | 32 | 64) != 0);
-                items.push(json!({
-                    "hash": item_hash,
-                    "name": d.name,
-                    "icon": icon_url(&d.icon),
-                    "watermark": icon_url(&d.watermark),
-                    "typeName": d.type_name,
-                    "description": d.description,
-                    "tier": d.tier,
-                    "kind": d.kind,
-                    "classType": d.class,
-                    "quantity": sale["quantity"],
-                    "costs": costs,
-                    "status": if claimed { Some("Claimed") } else if claimable { Some("Ready to claim") } else { sale_status(status_flags) },
-                    "claimed": claimed,
-                    "claimable": claimable,
-                    "locked": locked,
-                    "flags": [augments, status_flags],
-                    "opens": opens_of(item_hash),
-                    "objectives": objs,
-                }));
             }
             if !items.is_empty() {
                 categories.push(json!({ "name": cat_name, "items": items }));
+            }
+        }
+        // Sale items no category lists (the Eververse store's pages seem to be built this way): grouped by the vendor
+        // definition's own display category for that item (itemList[vendorItemIndex].displayCategoryIndex).
+        let mut loose: Vec<(usize, Vec<Value>)> = Vec::new();
+        let mut rest_keys: Vec<&String> = sale_items.keys().filter(|k| !used.contains(*k)).collect();
+        rest_keys.sort_by_key(|k| k.parse::<u64>().unwrap_or(0));
+        for k in rest_keys.into_iter().take(200) {
+            let Some(item) = item_of(k) else { continue };
+            let vendor_index = sale_items[k]["vendorItemIndex"].as_u64().unwrap_or(0) as usize;
+            let display_index = def["itemList"][vendor_index]["displayCategoryIndex"].as_u64().unwrap_or(u64::MAX) as usize;
+            match loose.iter_mut().find(|(d, _)| *d == display_index) {
+                Some((_, list)) => list.push(item),
+                None => loose.push((display_index, vec![item])),
+            }
+        }
+        for (display_index, items) in loose {
+            let cat_name = display.get(display_index).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or("More for sale").to_string();
+            match categories.iter_mut().find(|c| c["name"].as_str() == Some(cat_name.as_str())) {
+                Some(c) => c["items"].as_array_mut().unwrap().extend(items),
+                None => categories.push(json!({ "name": cat_name, "items": items })),
             }
         }
         if categories.is_empty() {
@@ -1265,6 +1300,7 @@ pub async fn vendor_screen(vendors: &Value, progressions: &Value, m: &Manifest) 
             .and_then(|t| t["steps"].as_array().and_then(|steps| steps.get(level.min(steps.len().saturating_sub(1)))).and_then(|st| st["icon"].as_str()).filter(|i| !i.is_empty()).or(t["displayProperties"]["icon"].as_str()))
             .unwrap_or("");
         let rank_name = track.and_then(|t| t["steps"].as_array()?.get(level)?["stepName"].as_str()).unwrap_or("");
+        let rank_text = track.and_then(|t| t["displayProperties"]["description"].as_str()).unwrap_or("");
         // Vendor icons: Bungie leaves `icon` empty or a plain disc on some; the other icons stand in.
         let dp = &def["displayProperties"];
         let icon = ["smallTransparentIcon", "icon", "mapIcon", "largeTransparentIcon", "largeIcon"].iter().filter_map(|k| dp[*k].as_str()).find(|i| !i.is_empty()).unwrap_or("");
@@ -1278,13 +1314,43 @@ pub async fn vendor_screen(vendors: &Value, progressions: &Value, m: &Manifest) 
             "destination": destination,
             "group": group,
             "extra": !group_of.contains_key(&hash),
+            "disabled": state["enabled"].as_bool() == Some(false),
             "parent": parent_of.get(&hash),
             "refresh": refresh,
-            "rank": if progression.is_object() { json!({ "level": progression["level"], "progress": progression["progressToNextLevel"], "next": progression["nextLevelAt"], "resets": progression["currentResetCount"], "icon": icon_url(rank_icon), "name": rank_name }) } else { Value::Null },
+            "rank": if progression.is_object() { json!({ "level": progression["level"], "progress": progression["progressToNextLevel"], "next": progression["nextLevelAt"], "resets": progression["currentResetCount"], "icon": icon_url(rank_icon), "name": rank_name, "description": rank_text }) } else { Value::Null },
             "categories": categories,
         }));
     }
-    json!({ "vendors": out })
+    // The data check: every vendor in Bungie's answer, named, with what happened to it.
+    let mut all_keys: Vec<u64> = states.keys().filter_map(|k| k.parse().ok()).collect();
+    all_keys.sort_unstable();
+    all_keys.truncate(400);
+    let names = entities("DestinyVendorDefinition", &all_keys).await;
+    let shown: HashSet<u64> = out.iter().filter_map(|v| v["hash"].as_u64()).collect();
+    let check: Vec<Value> = all_keys
+        .iter()
+        .map(|h| {
+            let k = h.to_string();
+            let count = sales.get(&k).and_then(|s| s["saleItems"].as_object()).map(|o| o.len()).unwrap_or(0);
+            json!({
+                "hash": h,
+                "name": names.get(h).and_then(|d| d["displayProperties"]["name"].as_str()).unwrap_or(""),
+                "enabled": states[&k]["enabled"].as_bool() != Some(false),
+                "sales": count,
+                "shown": shown.contains(h),
+            })
+        })
+        .collect();
+    let wallet: Vec<Value> = currencies
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|c| {
+            let d = m.items.get(&(c["itemHash"].as_u64()? as u32))?;
+            Some(json!({ "name": d.name, "icon": icon_url(&d.icon), "quantity": c["quantity"] }))
+        })
+        .collect();
+    json!({ "vendors": out, "check": check, "currencies": wallet })
 }
 
 /// A character's weekly checklist (Seasonal Hub and Weekly planner): its milestones (raids, dungeons, Kepler,

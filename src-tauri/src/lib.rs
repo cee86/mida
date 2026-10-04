@@ -1682,9 +1682,9 @@ async fn d2_vendors(webview: Webview, app: AppHandle, character: String) -> Valu
             progress(&app, "vendors", 0.3, "Reading the vendors from Bungie");
             let vendors = bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access).await?;
             // The character's progressions, for vendors whose rank lives on their faction (Xûr).
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "202").await.unwrap_or(Value::Null);
+            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "103,202").await.unwrap_or(Value::Null);
             progress(&app, "vendors", 0.6, "Reading what they sell");
-            Ok(bungie::vendor_screen(&vendors, &profile["characterProgressions"]["data"][character.as_str()]["progressions"], &m).await)
+            Ok(bungie::vendor_screen(&vendors, &profile["characterProgressions"]["data"][character.as_str()]["progressions"], &profile["profileCurrencies"]["data"]["items"], &m).await)
         }
         .await,
     )

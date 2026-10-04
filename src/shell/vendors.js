@@ -38,6 +38,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
   const backdrop = wallpaper(ctx, wall);
   const tip = el("div", { class: "sh-tip", role: "tooltip", hidden: true });
   let characters = [];
+  let wallet = []; // the account's currencies (d2_vendors `currencies`)
   let search = "";
 
   const chosen = () => (characters.some((c) => c.id === lastCharacter.vendors) ? lastCharacter.vendors : characters[0]?.id);
@@ -126,55 +127,59 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     draw();
   }
 
+  // A vendor's page, after the game's vendor screen: the vendor's art across the page with their name and description
+  // at the lower left; on the right a frosted panel with the rank (its icon, "STEP // RANK n", the bar, what the track
+  // is for), your currencies and the reset, then the sub-menus and each sale category under a plain ruled heading.
   function vendorView(v, all = []) {
     if (!v) return el("section", { class: "sh-box" }, label("Vendor"), el("p", { class: "tab__note", text: "Pick a vendor on the left." }));
-    const hero = el("div", { class: "vd-hero" });
-    if (v.art) {
-      hero.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,0.78), rgba(0,0,0,0.25) 70%), url("${v.art}")`;
-      hero.classList.add("has-art");
-    }
     const rank = v.rank && v.rank.next > 0 ? v.rank : null;
-    hero.append(
-      el("span", { class: "vd-hero__icon" }, v.icon ? el("img", { src: v.icon, alt: "", loading: "lazy" }) : ctx.svg(STORE)),
-      el(
-        "div",
-        { class: "vd-hero__text" },
-        el("span", { class: "vd-hero__kicker", text: [v.group, v.destination].filter(Boolean).join(" · ") || "Vendor" }),
-        el("h2", { class: "vd-hero__name", text: v.name }),
-        v.subtitle ? el("span", { class: "vd-hero__subtitle", text: v.subtitle }) : null,
-        el(
-          "div",
-          { class: "vd-hero__facts" },
-          rank
-            ? el(
-                "span",
-                { class: "vd-rank" },
-                rank.icon ? el("img", { class: "vd-rank__icon", src: rank.icon, alt: "", loading: "lazy" }) : el("span", { class: "vd-rank__icon" }),
-                el("span", { text: `Rank ${rank.level}${rank.name ? ` · ${rank.name}` : ""}${rank.resets ? ` · reset ${rank.resets}×` : ""}` }),
-                meter(Math.round((rank.progress / rank.next) * 100)),
-                el("span", { class: "vd-rank__n", text: `${Number(rank.progress).toLocaleString()} / ${Number(rank.next).toLocaleString()}` }),
-              )
-            : null,
-          v.refresh ? el("span", { class: "vd-reset" }, el("span", { text: "Inventory resets in " }), until(ctx, v.refresh, "")) : null,
-        ),
-      ),
+    const page = el("div", { class: `vd-page${v.art ? " has-art" : ""}` });
+    if (v.art) page.style.backgroundImage = `url("${v.art}")`;
+    const left = el(
+      "div",
+      { class: "vd-page__left" },
+      el("span", { class: "vd-page__kicker", text: v.subtitle || [v.group, v.destination].filter(Boolean).join(" · ") || "Vendor" }),
+      el("h2", { class: "vd-page__name", text: v.name }),
+      v.description ? el("p", { class: "vd-page__desc", text: clean(v.description) }) : null,
+      v.destination && v.subtitle ? el("span", { class: "vd-page__where", text: v.destination }) : null,
     );
-    const subs = subsOf(v, all);
-    const subBox = subs.length
+    const rankHead = rank
       ? el(
-          "section",
-          { class: "sh-box vd-subs" },
-          label("Menus", `${subs.length}`),
+          "div",
+          { class: "vd-rankhead" },
+          el("span", { class: "vd-rankhead__icon" }, rank.icon ? el("img", { src: rank.icon, alt: "" }) : v.icon ? el("img", { src: v.icon, alt: "" }) : ctx.svg(STORE)),
           el(
             "div",
-            { class: "vd-sub-list" },
-            ...subs.map((x) =>
-              el(
-                "button",
-                { class: "vd-sub", type: "button", onclick: () => openSub(x.hash) },
-                el("span", { class: "vd-sub__icon" }, x.icon ? el("img", { src: x.icon, alt: "", loading: "lazy" }) : ctx.svg(STORE)),
-                el("span", { class: "vd-sub__text" }, el("strong", { text: x.name }), el("small", { text: `${x.categories.reduce((n, c) => n + c.items.length, 0)} items` })),
-              ),
+            { class: "vd-rankhead__text" },
+            el("strong", { class: "vd-rankhead__title", text: `${rank.name ? `${rank.name} // ` : ""}Rank ${rank.level}` }),
+            meter(Math.round((rank.progress / rank.next) * 100)),
+            el("span", { class: "vd-rankhead__n", text: `${Number(rank.progress).toLocaleString()} / ${Number(rank.next).toLocaleString()}` }),
+            rank.description ? el("span", { class: "vd-rankhead__label", text: "Faction reward" }) : null,
+            rank.description ? el("p", { class: "vd-rankhead__desc", text: clean(rank.description) }) : null,
+          ),
+        )
+      : null;
+    const facts = el(
+      "div",
+      { class: "vd-facts" },
+      v.refresh ? el("span", { class: "vd-reset" }, el("span", { text: "Inventory resets in " }), until(ctx, v.refresh, "")) : el("span"),
+      wallet.length ? el("span", { class: "vd-wallet" }, ...wallet.slice(0, 5).map((c) => el("span", { class: "vd-wallet__item", title: c.name }, c.icon ? el("img", { src: c.icon, alt: "" }) : null, el("span", { text: Number(c.quantity ?? 0).toLocaleString() })))) : null,
+    );
+    const subs = subsOf(v, all);
+    const linked = new Set(v.categories.flatMap((c) => c.items.filter((it) => it.opens).map((it) => it.opens)));
+    // Sub-menus that no item on the page links to get their own row of menu tiles.
+    const loose = subs.filter((x) => !linked.has(x.hash));
+    const heading = (name, extra) => el("div", { class: "vd-sec__head" }, el("span", { text: name }), extra ? el("span", { class: "vd-sec__extra", text: extra }) : null);
+    const subBox = loose.length
+      ? el(
+          "section",
+          { class: "vd-sec" },
+          heading("Menus"),
+          el(
+            "div",
+            { class: "vd-menus" },
+            ...loose.map((x) =>
+              el("button", { class: "vd-menu", type: "button", title: x.name, onclick: () => openSub(x.hash) }, x.icon ? el("img", { src: x.icon, alt: "", loading: "lazy" }) : ctx.svg(STORE), el("span", { text: x.name })),
             ),
           ),
         )
@@ -182,25 +187,35 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     const sections = v.categories
       .map((c) => ({ ...c, items: c.items.filter(matches) }))
       .filter((c) => c.items.length)
-      .map((c) => el("section", { class: "sh-box vd-cat" }, label(c.name || "For sale", `${c.items.length}`), el("div", { class: "vd-items" }, ...c.items.map(tile))));
+      .map((c) =>
+        el(
+          "section",
+          { class: "vd-sec" },
+          heading(c.name || "For sale", /rank/i.test(c.name ?? "") && rank ? `Prestige // ${rank.resets ?? 0}` : null),
+          el("div", { class: "vd-items" }, ...c.items.map(tile)),
+        ),
+      );
     // For tuning the claimed/locked reading on live data: each item's raw state flags (augments · sale status).
     const flags = el(
       "details",
       { class: "sh-more sh-check" },
       el("summary", { text: "Data check (for tuning this tab)" }),
-      el("p", { class: "tab__note", text: `Group: ${v.group || "none"}${v.extra ? " (not in Bungie's vendor groups)" : ""} · vendor ${v.hash}` }),
-      el("ul", {}, ...v.categories.flatMap((c) => c.items.map((it) => el("li", { text: `${c.name || "For sale"} · ${it.name}: ${it.flags?.[0] ?? "?"} · ${it.flags?.[1] ?? "?"}${it.status ? ` → ${it.status}` : ""}` })))),
+      el("p", { class: "tab__note", text: `Group: ${v.group || "none"}${v.extra ? " (not in Bungie's vendor groups)" : ""}${v.disabled ? " · marked disabled" : ""}${v.parent ? ` · inside ${all.find((x) => x.hash === v.parent)?.name ?? v.parent}` : ""} · vendor ${v.hash}` }),
+      el("ul", {}, ...v.categories.flatMap((c) => c.items.map((it) => el("li", { text: `${c.name || "For sale"} · ${it.name}: ${it.flags?.[0] ?? "?"} · ${it.flags?.[1] ?? "?"}${it.status ? ` → ${it.status}` : ""}${it.opens ? ` → opens ${it.opens}` : ""}` })))),
     );
-    return el(
-      "div",
-      { class: "vd-main" },
-      crumbs(all),
-      hero,
-      v.description ? el("p", { class: "vd-desc", text: clean(v.description) }) : null,
-      subBox,
-      ...(sections.length ? sections : [el("p", { class: "tab__note", text: search ? "Nothing here matches your search." : "Nothing for sale right now." })]),
-      flags,
+    page.append(
+      left,
+      el(
+        "div",
+        { class: "vd-page__right" },
+        rankHead,
+        facts,
+        subBox,
+        ...(sections.length ? sections : [el("p", { class: "tab__note", text: search ? "Nothing here matches your search." : "Nothing for sale right now." })]),
+        flags,
+      ),
     );
+    return el("div", { class: "vd-main" }, crumbs(all), page);
   }
 
   // The trail above a sub-menu: the vendor › sub-menu › ..., each step clickable.
@@ -246,7 +261,20 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     };
     const items = (v, keep) => (v ? v.categories.flatMap((c) => c.items).filter(keep).filter(matches) : []);
     const ever = find(/eververse|tess everis/i);
-    const dust = items(ever, (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name)));
+    // Eververse's daily offers, wherever Bungie keeps them: every category named like the store's ("Primary Bright Dust
+    // Offers", "Silver Offers"...) in any vendor, kiosks included; else Tess's items that cost Bright Dust.
+    const everything = byCharacter[chosen()]?.vendors ?? all;
+    const storeCats = [];
+    for (const v of everything) {
+      for (const c of v.categories) {
+        if (!/bright dust|silver|eververse/i.test(c.name ?? "")) continue;
+        const had = storeCats.find((x) => x.name === c.name);
+        const list = c.items.filter(matches);
+        if (had) had.items.push(...list.filter((it) => !had.items.some((x) => x.hash === it.hash)));
+        else if (list.length) storeCats.push({ name: c.name, items: list, vendor: v });
+      }
+    }
+    const dust = storeCats.length ? [] : items(ever, (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name)));
     const ada = find(/ada-1/i);
     const shaders = items(ada, (it) => /shader/i.test(`${it.typeName} ${it.name}`));
     const shelf = (title, v, list, none) =>
@@ -260,8 +288,22 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
       "div",
       { class: "vd-main" },
       el("section", { class: "sh-box" }, label("Reputation"), el("div", { class: "vd-reps" }, ...reps.map(repCard))),
-      shelf("Eververse · Bright Dust offers", ever, dust, ever ? "Nothing for Bright Dust right now." : "Eververse isn't in this character's vendor list."),
+      storeCats.length
+        ? el(
+            "section",
+            { class: "sh-box vd-cat" },
+            label("Eververse · Daily offers", ever ? el("button", { class: "linkish", type: "button", text: `Open ${ever.name} ›`, onclick: () => pick(ever.hash) }) : null),
+            ...storeCats.flatMap((c) => [el("div", { class: "vd-sec__head" }, el("span", { text: c.name }), el("span", { class: "vd-sec__extra", text: c.vendor.name })), el("div", { class: "vd-items" }, ...c.items.map(tile))]),
+          )
+        : shelf("Eververse · Bright Dust offers", ever, dust, ever ? "Bungie's list shows no Bright Dust offers right now (the data check below lists every vendor it sent)." : "Eververse isn't in this character's vendor list."),
       shelf("Ada-1 · Shaders", ada, shaders, ada ? "Ada-1 isn't selling shaders right now." : "Ada-1 isn't in this character's vendor list."),
+      // Every vendor Bungie sent, to find where items hide (Eververse's pages, Tenets...).
+      el(
+        "details",
+        { class: "sh-more sh-check" },
+        el("summary", { text: "Data check: every vendor Bungie sent" }),
+        el("ul", {}, ...(byCharacter[chosen()]?.check ?? []).map((x) => el("li", { text: `${x.name || "(no name)"} [${x.hash}] · ${x.enabled ? "enabled" : "disabled"} · ${x.sales} for sale · ${x.shown ? "shown" : "not shown"}` }))),
+      ),
     );
   }
 
@@ -271,6 +313,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     hideTip();
     const data = byCharacter[chosen()];
     const everything = data?.vendors ?? []; // sub-menus are looked up here (the Tenets page filters `all`)
+    wallet = data?.currencies ?? [];
     const all = everything.filter((v) => !only || only(v));
     const visible = all.filter((v) => !search || v.name.toLowerCase().includes(search) || v.categories.some((c) => c.items.some(matches)));
     // The home is the landing page (the Tenets page lands on its first vendor); a vendor that vanished goes home.

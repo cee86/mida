@@ -15,25 +15,9 @@
 .vd-row__name { overflow: hidden; font-weight: 600; font-size: 0.92rem; white-space: nowrap; text-overflow: ellipsis; }
 .vd-row__where { overflow: hidden; color: var(--mist); font-size: 0.76rem; white-space: nowrap; text-overflow: ellipsis; }
 
-/* The chosen vendor: art banner, then a box per sale category. */
+/* The chosen vendor (the page itself is .vd-page below). */
 .vd-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.vd-hero { display: grid; grid-template-columns: 76px 1fr; gap: 16px; align-items: end; min-height: 120px; padding: 18px 18px 16px; border: 1px solid color-mix(in srgb, var(--cream) 12%, transparent); background: linear-gradient(90deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.2)); background-size: cover; background-position: center; }
-/* Vendor art is a wide scene with the vendor's face in its upper half: show the top of it, a little taller. */
-.vd-hero.has-art { min-height: 240px; background-position: center 18%; }
-.vd-hero__icon { display: block; width: 76px; height: 76px; border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(0, 0, 0, 0.4); overflow: hidden; }
-.vd-hero__icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.vd-hero__icon > svg, .vd-row__icon > svg { display: block; width: 60%; height: 60%; margin: 20%; color: var(--mist); }
-.vd-hero__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
-.vd-hero__kicker { color: rgba(255, 255, 255, 0.75); font-size: 0.74rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
-.vd-hero__name { margin: 0; font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1.1; }
-.vd-hero__subtitle { color: rgba(255, 255, 255, 0.8); font-size: 0.88rem; }
-.vd-hero__facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-top: 6px; font-size: 0.84rem; }
-.vd-rank { display: grid; grid-template-columns: 26px auto 140px auto; align-items: center; gap: 10px; }
-.vd-rank__icon { width: 26px; height: 26px; object-fit: contain; }
-.vd-rank .sh-meter { height: 4px; }
-.vd-rank__n { color: rgba(255, 255, 255, 0.7); font-variant-numeric: tabular-nums; }
 .vd-reset { color: rgba(255, 255, 255, 0.85); }
-.vd-desc { margin: 0; color: var(--mist); font-size: 0.9rem; line-height: 1.5; white-space: pre-line; }
 .vd-cat .sh-label { margin-top: 10px; }
 .vd-search { width: 220px; }
 
@@ -41,7 +25,8 @@
 .vd-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 12px 10px; }
 .vd-item { display: flex; flex-direction: column; align-items: center; gap: 4px; outline: none; }
 /* Full colour, like the Inventory's tiles (the Seasonal Hub's "not earned yet" dimming doesn't apply here). */
-.vd-item .sh-tile, .vd-item .sh-tile:not(.is-earned):not(.is-claimed) { width: 64px; height: 64px; opacity: 1; }
+.vd-item .sh-tile { width: 64px; height: 64px; }
+.vd-item .sh-tile:not(.is-earned):not(.is-claimed) { opacity: 1; }
 .vd-item.is-link { cursor: pointer; }
 .vd-item.is-link .sh-tile { cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 .vd-item__mark { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
@@ -104,3 +89,47 @@
 @media (max-width: 1100px) { .vd-reps { grid-template-columns: 1fr; } }
 .vd .linkish { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; letter-spacing: normal; text-transform: none; cursor: pointer; }
 .vd .linkish:hover { text-decoration: underline; }
+
+/* A vendor's page, after the game's vendor screen: art across the page (fixed while the panel scrolls), name and
+   description at the lower left, a frosted panel on the right. */
+.vd-page { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 1.05fr); min-height: calc(100vh - 170px); border: 1px solid color-mix(in srgb, var(--cream) 10%, transparent); background: linear-gradient(135deg, #1a1f27, #0d1015); background-size: cover; background-position: left top; background-attachment: fixed; }
+.vd-page__left { position: sticky; top: 0; align-self: end; display: flex; flex-direction: column; gap: 6px; padding: 28px 28px 34px; color: #fff; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9); }
+.vd-page__kicker { padding-bottom: 6px; border-bottom: 2px solid rgba(255, 255, 255, 0.75); align-self: flex-start; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.vd-page__name { margin: 0; font-family: var(--font-display); font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.05; }
+.vd-page__desc { max-width: 52ch; margin: 4px 0 0; font-size: 0.92rem; line-height: 1.45; color: rgba(255, 255, 255, 0.88); white-space: pre-line; }
+.vd-page__where { color: rgba(255, 255, 255, 0.7); font-size: 0.8rem; }
+.vd-page__right { display: flex; flex-direction: column; gap: 18px; padding: 22px 24px 26px; background: linear-gradient(180deg, rgba(64, 78, 92, 0.55), rgba(24, 30, 38, 0.82)); backdrop-filter: blur(10px); border-left: 1px solid rgba(255, 255, 255, 0.12); }
+.vd-rankhead { display: grid; grid-template-columns: 96px 1fr; gap: 18px; align-items: center; padding-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.18); }
+.vd-rankhead__icon { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: radial-gradient(circle, rgba(10, 20, 32, 0.95) 60%, rgba(255, 255, 255, 0.12)); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15); overflow: hidden; }
+.vd-rankhead__icon img { width: 80%; height: 80%; object-fit: contain; }
+.vd-rankhead__icon > svg { width: 50%; height: 50%; color: var(--mist); }
+.vd-rankhead__text { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #fff; }
+.vd-rankhead__title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.vd-rankhead .sh-meter { height: 8px; background: rgba(255, 255, 255, 0.18); }
+.vd-rankhead__n { color: rgba(255, 255, 255, 0.75); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.vd-rankhead__label { margin-top: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.5); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
+.vd-rankhead__desc { margin: 0; color: rgba(255, 255, 255, 0.88); font-size: 0.9rem; line-height: 1.4; }
+.vd-facts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; color: #fff; font-size: 0.86rem; }
+.vd-wallet { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.vd-wallet__item { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.vd-wallet__item img { width: 22px; height: 22px; object-fit: contain; }
+.vd-sec { display: flex; flex-direction: column; gap: 10px; }
+.vd-sec__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 5px; border-bottom: 1px solid rgba(255, 255, 255, 0.45); color: rgba(255, 255, 255, 0.92); font-size: 0.92rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.vd-sec__extra { color: rgba(255, 255, 255, 0.75); font-size: 0.82rem; }
+.vd-cat .vd-sec__head { margin-top: 8px; }
+.vd-page .vd-items { grid-template-columns: repeat(auto-fill, 84px); justify-content: start; }
+.vd-page .vd-item .sh-tile { width: 80px; height: 80px; }
+.vd-page .vd-items .vd-item.is-link { grid-column: span 3; align-items: stretch; }
+.vd-page .vd-item.is-link .sh-tile { width: 100%; max-width: none; height: 84px; }
+/* Menu links (they open a sub-menu): wide banner tiles, like the game's. */
+.vd-items .vd-item.is-link { grid-column: span 2; }
+.vd-item.is-link .sh-tile, .vd-menu { display: flex; align-items: center; justify-content: center; width: 100%; max-width: 230px; height: 84px; border: 2px solid rgba(255, 255, 255, 0.7); background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 12px), linear-gradient(90deg, #26446b, #1c3354); }
+.vd-item.is-link .sh-tile img:first-child { width: auto; height: 76%; object-fit: contain; }
+.vd-menus { display: flex; flex-wrap: wrap; gap: 10px; }
+.vd-menu { gap: 10px; padding: 0 14px; color: #fff; font-weight: 600; cursor: pointer; }
+.vd-menu:hover, .vd-item.is-link:hover .sh-tile { border-color: #fff; filter: brightness(1.15); }
+.vd-menu img, .vd-menu svg { width: 54px; height: 54px; object-fit: contain; }
+@container (max-width: 1100px) {
+  .vd-page { grid-template-columns: 1fr; }
+  .vd-page__left { position: static; align-self: start; }
+}
