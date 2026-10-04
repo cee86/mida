@@ -23,7 +23,7 @@ const pct = (p, g) => (g > 0 ? Math.min(100, Math.round((p / g) * 100)) : 0);
 // `start`: open at a view ({ view: "triumphs" }) or at one node ({ node: hash | "patterns" }); a node start hides the
 // Seals | Triumphs | Collections switch and its crumbs begin at that node (the Guardian tab's collection pages).
 // `start.child` (a pattern) opens straight at the node's child whose name matches (Exotic Catalysts inside Bungie's
-// "Patterns & Catalysts").
+// "Patterns & Catalysts"); a start node with a single child opens at that child (Medals, Lore).
 export function recordsTab(ctx, container, { loadingView, problemView, start: startAt = null, wallpaper: wall = "tab-guardian" }) {
   const { el, svg } = ctx;
   const root = el("div", { class: "tab rc sh" });
@@ -66,7 +66,11 @@ export function recordsTab(ctx, container, { loadingView, problemView, start: st
     const r = await ctx.hub.d2Records(hash);
     waiting.delete(hash);
     nodes.set(hash, r?.ok ? r.data : { error: r?.error ?? "Something went wrong." });
-    const child = startAt?.child && hash === base[0] ? r?.data?.children?.find((c) => startAt.child.test(c.name)) : null;
+    // A start node that only wraps one section (Medals, Lore: Bungie's root holds a single "Medals" node whose sections
+    // are Crucible, Gambit, Vanguard) opens at that section, so its parts become the sidebar and the first one shows.
+    const d = r?.ok ? r.data : null;
+    const only = d && !d.records?.length && !d.collectibles?.length && !d.metrics?.length && d.children?.length === 1 ? d.children[0] : null;
+    const child = hash === base[0] && d ? (startAt?.child ? d.children?.find((c) => startAt.child.test(c.name)) : null) ?? only : null;
     if (child) {
       base[0] = child.hash;
       path = [child.hash];

@@ -333,7 +333,13 @@ its own frame); used on Guardian (every box), Director (pass, clan, alerts, Ops)
 weekly rewards, clan) and Triumphs (titles, triumphs). **Rotators "This week"** is MIDA's own layout (`WEEK_ROWS` in
 rotators.js; the synced featured-sections.js keeps the site's): Raids; Dungeons | Pinnacle activities; Distortion |
 Crucible. Vendors only in its own sidebar view. Sections sharing a row are exactly as wide as their cards (236px each),
-so a heading's rule ends at its last card.
+so a heading's rule ends at its last card. **After v0.9.6:** boxart's class is `has-boxart` (it was `has-art`, which the Rotators cards, Quests
+and Vendors heroes already used, and it pulled the cards' corner labels into the middle). Seasonal Hub top row
+(`sh-top3`): Active orders | Daily | Weekly challenges, level and one height, the reset timers moved to the title band.
+Records: a start node with a single child opens at that child (Medals, Lore: Bungie wraps their sections in one node),
+so the sections become the sidebar and the first shows. **News "All"**: the cards as a grid left to right
+(`nw-grid`), Bungie Server Status's posts as short rows in a side column like the Seasonal Hub's bounties (`nw-side`);
+the other filters stay one column.
 * **Wallpapers per tab** (wallpaper.js): Guardian, Director, Inventory, Weekly planner, Rotators, RAD Assistant each have
   their own picture (`mida-wall:<tab>`, the Inventory keeps `mida-inv-backdrop`); pages inside a tab use that tab's;
   tabs without one fall back to the old Seasonal Hub picture, then the Inventory's, then MIDA's backdrop (RAD shows none
@@ -741,6 +747,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.7 (4 Oct 2026, owner): Seasonal Hub top row level, Medals and Lore open at their sections, Rotators corner labels
+  fixed, News "All" as a grid with Server Status beside it.
 * v0.9.6 (3 Oct 2026, owner): seals without the drawn shield, even rows, Items | paged Badges, Exotic Catalysts first, Esc
   goes back, Seasonal Hub reorganised (challenges side by side), drop hover cards, season picture chooser, season seal
   found by name, box linework (boxart.js), Rotators "This week" rows.

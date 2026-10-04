@@ -59,3 +59,21 @@ img.is-missing { visibility: hidden; }
 .dr-news__item { position: relative; display: flex; align-items: flex-end; min-height: 130px; padding: 0; border: 0; background: var(--ash); color: #fff; text-align: left; overflow: hidden; cursor: pointer; scroll-snap-align: start; }
 .dr-news__item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .dr-news__item span { position: relative; width: 100%; padding: 40px 22px 16px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.85)); font-size: 1.1rem; font-weight: 500; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+
+/* "All": the cards as a grid, left to right, and Server Status in a column on the right (the Seasonal Hub's side look). */
+.nw-layout { grid-template-columns: minmax(0, 1fr) 340px; }
+.nw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: stretch; }
+.nw-grid > .nw-problem, .nw-grid > .nw-more, .nw-grid > .tab__note { grid-column: 1 / -1; }
+.nw-grid .nw-card__title { font-size: 1.1rem; }
+.nw-grid .nw-card__body { flex: 1; }
+.nw-grid .nw-card__actions { margin-top: auto; }
+.nw-grid .nw-post__pics--1 img { max-height: 240px; }
+.nw-status-list { display: flex; flex-direction: column; }
+.nw-status { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--cream) 8%, transparent); }
+.nw-status:last-child { border-bottom: 0; }
+.nw-status__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 0.84rem; }
+.nw-status__head small { color: var(--mist); font-size: 0.74rem; white-space: nowrap; }
+.nw-status__text { margin: 0; color: var(--cream); font-size: 0.84rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.nw-status__open { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.76rem; cursor: pointer; }
+.nw-status__open:hover { text-decoration: underline; }
+@media (max-width: 1100px) { .nw-layout { grid-template-columns: 1fr; } }

@@ -3,9 +3,9 @@
 // with a diamond and a bright stretch):
 //
 //   [ SEASONAL HUB · season name ............................... character · refresh ]
-//   [ active orders        ] [ daily / weekly reset countdowns        ]  [ bounties  ]
-//   [                      ] [ daily challenges ] [ weekly challenges ]  [ on this   ]
-//   [                      ] [ (compact cards)  ] [                   ]  [ character ]
+//   [ SEASONAL HUB · season ................... reset countdowns · character · refresh ]
+//   [ active orders      ] [ daily challenges ] [ weekly challenges ]  [ bounties  ]
+//   [ (level, one height) ] [ (compact cards)  ] [                   ]  [ on this   ]
 //   [ weekly rewards track, across the width                          ]  [           ]
 //   ( rank ) PASS NAME [past ▾] [ season pass rewards: a column per rank ] [         ]
 //   [ clan this week                                                  ]  [           ]
@@ -544,6 +544,7 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
       el(
         "div",
         { class: "sh-top__tools" },
+        resets(),
         characterPicker(ctx, activity.characters, c, (id) => {
           lastCharacter.seasonal = id;
           shownPass = null;
@@ -560,12 +561,8 @@ export function seasonalHub(ctx, container, { read, loadingView, problemView, pr
       hub === null ? (hubBar ??= el("div", { class: "sh-loading" }, progressBar(ctx, "seasonal", "Reading the hub from Bungie…"))) : ((hubBar = null), null),
       // The owner's layout (3 Oct 2026, second pass): Active orders with the daily and weekly challenges side by side
       // beside them, then the weekly reward track, then the season pass's track; the clan's week after those.
-      el(
-        "div",
-        { class: "sh-grid" },
-        orders(ready),
-        el("div", { class: "sh-right sh-right--one" }, resets(), el("div", { class: "sh-pair sh-challenge-pair" }, withArt(challenges(ready, "daily"), "dial"), withArt(challenges(ready, "weekly"), "orbit"))),
-      ),
+      // The top three boxes start level and share a height (owner: "look cleaner"); the reset timers sit in the title band.
+      el("div", { class: "sh-top3" }, orders(ready), withArt(challenges(ready, "daily"), "dial"), withArt(challenges(ready, "weekly"), "orbit")),
       withArt(weeklyRewards(ready), "lattice"),
       el("div", { class: "sh-passrow" }, passHeader(ready, pass), track(pass)),
       passError ? el("p", { class: "tab__error", text: passError }) : null,

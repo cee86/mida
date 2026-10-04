@@ -78,7 +78,7 @@ export function withArt(box, variant = "rings") {
   frame.className = "box-art";
   frame.setAttribute("aria-hidden", "true");
   frame.append(drawing(variant));
-  box.classList.add("has-art");
+  box.classList.add("has-boxart");
   box.prepend(frame);
   return box;
 }

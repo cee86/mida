@@ -5,6 +5,8 @@
 //   [ Bungie article: picture, title, summary, Read ]   (Read opens the whole article inside the tab)
 //   [ Bluesky post: avatar, name, @handle, text, pictures or a link card ]
 //   [ D2 Community Hub: title, picture, text ]
+// "All" lays the cards out as a grid, left to right, with Bungie Server Status's posts in a column on the right (like
+// the Seasonal Hub's bounties); each other filter is one column.
 //
 // Text is always shown as text. Pictures from bungie.net load directly; the rest come through the app (news_image),
 // which only fetches pictures the feeds listed. Links open in the browser through the app (open_news), which only
@@ -188,6 +190,18 @@ export function newsTab(ctx, container, deps = {}) {
     }
   };
   const read = (it) => pages.show(`article-${it.id}`, it.title, (host) => articleReader(ctx, host, it, wall));
+  const cardOf = (it) => (it.source === "bungie" ? bungieCard(it) : it.source === "community" ? rssCard(it) : blueskyCard(it));
+
+  // A Server Status post for the side column: short, text first, its pictures left out.
+  function statusRow(it) {
+    return el(
+      "article",
+      { class: "nw-status" },
+      el("div", { class: "nw-status__head" }, el("strong", { text: it.repostBy ? `↻ ${it.author?.name || it.author?.handle || "Repost"}` : "Bungie Server Status" }), el("small", { text: when(it.at) })),
+      it.text ? el("p", { class: "nw-status__text", text: it.text }) : null,
+      el("button", { class: "linkish nw-status__open", type: "button", text: "Open on Bluesky", onclick: () => openLink(ctx, it.link) }),
+    );
+  }
 
   function draw() {
     const list = (data?.items ?? []).filter((it) => filter === "all" || it.source === filter);
@@ -204,18 +218,26 @@ export function newsTab(ctx, container, deps = {}) {
     );
     const problems = Object.entries(data?.problems ?? {}).filter(([k]) => filter === "all" || filter === k);
     const scroll = root.querySelector(".sh-body")?.scrollTop ?? 0;
-    const body = el(
+    const all = filter === "all";
+    const cards = all ? list.filter((it) => it.source !== "status") : list;
+    const status = all ? list.filter((it) => it.source === "status") : [];
+    const feed = el(
       "div",
-      { class: "sh-body" },
-      el(
-        "div",
-        { class: "nw-feed" },
-        ...problems.map(([, text]) => el("p", { class: "tab__error nw-problem", text })),
-        ...list.slice(0, shown).map((it) => (it.source === "bungie" ? bungieCard(it) : it.source === "community" ? rssCard(it) : blueskyCard(it))),
-        list.length > shown ? el("button", { class: "btn nw-more", type: "button", text: `Show more (${list.length - shown})`, onclick: () => ((shown += 30), draw()) }) : null,
-        list.length ? null : el("p", { class: "tab__note", text: problems.length ? "Nothing to show from here right now." : "No posts yet." }),
-      ),
+      { class: all ? "nw-grid" : "nw-feed" },
+      ...problems.map(([, text]) => el("p", { class: "tab__error nw-problem", text })),
+      ...cards.slice(0, shown).map(cardOf),
+      cards.length > shown ? el("button", { class: "btn nw-more", type: "button", text: `Show more (${cards.length - shown})`, onclick: () => ((shown += 30), draw()) }) : null,
+      cards.length ? null : el("p", { class: "tab__note", text: problems.length ? "Nothing to show from here right now." : "No posts yet." }),
     );
+    const side = all
+      ? el(
+          "aside",
+          { class: "sh-side nw-side" },
+          el("div", { class: "sh-label" }, el("span", { class: "sh-label__text", text: "Server status" }), el("span", { class: "sh-label__count", text: String(status.length) })),
+          status.length ? el("div", { class: "nw-status-list" }, ...status.slice(0, 40).map(statusRow)) : el("p", { class: "tab__note", text: data?.problems?.status ?? "No posts yet." }),
+        )
+      : null;
+    const body = el("div", { class: "sh-body" }, all ? el("div", { class: "sh-layout nw-layout" }, feed, side) : feed);
     root.replaceChildren(backdrop, top, body);
     body.scrollTop = scroll;
   }

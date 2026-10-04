@@ -335,17 +335,20 @@
 .sh-challenge__claim { padding: 0 6px; border: 1px solid var(--accent); color: var(--accent); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .sh-challenge__rewards { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 2px; }
 .sh-challenge__rewards .sh-tile { width: 34px; height: 34px; }
-/* Daily | Weekly challenges side by side: compact cards in one column each. */
-.sh-challenge-pair { align-items: start; }
-.sh-challenge-pair > .sh-box { height: auto; }
-.sh-challenge-pair .sh-challenge-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.sh-challenge-pair .sh-challenge { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 8px; }
-.sh-challenge-pair .sh-challenge__icon { width: 36px; height: 36px; }
-.sh-challenge-pair .sh-challenge__desc { -webkit-line-clamp: 2; font-size: 0.76rem; }
-.sh-challenge-pair .sh-challenge__body { gap: 4px; }
-.sh-challenge-pair .sh-challenge__rewards .sh-tile { width: 28px; height: 28px; }
 /* Faint linework behind a box (boxart.js): clipped in its own frame so the corner marks stay visible. */
-.has-art { position: relative; }
-.has-art > :not(.box-art) { position: relative; }
+.has-boxart { position: relative; }
+.has-boxart > :not(.box-art) { position: relative; }
 .box-art { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .box-art__lines { width: 100%; height: 100%; color: var(--cream); opacity: 0.07; fill: none; stroke: currentColor; stroke-width: 1; }
+/* The top row: Active orders | Daily | Weekly challenges, level and the same height. */
+.sh-top3 { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1.15fr) minmax(0, 1.15fr); gap: 16px; align-items: stretch; }
+.sh-top3 > .sh-col { display: flex; }
+.sh-top3 > .sh-col > .sh-box, .sh-top3 > .sh-box { flex: 1; height: 100%; margin: 0; }
+.sh-top3 .sh-challenge-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.sh-top3 .sh-challenge { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 8px; }
+.sh-top3 .sh-challenge__icon { width: 36px; height: 36px; }
+.sh-top3 .sh-challenge__desc { -webkit-line-clamp: 2; font-size: 0.76rem; }
+.sh-top3 .sh-challenge__body { gap: 4px; }
+.sh-top3 .sh-challenge__rewards .sh-tile { width: 28px; height: 28px; }
+.sh-top .sh-resets { display: flex; gap: 14px; margin: 0; }
+@media (max-width: 1100px) { .sh-top3 { grid-template-columns: 1fr; } .sh-top .sh-resets { display: none; } }
