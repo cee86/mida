@@ -381,10 +381,10 @@ items) were dropped; they're kept, named after their first display category (els
 showing their categories with such items (only the ones named like "... Offers"/"Daily" when any are). **Unverified**
 whether that matches the store's daily page: Tess's own data check lists every item with its category. **Superseded (5 Oct 2026, owner):** the owner counted Tess's
 Bright Dust sections on her page (the 2nd, 4th, 6th, 8th, 9th, 10th, 11th, 14th, 17th and 18th) and asked for them as one;
-`dustSections` in vendors.js merges those into one "Bright Dust offers" section, shown on the home and in place of the
-first of them on Tess's page. Positions count shown sections (plus the Menus row when she has one, whichever reading
-finds more Bright Dust prices); too few sections falls back to every section selling for Bright Dust. **Fragile** if
-Bungie reorders her page: ask the owner to recount. Vendor pages no
+`dustSections` in vendors.js merges them into one "Bright Dust offers" section (home, and first on her page). v0.9.12
+read the positions one off and showed **Silver** offers; since v0.9.13 the positions are tried shifted -1..+2 (the
+reading with the most Bright Dust prices and fewest others wins) and only items costing Bright Dust are taken. Her data
+check names the merged sections and lists every item's cost, for when Bungie reorders her page. Vendor pages no
 longer use Bungie's location art (blurry): an abstract wallpaper per activity (`THEMES` in vendors.js: glow/mid/deep
 colours + a boxart pattern, matched on name/title/place/group), tighter spacing, larger type (rank title 1.6rem, headings
 1.08rem, descriptions 1rem+), 60px tiles, 64px-high menu tiles; the home row has a centred house icon.
@@ -795,6 +795,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.13 (5 Oct 2026, owner): Bright Dust offers fix: v0.9.12 merged Tess's Silver sections (positions one off);
+  now only Bright Dust-priced items are merged, the positions are matched with a shift, and her data check lists costs.
 * v0.9.12 (5 Oct 2026, owner): Tess's Bright Dust sections merged into one (home + her page); Inventory sorted by power
   by default with a Sort choice in the bar (Power / Rarity / Name / Newest, remembered); the vendor name stays in view
   while scrolling (it was stuck to the page bottom, and `overflow: hidden` on .vd-page stopped sticky; now `clip`).

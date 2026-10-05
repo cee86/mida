@@ -162,30 +162,25 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
   // at the lower left; on the right a frosted panel with the rank (its icon, "STEP // RANK n", the bar, what the track
   // is for), your currencies and the reset, then the sub-menus and each sale category under a plain ruled heading.
   // Tess's Bright Dust offers are spread over many sections; the owner picked them out by position on her page (5 Oct
-  // 2026: the 2nd, 4th, 6th, 8th, 9th, 10th, 11th, 14th, 17th and 18th) and asked for them as one section. Positions
-  // count the sections her page shows (non-empty categories, plus the Menus row first when she has loose sub-menus, in
-  // case that was counted too: whichever reading picks more Bright Dust prices wins). Fragile if Bungie reorders her
-  // page; with too few sections it falls back to every section selling for Bright Dust.
+  // 2026: the 2nd, 4th, 6th, 8th, 9th, 10th, 11th, 14th, 17th and 18th) and asked for them as one section. v0.9.12 read
+  // those positions one off and showed her Silver offers instead, so now: (1) the positions are tried shifted by -1..+2
+  // and the reading whose sections hold the most Bright Dust prices (and fewest others) wins, and (2) only items that
+  // cost Bright Dust are ever taken, so Silver offers can't land here. With no Bright Dust in that reading, every Tess
+  // item costing Bright Dust is used. Her data check says which sections were merged.
   const DUST_SECTIONS = [2, 4, 6, 8, 9, 10, 11, 14, 17, 18];
   const isEver = (v) => /eververse|tess everis/i.test(`${v?.name ?? ""} ${v?.subtitle ?? ""}`);
-  const costsDust = (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name));
-  function dustSections(v, all) {
+  const costsDust = (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name ?? ""));
+  function dustSections(v) {
     if (!v || !isEver(v)) return null;
     const shown = v.categories.map((c, i) => (c.items.length ? i : -1)).filter((i) => i >= 0);
-    const linked = new Set(v.categories.flatMap((c) => c.items.filter((it) => it.opens).map((it) => it.opens)));
-    const hasMenus = subsOf(v, all).some((x) => !linked.has(x.hash));
     const reading = (offset) => DUST_SECTIONS.map((n) => shown[n - 1 - offset]).filter((i) => i != null);
-    const score = (picks) => picks.reduce((n, i) => n + v.categories[i].items.filter(costsDust).length, 0);
-    let picks = reading(0);
-    if (hasMenus) {
-      const other = reading(1);
-      if (score(other) > score(picks)) picks = other;
-    }
-    if (picks.length < DUST_SECTIONS.length || !score(picks)) picks = shown.filter((i) => v.categories[i].items.some(costsDust));
+    const score = (picks) => picks.reduce((n, i) => n + v.categories[i].items.reduce((m, it) => m + (costsDust(it) ? 1 : -1), 0), 0);
+    let picks = [-1, 0, 1, 2].map(reading).reduce((best, r) => (score(r) > score(best) ? r : best));
+    if (!picks.some((i) => v.categories[i].items.some(costsDust))) picks = shown.filter((i) => v.categories[i].items.some(costsDust));
     if (!picks.length) return null;
     const items = [];
-    for (const i of picks) for (const it of v.categories[i].items) if (!items.some((x) => x.hash === it.hash)) items.push(it);
-    return { picks: new Set(picks), first: Math.min(...picks), items };
+    for (const i of picks) for (const it of v.categories[i].items) if (costsDust(it) && !items.some((x) => x.hash === it.hash)) items.push(it);
+    return { picks: new Set(picks), first: Math.min(...picks), items, sections: picks.map((i) => shown.indexOf(i) + 1) };
   }
 
   function vendorView(v, all = []) {
@@ -244,9 +239,14 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
         )
       : null;
     // Tess's Bright Dust sections become one, where the first of them was.
-    const dust = dustSections(v, all);
+    const dust = dustSections(v);
+    // The merged items leave their old sections (anything else in those sections stays where it was).
+    const merged = new Set(dust?.items.map((it) => it.hash));
     const cats = dust
-      ? v.categories.flatMap((c, i) => (i === dust.first ? [{ name: "Bright Dust offers", items: dust.items }] : dust.picks.has(i) ? [] : [c]))
+      ? v.categories.flatMap((c, i) => {
+          const rest = dust.picks.has(i) ? { ...c, items: c.items.filter((it) => !merged.has(it.hash)) } : c;
+          return i === dust.first ? [{ name: "Bright Dust offers", items: dust.items }, rest] : [rest];
+        })
       : v.categories;
     const sections = cats
       .map((c) => ({ ...c, items: c.items.filter(matches) }))
@@ -265,7 +265,8 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
       { class: "sh-more sh-check" },
       el("summary", { text: "Data check (for tuning this tab)" }),
       el("p", { class: "tab__note", text: `Group: ${v.group || "none"}${v.extra ? " (not in Bungie's vendor groups)" : ""}${v.disabled ? " · marked disabled" : ""}${v.parent ? ` · inside ${all.find((x) => x.hash === v.parent)?.name ?? v.parent}` : ""} · vendor ${v.hash}` }),
-      el("ul", {}, ...v.categories.flatMap((c) => c.items.map((it) => el("li", { text: `${c.name || "For sale"} · ${it.name}: ${it.flags?.[0] ?? "?"} · ${it.flags?.[1] ?? "?"}${it.status ? ` → ${it.status}` : ""}${it.opens ? ` → opens ${it.opens}` : ""}` })))),
+      dust ? el("p", { class: "tab__note", text: `Bright Dust offers: ${dust.items.length} items merged from sections ${dust.sections.join(", ")} (counting her sections as this app showed them before merging).` }) : null,
+      el("ul", {}, ...v.categories.flatMap((c) => c.items.map((it) => el("li", { text: `${c.name || "For sale"} · ${it.name}: ${it.flags?.[0] ?? "?"} · ${it.flags?.[1] ?? "?"}${it.status ? ` → ${it.status}` : ""}${it.opens ? ` → opens ${it.opens}` : ""}${it.costs?.length ? ` · costs ${it.costs.map((c) => `${c.quantity ?? ""} ${c.name ?? "?"}`.trim()).join(" + ")}` : " · no cost listed"}` })))),
     );
     page.append(
       left,
@@ -327,7 +328,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     const items = (v, keep) => (v ? v.categories.flatMap((c) => c.items).filter(keep).filter(matches) : []);
     const ever = find(/eververse|tess everis/i);
     // Eververse's Bright Dust offers: Tess's sections the owner pointed out, merged into one (dustSections).
-    const dust = (dustSections(ever, all)?.items ?? []).filter(matches);
+    const dust = (dustSections(ever)?.items ?? []).filter(matches);
     const ada = find(/ada-1/i);
     const shaders = items(ada, (it) => /shader/i.test(`${it.typeName} ${it.name}`));
     const shelf = (title, v, list, none) =>
