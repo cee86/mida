@@ -379,7 +379,12 @@ Plunder" (Strange Gear Offers, World Attunement...): the cap is 500. Vendors wit
 items) were dropped; they're kept, named after their first display category (else "Menu"), `unnamed: true`. Tess has
 225 items: the home's Eververse box now reads Tess, her sub-menus and unnamed menus selling for Bright Dust or Silver,
 showing their categories with such items (only the ones named like "... Offers"/"Daily" when any are). **Unverified**
-whether that matches the store's daily page: Tess's own data check lists every item with its category. Vendor pages no
+whether that matches the store's daily page: Tess's own data check lists every item with its category. **Superseded (5 Oct 2026, owner):** the owner counted Tess's
+Bright Dust sections on her page (the 2nd, 4th, 6th, 8th, 9th, 10th, 11th, 14th, 17th and 18th) and asked for them as one;
+`dustSections` in vendors.js merges those into one "Bright Dust offers" section, shown on the home and in place of the
+first of them on Tess's page. Positions count shown sections (plus the Menus row when she has one, whichever reading
+finds more Bright Dust prices); too few sections falls back to every section selling for Bright Dust. **Fragile** if
+Bungie reorders her page: ask the owner to recount. Vendor pages no
 longer use Bungie's location art (blurry): an abstract wallpaper per activity (`THEMES` in vendors.js: glow/mid/deep
 colours + a boxart pattern, matched on name/title/place/group), tighter spacing, larger type (rank title 1.6rem, headings
 1.08rem, descriptions 1rem+), 60px tiles, 64px-high menu tiles; the home row has a centred house icon.
@@ -790,6 +795,9 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.12 (5 Oct 2026, owner): Tess's Bright Dust sections merged into one (home + her page); Inventory sorted by power
+  by default with a Sort choice in the bar (Power / Rarity / Name / Newest, remembered); the vendor name stays in view
+  while scrolling (it was stuck to the page bottom, and `overflow: hidden` on .vd-page stopped sticky; now `clip`).
 * v0.9.11 (4 Oct 2026, owner): vendor cap 500, unnamed vendors kept, Eververse box reads Tess's family, abstract
   activity-coloured vendor backdrops, tighter vendor pages with bigger text and smaller tiles, centred home icon.
 * v0.9.10 (4 Oct 2026, owner): vendor pages laid out like the game's vendor screen (art, rank panel, currencies, ruled

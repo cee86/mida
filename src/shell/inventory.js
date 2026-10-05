@@ -120,6 +120,7 @@ const view = {
   allCharacters: remember("all", true),
   feed: remember("feed", false),
   panel: remember("panel", true),
+  sort: remember("sort", "power"),
   // Per tab: { category: [values] }.
   filters: remember("filters2", {}),
   current: null,
@@ -881,6 +882,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       { class: "inv-bar" },
       el("div", { class: "segmented", role: "group", "aria-label": "Show" }, ...GROUPS.map(([id, label]) => el("button", { type: "button", "aria-pressed": String(view.group === id), text: label, onclick: () => ((view.group = id), keep("group", id), closeCard(), draw()) }))),
       el("button", { class: `btn inv-bar__btn${picks ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "filters"), onclick: () => ((overlay = overlay === "filters" ? null : "filters"), closeCard(), draw()) }, svg(FILTER), el("span", { text: picks ? `Filters (${picks})` : "Filters" })),
+      el("div", { class: "segmented inv-bar__sort", role: "group", "aria-label": "Sort items by" }, el("span", { class: "inv-bar__sort-label", text: "Sort" }), ...SORTS.map(([id, label, hint]) => el("button", { type: "button", title: hint, "aria-pressed": String(view.sort === id), text: label, onclick: () => ((view.sort = id), keep("sort", id), draw()) }))),
       el("div", { class: "segmented", role: "group", "aria-label": "Item size" }, ...[["s", "S"], ["m", "M"], ["l", "L"]].map(([id, label]) => el("button", { type: "button", title: `${{ s: "Small", m: "Medium", l: "Large" }[id]} items`, "aria-pressed": String(view.size === id), text: label, onclick: () => ((view.size = id), keep("size", id), draw()) }))),
       el("button", { class: `btn inv-bar__btn inv-bar__mail${mail.length ? " is-on" : ""}`, type: "button", "aria-expanded": String(overlay === "postmaster"), onclick: () => ((overlay = overlay === "postmaster" ? null : "postmaster"), closeCard(), draw()) }, svg(MAIL), el("span", { text: `Postmaster${mail.length ? ` (${mail.length})` : ""}` })),
       el("button", { class: `btn inv-bar__btn${view.feed ? " is-on" : ""}`, type: "button", title: "Your newest items, newest first", "aria-pressed": String(view.feed), onclick: () => ((view.feed = !view.feed), keep("feed", view.feed), closeCard(), draw()) }, svg(FEED), el("span", { text: newCount() ? `Item feed (${newCount()} new)` : "Item feed" })),
@@ -1109,6 +1111,22 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
     return g;
   }
 
+  // The order items show in each cell (owner, 5 Oct 2026: Bungie's own order looked random; power first by default,
+  // changeable from the bar and remembered). Ties fall back to rarity, then name.
+  const SORTS = [["power", "Power", "Highest power first"], ["rarity", "Rarity", "Exotic first, then by power"], ["name", "Name", "A to Z"], ["new", "Newest", "Newest copies first"]];
+  const byName = (a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""));
+  const byRarity = (a, b) => (b.tier ?? 0) - (a.tier ?? 0);
+  const byPower = (a, b) => (b.power ?? 0) - (a.power ?? 0);
+  const age = (i) => (i.instance && /^\d+$/.test(i.instance) ? BigInt(i.instance) : 0n);
+  const byNew = (a, b) => (age(b) > age(a) ? 1 : age(b) < age(a) ? -1 : 0);
+  const COMPARE = {
+    power: (a, b) => byPower(a, b) || byRarity(a, b) || byName(a, b),
+    rarity: (a, b) => byRarity(a, b) || byPower(a, b) || byName(a, b),
+    name: (a, b) => byName(a, b) || byPower(a, b),
+    new: (a, b) => byNew(a, b) || byName(a, b),
+  };
+  const ordered = (list) => [...list].sort(COMPARE[view.sort] ?? COMPARE.power);
+
   function rows() {
     const list = shown();
     const buckets = data.buckets.filter((b) => b.group === view.group);
@@ -1116,7 +1134,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
       const inBucket = data.items.filter((i) => i.bucket === b.hash);
       const cells = [];
       if (b.account) {
-        const mine = inBucket.filter((i) => i.owner === "account");
+        const mine = ordered(inBucket.filter((i) => i.owner === "account"));
         const cell = el("div", { class: "inv__cell inv__cell--account" }, el("div", { class: "inv__flow" }, ...mine.map(tile)));
         cell.style.gridColumn = `1 / span ${list.length}`;
         cells.push(dropTarget(cell, "account", b.hash, false));
@@ -1124,7 +1142,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
         for (const c of list) {
           const mine = inBucket.filter((i) => i.owner === c.id);
           const equipped = mine.find((i) => i.equipped);
-          const rest = mine.filter((i) => !i.equipped);
+          const rest = ordered(mine.filter((i) => !i.equipped));
           const capacity = SLOTS[b.hash] ?? 9;
           const empties = Array.from({ length: Math.max(0, capacity - rest.length) }, slot);
           const noEquip = b.hash === ENGRAMS;
@@ -1138,7 +1156,7 @@ export function inventory(ctx, container, { read, invalidate, loadingView, probl
           );
         }
       }
-      const inVault = inBucket.filter((i) => i.owner === "vault");
+      const inVault = ordered(inBucket.filter((i) => i.owner === "vault"));
       cells.push(dropTarget(el("div", { class: "inv__cell inv__cell--vault" }, el("div", { class: "inv__flow" }, ...inVault.map(tile))), "vault", b.hash, false));
       const total = b.account ? inBucket.filter((i) => i.owner === "account").length : null;
       return el("section", { class: "inv__row" }, el("div", { class: "inv-label" }, el("span", { text: b.name }), el("span", { class: "inv-label__count", text: total !== null ? `${total} / 50` : `${inVault.length} in vault` })), grid(cells));

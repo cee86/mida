@@ -602,3 +602,7 @@ html[data-theme="foundry"][data-foundry="light"] .inv-mark img { filter: invert(
 .inv-cmp__val.is-best::after { content: " ▲"; font-size: 0.7em; }
 .inv-cmp__perks { color: rgba(255, 255, 255, 0.8); font-size: 0.78rem; line-height: 1.35; }
 .inv-cmp__row.is-perks { align-items: start; }
+
+/* Sort choice in the bar: a small "Sort" label before the buttons. */
+.inv-bar__sort { align-items: center; }
+.inv-bar__sort-label { padding: 0 6px 0 8px; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mist); }

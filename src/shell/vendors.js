@@ -161,6 +161,33 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
   // A vendor's page, after the game's vendor screen: the vendor's art across the page with their name and description
   // at the lower left; on the right a frosted panel with the rank (its icon, "STEP // RANK n", the bar, what the track
   // is for), your currencies and the reset, then the sub-menus and each sale category under a plain ruled heading.
+  // Tess's Bright Dust offers are spread over many sections; the owner picked them out by position on her page (5 Oct
+  // 2026: the 2nd, 4th, 6th, 8th, 9th, 10th, 11th, 14th, 17th and 18th) and asked for them as one section. Positions
+  // count the sections her page shows (non-empty categories, plus the Menus row first when she has loose sub-menus, in
+  // case that was counted too: whichever reading picks more Bright Dust prices wins). Fragile if Bungie reorders her
+  // page; with too few sections it falls back to every section selling for Bright Dust.
+  const DUST_SECTIONS = [2, 4, 6, 8, 9, 10, 11, 14, 17, 18];
+  const isEver = (v) => /eververse|tess everis/i.test(`${v?.name ?? ""} ${v?.subtitle ?? ""}`);
+  const costsDust = (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name));
+  function dustSections(v, all) {
+    if (!v || !isEver(v)) return null;
+    const shown = v.categories.map((c, i) => (c.items.length ? i : -1)).filter((i) => i >= 0);
+    const linked = new Set(v.categories.flatMap((c) => c.items.filter((it) => it.opens).map((it) => it.opens)));
+    const hasMenus = subsOf(v, all).some((x) => !linked.has(x.hash));
+    const reading = (offset) => DUST_SECTIONS.map((n) => shown[n - 1 - offset]).filter((i) => i != null);
+    const score = (picks) => picks.reduce((n, i) => n + v.categories[i].items.filter(costsDust).length, 0);
+    let picks = reading(0);
+    if (hasMenus) {
+      const other = reading(1);
+      if (score(other) > score(picks)) picks = other;
+    }
+    if (picks.length < DUST_SECTIONS.length || !score(picks)) picks = shown.filter((i) => v.categories[i].items.some(costsDust));
+    if (!picks.length) return null;
+    const items = [];
+    for (const i of picks) for (const it of v.categories[i].items) if (!items.some((x) => x.hash === it.hash)) items.push(it);
+    return { picks: new Set(picks), first: Math.min(...picks), items };
+  }
+
   function vendorView(v, all = []) {
     if (!v) return el("section", { class: "sh-box" }, label("Vendor"), el("p", { class: "tab__note", text: "Pick a vendor on the left." }));
     const rank = v.rank && v.rank.next > 0 ? v.rank : null;
@@ -216,7 +243,12 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
           ),
         )
       : null;
-    const sections = v.categories
+    // Tess's Bright Dust sections become one, where the first of them was.
+    const dust = dustSections(v, all);
+    const cats = dust
+      ? v.categories.flatMap((c, i) => (i === dust.first ? [{ name: "Bright Dust offers", items: dust.items }] : dust.picks.has(i) ? [] : [c]))
+      : v.categories;
+    const sections = cats
       .map((c) => ({ ...c, items: c.items.filter(matches) }))
       .filter((c) => c.items.length)
       .map((c) =>
@@ -294,26 +326,8 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
     };
     const items = (v, keep) => (v ? v.categories.flatMap((c) => c.items).filter(keep).filter(matches) : []);
     const ever = find(/eververse|tess everis/i);
-    // Eververse's daily offers, wherever Bungie keeps them: every category named like the store's ("Primary Bright Dust
-    // Offers", "Silver Offers"...) in any vendor, kiosks included; else Tess's items that cost Bright Dust.
-    const everything = byCharacter[chosen()]?.vendors ?? all;
-    // Tess, her sub-menus and Bungie's unnamed menus that sell for Bright Dust or Silver: their categories with such
-    // items; the ones named like the store's daily page ("... Offers", "Daily ...") when there are any.
-    const paid = (it) => (it.costs ?? []).some((c) => /bright dust|silver/i.test(c.name));
-    const family = everything.filter((v) => v === ever || (ever && v.parent === ever.hash) || (v.unnamed && v.categories.some((c) => c.items.some(paid))));
-    let storeCats = [];
-    for (const v of family) {
-      for (const c of v.categories) {
-        const list = c.items.filter(paid).filter(matches);
-        if (!list.length) continue;
-        const had = storeCats.find((x) => x.name === c.name);
-        if (had) had.items.push(...list.filter((it) => !had.items.some((x) => x.hash === it.hash)));
-        else storeCats.push({ name: c.name || "Offers", items: list, vendor: v });
-      }
-    }
-    const daily = storeCats.filter((c) => /offer|daily/i.test(c.name));
-    if (daily.length) storeCats = daily;
-    const dust = storeCats.length ? [] : items(ever, (it) => (it.costs ?? []).some((c) => /bright dust/i.test(c.name)));
+    // Eververse's Bright Dust offers: Tess's sections the owner pointed out, merged into one (dustSections).
+    const dust = (dustSections(ever, all)?.items ?? []).filter(matches);
     const ada = find(/ada-1/i);
     const shaders = items(ada, (it) => /shader/i.test(`${it.typeName} ${it.name}`));
     const shelf = (title, v, list, none) =>
@@ -327,14 +341,7 @@ export function vendorsTab(ctx, container, { read, loadingView, problemView, unt
       "div",
       { class: "vd-main" },
       el("section", { class: "sh-box" }, label("Reputation"), el("div", { class: "vd-reps" }, ...reps.map(repCard))),
-      storeCats.length
-        ? el(
-            "section",
-            { class: "sh-box vd-cat" },
-            label("Eververse · Daily offers", ever ? el("button", { class: "linkish", type: "button", text: `Open ${ever.name} ›`, onclick: () => pick(ever.hash) }) : null),
-            ...storeCats.flatMap((c) => [el("div", { class: "vd-sec__head" }, el("span", { text: c.name }), el("span", { class: "vd-sec__extra", text: c.vendor.name })), el("div", { class: "vd-items" }, ...c.items.map(tile))]),
-          )
-        : shelf("Eververse · Bright Dust offers", ever, dust, ever ? "Bungie's list shows no Bright Dust offers right now (the data check below lists every vendor it sent)." : "Eververse isn't in this character's vendor list."),
+      shelf("Eververse · Bright Dust offers", ever, dust, ever ? "Bungie's list shows no Bright Dust offers right now (the data check below lists every vendor it sent)." : "Eververse isn't in this character's vendor list."),
       shelf("Ada-1 · Shaders", ada, shaders, ada ? "Ada-1 isn't selling shaders right now." : "Ada-1 isn't in this character's vendor list."),
       // Every vendor Bungie sent, to find where items hide (Eververse's pages, Tenets...).
       el(
