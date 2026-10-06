@@ -268,6 +268,53 @@ fn pane_rect(app: &AppHandle, id: &str) -> Option<StageRect> {
     }
 }
 
+/// The size MIDA's own pages (sidebar, bars, Destiny tabs) are drawn at, as a zoom factor: the chosen Interface size,
+/// or with Auto (the default since v0.9.14) one that follows the window, so smaller screens don't look crowded (a
+/// friend's screen showed tabs too big, 5 Oct 2026). The owner's 1440p screen (a full window about 2560 × 1380) is
+/// 100%; smaller windows shrink it (to 75% at the least, e.g. a full 1080p screen), larger ones grow it (to 125%).
+fn ui_zoom(app: &AppHandle) -> f64 {
+    let p = prefs(app);
+    if !p.ui_scale_auto {
+        return p.ui_scale as f64 / 100.0;
+    }
+    let Some(window) = app.get_window(WINDOW) else { return 1.0 };
+    match (window.inner_size(), window.scale_factor()) {
+        (Ok(size), Ok(factor)) => {
+            let s = size.to_logical::<f64>(factor);
+            auto_zoom(s.width, s.height)
+        }
+        _ => 1.0,
+    }
+}
+
+/// Auto zoom for a window of this many logical pixels, in steps of 5% (so dragging the window's edge doesn't re-zoom
+/// on every pixel).
+fn auto_zoom(width: f64, height: f64) -> f64 {
+    if width <= 0.0 || height <= 0.0 {
+        return 1.0;
+    }
+    let ratio = (width / 2560.0).min(height / 1380.0);
+    ((ratio * 20.0).round() / 20.0).clamp(0.75, 1.25)
+}
+
+/// The zoom last given to MIDA's own pages (percent), so a resize only re-zooms when the step changes.
+static APPLIED_ZOOM: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(100);
+
+/// Gives MIDA's own pages the current zoom when it differs from what they have. (The sites move with it: the shell
+/// measures its panes again when its zoom changes and reports them, and `layout` places the sites by them.)
+fn apply_ui_zoom(app: &AppHandle) {
+    let zoom = ui_zoom(app);
+    let percent = (zoom * 100.0).round() as u32;
+    if APPLIED_ZOOM.swap(percent, std::sync::atomic::Ordering::Relaxed) == percent {
+        return;
+    }
+    for label in [SHELL, CONTROLS] {
+        if let Some(view) = app.get_webview(label) {
+            let _ = view.set_zoom(zoom);
+        }
+    }
+}
+
 /// Show the open page (or both pages side by side) in place, and only when no menu, dialog or
 /// error needs the space. The floating controls follow the open page.
 fn layout(app: &AppHandle) {
@@ -275,7 +322,7 @@ fn layout(app: &AppHandle) {
     let active = active_id(app);
     let overlay = *hub.overlay.lock().unwrap();
     let p = prefs(app);
-    let scale = p.ui_scale as f64 / 100.0;
+    let scale = ui_zoom(app);
     let pages: Vec<(String, bool)> =
         hub.statuses.lock().unwrap().iter().map(|(id, s)| (id.clone(), s.error.is_none())).collect();
     let mut active_rect = None;
@@ -411,7 +458,7 @@ fn ensure_page(app: &AppHandle, module: &Module) -> Option<Webview> {
     );
     let stage = hub_state.panes.lock().unwrap().first().copied().unwrap_or(StageRect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 });
     let p = prefs(app);
-    let r = scaled(stage, p.ui_scale as f64 / 100.0);
+    let r = scaled(stage, ui_zoom(app));
     match window.add_child(builder, r.position, r.size) {
         Ok(page) => {
             let _ = page.hide();
@@ -519,9 +566,9 @@ fn ensure_controls(app: &AppHandle) {
         .on_permission_request(|_, _| PermissionResponse::Deny);
     if let Ok(controls) = window.add_child(builder, LogicalPosition::new(0.0, 0.0), LogicalSize::new(1.0, 1.0)) {
         let _ = controls.hide();
-        let scale = prefs(app).ui_scale;
-        if scale != 100 {
-            let _ = controls.set_zoom(scale as f64 / 100.0);
+        let zoom = ui_zoom(app);
+        if (zoom - 1.0).abs() > f64::EPSILON {
+            let _ = controls.set_zoom(zoom);
         }
     }
 }
@@ -816,12 +863,8 @@ fn apply_prefs(app: &AppHandle, before: &Prefs) {
             }
         }
     }
-    if now.ui_scale != before.ui_scale {
-        for label in [SHELL, CONTROLS] {
-            if let Some(view) = app.get_webview(label) {
-                let _ = view.set_zoom(now.ui_scale as f64 / 100.0);
-            }
-        }
+    if now.ui_scale != before.ui_scale || now.ui_scale_auto != before.ui_scale_auto {
+        apply_ui_zoom(app);
     }
     if now.always_on_top != before.always_on_top {
         if let Some(window) = app.get_window(WINDOW) {
@@ -1093,10 +1136,10 @@ async fn d2_inventory(webview: Webview, app: AppHandle) -> Value {
         async {
             progress(&app, "inventory", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "inventory", 0.15, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
             progress(&app, "inventory", 0.35, "Reading your characters and vault from Bungie");
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,103,200,201,205,300,305").await?;
+            // The item list and the profile at the same time.
+            let (m, profile) = tokio::join!(manifest(&app), bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,103,200,201,205,300,305"));
+            let (m, profile) = (m?, profile?);
             progress(&app, "inventory", 0.8, "Sorting your items");
             let mut data = bungie::shape_inventory(&profile, &m);
             bungie::decorate_inventory(&mut data).await;
@@ -1116,10 +1159,10 @@ async fn d2_activity(webview: Webview, app: AppHandle) -> Value {
         async {
             progress(&app, "activity", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "activity", 0.15, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
             progress(&app, "activity", 0.35, "Reading your quests and bounties from Bungie");
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,104,200,201,202,300,301").await?;
+            // The item list and the profile at the same time.
+            let (m, profile) = tokio::join!(manifest(&app), bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,104,200,201,202,300,301"));
+            let (m, profile) = (m?, profile?);
             progress(&app, "activity", 0.7, "Reading quest details");
             let mut data = bungie::shape_activity(&profile, &m);
             bungie::enrich_quests(&mut data, &m).await;
@@ -1325,12 +1368,14 @@ async fn d2_seasonal(webview: Webview, app: AppHandle, character: String) -> Val
         async {
             progress(&app, "seasonal", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "seasonal", 0.15, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
-            progress(&app, "seasonal", 0.3, "Reading your season from Bungie");
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,104,201,202,300,301,900").await?;
-            progress(&app, "seasonal", 0.55, "Reading the hub's vendors");
-            let vendors = bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access).await.unwrap_or(Value::Null);
+            progress(&app, "seasonal", 0.3, "Reading your season and the hub's vendors from Bungie");
+            // The item list, the profile and the vendors at the same time.
+            let (m, profile, vendors) = tokio::join!(
+                manifest(&app),
+                bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,102,104,201,202,300,301,900"),
+                bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access),
+            );
+            let (m, profile, vendors) = (m?, profile?, vendors.unwrap_or(Value::Null));
             progress(&app, "seasonal", 0.8, "Putting the hub together");
             Ok(bungie::seasonal(&profile, &vendors, &character, &m).await)
         }
@@ -1399,12 +1444,13 @@ async fn d2_records(webview: Webview, app: AppHandle, node: Option<String>, fres
         async {
             progress(&app, "records", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "records", 0.1, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
-            let defs = {
+            progress(&app, "records", 0.1, "Reading Destiny's game data and your triumphs");
+            // The game data (item list, then the triumph tables) and your profile at the same time.
+            let defs_and_items = async {
+                let m = manifest(&app).await?;
                 let state = hub(&app);
                 let mut slot = state.records.lock().await;
-                match slot.as_ref().filter(|r| r.version == m.version) {
+                let defs = match slot.as_ref().filter(|r| r.version == m.version) {
                     Some(r) => r.clone(),
                     None => {
                         progress(&app, "records", 0.15, "Reading triumphs and collections");
@@ -1412,18 +1458,22 @@ async fn d2_records(webview: Webview, app: AppHandle, node: Option<String>, fres
                         *slot = Some(r.clone());
                         r
                     }
-                }
+                };
+                Ok::<_, String>((m, defs))
             };
             let cached = if fresh == Some(true) { None } else { hub(&app).records_profile.lock().unwrap().as_ref().filter(|(at, _)| auth::now() < at + 300).map(|(_, p)| p.clone()) };
-            let profile = match cached {
-                Some(p) => p,
-                None => {
-                    progress(&app, "records", 0.6, "Reading your triumphs and collections from Bungie");
-                    let p = Arc::new(bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,700,800,900,1100").await?);
-                    *hub(&app).records_profile.lock().unwrap() = Some((auth::now(), p.clone()));
-                    p
+            let profile = async {
+                match cached {
+                    Some(p) => Ok::<_, String>(p),
+                    None => {
+                        let p = Arc::new(bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,700,800,900,1100").await?);
+                        *hub(&app).records_profile.lock().unwrap() = Some((auth::now(), p.clone()));
+                        Ok(p)
+                    }
                 }
             };
+            let (defs_and_items, profile) = tokio::join!(defs_and_items, profile);
+            let ((m, defs), profile) = (defs_and_items?, profile?);
             if profile["profileRecords"]["data"].is_null() {
                 return Err("Bungie isn't sharing this account's triumphs. Check your privacy settings on bungie.net.".into());
             }
@@ -1451,10 +1501,10 @@ async fn d2_guardian(webview: Webview, app: AppHandle) -> Value {
         async {
             progress(&app, "guardian", 0.1, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "guardian", 0.2, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
             progress(&app, "guardian", 0.4, "Reading your Guardians from Bungie");
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,103,200,205,900,1400").await?;
+            // The item list and the profile at the same time.
+            let (m, profile) = tokio::join!(manifest(&app), bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,103,200,205,900,1400"));
+            let (m, profile) = (m?, profile?);
             progress(&app, "guardian", 0.7, "Reading ranks and commendations");
             Ok(hubs::guardian(&profile, &m).await)
         }
@@ -1508,10 +1558,10 @@ async fn d2_portal(webview: Webview, app: AppHandle, character: Option<String>) 
         async {
             progress(&app, "portal", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "portal", 0.1, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
             progress(&app, "portal", 0.2, "Reading the Portal from Bungie");
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,204").await?;
+            // The item list and the profile at the same time.
+            let (m, profile) = tokio::join!(manifest(&app), bungie::profile(a.membership_type, &a.membership_id, &a.access, "200,204"));
+            let (m, profile) = (m?, profile?);
             let latest = profile["characters"]["data"]
                 .as_object()
                 .and_then(|c| c.values().max_by_key(|v| v["dateLastPlayed"].as_str().unwrap_or("").to_string()))
@@ -1656,10 +1706,10 @@ async fn d2_planner(webview: Webview, app: AppHandle) -> Value {
         async {
             progress(&app, "planner", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "planner", 0.15, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
             progress(&app, "planner", 0.35, "Reading your characters' weeks from Bungie");
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,200,202").await?;
+            // The item list and the profile at the same time.
+            let (m, profile) = tokio::join!(manifest(&app), bungie::profile(a.membership_type, &a.membership_id, &a.access, "100,200,202"));
+            let (m, profile) = (m?, profile?);
             progress(&app, "planner", 0.7, "Reading the weekly milestones");
             Ok(bungie::planner(&profile, &m).await)
         }
@@ -1677,12 +1727,15 @@ async fn d2_vendors(webview: Webview, app: AppHandle, character: String) -> Valu
         async {
             progress(&app, "vendors", 0.05, "Checking your sign-in");
             let a = account(&app).await?;
-            progress(&app, "vendors", 0.15, "Reading Destiny's game data");
-            let m = manifest(&app).await?;
             progress(&app, "vendors", 0.3, "Reading the vendors from Bungie");
-            let vendors = bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access).await?;
-            // The character's progressions, for vendors whose rank lives on their faction (Xûr).
-            let profile = bungie::profile(a.membership_type, &a.membership_id, &a.access, "103,202").await.unwrap_or(Value::Null);
+            // All at once: the item list, the vendors, and the character's progressions (for vendors whose rank lives
+            // on their faction, Xûr) with the account's currencies.
+            let (m, vendors, profile) = tokio::join!(
+                manifest(&app),
+                bungie::character_vendors(a.membership_type, &a.membership_id, &character, &a.access),
+                bungie::profile(a.membership_type, &a.membership_id, &a.access, "103,202"),
+            );
+            let (m, vendors, profile) = (m?, vendors?, profile.unwrap_or(Value::Null));
             progress(&app, "vendors", 0.6, "Reading what they sell");
             Ok(bungie::vendor_screen(&vendors, &profile["characterProgressions"]["data"][character.as_str()]["progressions"], &profile["profileCurrencies"]["data"]["items"], &m).await)
         }
@@ -2183,10 +2236,11 @@ fn create_window(app: &AppHandle) -> tauri::Result<()> {
     if prefs(app).always_on_top {
         let _ = window.set_always_on_top(true);
     }
-    // Interface size, only when changed (zooming before the page is on screen can leave it blank).
-    let scale = prefs(app).ui_scale;
-    if scale != 100 {
-        let _ = shell.set_zoom(scale as f64 / 100.0);
+    // Interface size, only when not 100% (zooming before the page is on screen can leave it blank).
+    let zoom = ui_zoom(app);
+    APPLIED_ZOOM.store((zoom * 100.0).round() as u32, std::sync::atomic::Ordering::Relaxed);
+    if (zoom - 1.0).abs() > f64::EPSILON {
+        let _ = shell.set_zoom(zoom);
     }
     // The shell always fills the window. (Sized by hand: Tauri's automatic resizing keeps the
     // proportions of the first size, which can be wrong before the window is on screen.)
@@ -2197,6 +2251,10 @@ fn create_window(app: &AppHandle) -> tauri::Result<()> {
         WindowEvent::Resized(size) => {
             if let Some(shell) = app_handle.get_webview(SHELL) {
                 let _ = shell.set_size(*size);
+            }
+            // With Auto interface size, a bigger or smaller window re-zooms MIDA's own pages (in 5% steps).
+            if prefs(&app_handle).ui_scale_auto && size.width > 0 && size.height > 0 {
+                apply_ui_zoom(&app_handle);
             }
         }
         WindowEvent::CloseRequested { .. } => {
@@ -2283,6 +2341,15 @@ pub fn run() {
                 }
             });
 
+            // Signed in: start reading Destiny's item list now (from disk, or Bungie after a game update), so the first
+            // Destiny tab opened doesn't wait for it. A failure here is harmless; the tab tries again.
+            if hub(&handle).account.lock().unwrap().is_some() {
+                let app = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = manifest(&app).await;
+                });
+            }
+
             let app = handle.clone();
             tauri::async_runtime::spawn(async move {
                 loop {
@@ -2355,4 +2422,19 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("MIDA couldn't start");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::auto_zoom;
+
+    #[test]
+    fn auto_zoom_follows_the_window() {
+        assert_eq!(auto_zoom(2560.0, 1390.0), 1.0); // the owner's full 1440p window
+        assert_eq!(auto_zoom(1920.0, 1030.0), 0.75); // a full 1080p window
+        assert_eq!(auto_zoom(1536.0, 820.0), 0.75); // 1080p at 125% Windows scaling: never below 75%
+        assert_eq!(auto_zoom(3840.0, 2100.0), 1.25); // a 4K window at 100%: never above 125%
+        assert_eq!(auto_zoom(2200.0, 1300.0), 0.85);
+        assert_eq!(auto_zoom(0.0, 0.0), 1.0);
+    }
 }

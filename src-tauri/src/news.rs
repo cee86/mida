@@ -17,8 +17,12 @@ const COMMUNITY_FEED: &str = "https://rss.app/feeds/eWkksrBfp6ZwkMWp.xml";
 const COMMUNITY_NAME: &str = "D2 Community Hub";
 const BUNGIE_ROOT: &str = "https://www.bungie.net";
 
+/// One shared client (connections reused across the feeds and their pictures).
 fn client() -> reqwest::Client {
-    reqwest::Client::builder().timeout(Duration::from_secs(20)).user_agent("MIDA (Destiny 2 companion)").build().unwrap_or_default()
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT
+        .get_or_init(|| reqwest::Client::builder().timeout(Duration::from_secs(20)).user_agent("MIDA (Destiny 2 companion)").build().unwrap_or_default())
+        .clone()
 }
 
 // ---------- Text helpers ----------

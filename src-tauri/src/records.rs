@@ -202,12 +202,10 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
     let safe: String = version.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-').collect();
     let file = dir.join("manifest").join(format!("{safe}-records-1.json"));
     if !safe.is_empty() {
-        if let Ok(bytes) = std::fs::read(&file) {
-            if let Ok(r) = serde_json::from_slice::<Records>(&bytes) {
-                if r.version == version {
-                    return Ok(r);
-                }
-            }
+        let saved = file.clone();
+        let from_disk = tauri::async_runtime::spawn_blocking(move || std::fs::read(&saved).ok().and_then(|bytes| serde_json::from_slice::<Records>(&bytes).ok())).await.ok().flatten();
+        if let Some(r) = from_disk.filter(|r| r.version == version) {
+            return Ok(r);
         }
     }
     let info = bungie::get("/Destiny2/Manifest/", None).await?;
@@ -216,13 +214,30 @@ pub async fn load(dir: &Path, version: &str) -> Result<Records, String> {
     let (nodes_path, records_path, collectibles_path) = (path("DestinyPresentationNodeDefinition")?, path("DestinyRecordDefinition")?, path("DestinyCollectibleDefinition")?);
     let metrics_path = path("DestinyMetricDefinition").ok();
     bungie::report("manifest", 0.0, "Downloading triumphs and collections (first time after a game update)");
-    let raw_nodes: HashMap<u32, RawNode> = parse(&bungie::download(&nodes_path, 0.0, 0.2).await?, "presentation nodes")?;
-    let raw_records: HashMap<u32, RawRecord> = parse(&bungie::download(&records_path, 0.2, 0.75).await?, "triumphs")?;
-    let raw_collectibles: HashMap<u32, RawCollectible> = parse(&bungie::download(&collectibles_path, 0.75, 0.95).await?, "collections")?;
-    let raw_metrics: HashMap<u32, RawMetric> = match metrics_path {
-        Some(p) => parse(&bungie::download(&p, 0.95, 1.0).await?, "stat trackers").unwrap_or_default(),
-        None => HashMap::new(),
+    // All four files at once (progress follows the biggest, the triumphs), parsed off the async threads.
+    let metrics_download = async {
+        match &metrics_path {
+            Some(p) => bungie::download(p, None, 1e6).await.ok(),
+            None => None,
+        }
     };
+    let (nodes_bytes, records_bytes, collectibles_bytes, metrics_bytes) = tokio::join!(
+        bungie::download(&nodes_path, None, 10e6),
+        bungie::download(&records_path, Some((0.0, 0.95)), 30e6),
+        bungie::download(&collectibles_path, None, 8e6),
+        metrics_download,
+    );
+    let (nodes_bytes, records_bytes, collectibles_bytes) = (nodes_bytes?, records_bytes?, collectibles_bytes?);
+    bungie::report("manifest", 0.97, "Reading triumphs and collections");
+    let (raw_nodes, raw_records, raw_collectibles, raw_metrics) = tauri::async_runtime::spawn_blocking(move || -> Result<_, String> {
+        let raw_nodes: HashMap<u32, RawNode> = parse(&nodes_bytes, "presentation nodes")?;
+        let raw_records: HashMap<u32, RawRecord> = parse(&records_bytes, "triumphs")?;
+        let raw_collectibles: HashMap<u32, RawCollectible> = parse(&collectibles_bytes, "collections")?;
+        let raw_metrics: HashMap<u32, RawMetric> = metrics_bytes.and_then(|b| parse(&b, "stat trackers").ok()).unwrap_or_default();
+        Ok((raw_nodes, raw_records, raw_collectibles, raw_metrics))
+    })
+    .await
+    .map_err(|_| "Destiny's triumphs couldn't be read.".to_string())??;
 
     let nodes = raw_nodes
         .into_iter()

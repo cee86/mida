@@ -117,7 +117,8 @@ src-tauri/src/store.rs    settings.json in %APPDATA%\report.seals.mida, version 
                           currentProfile, sidebarExpanded, window, prefs }. Version 1 files (MIDA 0.1) become a
                           "My profile" Destiny 2 profile. Prefs (clean_prefs): theme dark|black|light, colorway preset or
                           custom (2-3 colours, accent, angle), showAddressBar, controlsCorner, controlsAutohide,
-                          reduceMotion system|on|off, uiScale 90-150, highContrast, siteZoom 50-150 (default 80).
+                          reduceMotion system|on|off, uiScale 90-150, uiScaleAuto (default on: `ui_zoom`/`auto_zoom` in lib.rs
+                          follow the window, 2560 × 1380 logical = 100%, 75-125% in 5% steps), highContrast, siteZoom 50-150 (default 80).
 src-tauri/tauri.conf.json Product, version (from package.json), CSP, NSIS installer (per-user, installs WebView2 if
                           missing), updater endpoint + public key. capabilities/shell.json: the shell and controls may
                           only listen to events; module pages get nothing.
@@ -737,6 +738,16 @@ contents (`data-fit`).
 
 ## 7. Known limitations and things to verify
 
+* **Auto interface size and speed (v0.9.14, 5 Oct 2026, owner):** a friend's smaller screen showed tabs too big and
+  slow loads. Auto interface size (default; existing installs switch to it too) scales MIDA's own pages with the
+  window, assuming the owner's 1440p screen is at Windows' 100% scaling (if it's 125%, their own view shrinks to ~80%:
+  pick 100% in Settings). Speed: one shared HTTP client (connections reused) with gzip (Bungie's replies several times
+  smaller; the item list is ~80 MB uncompressed), item-list and triumph files downloaded in parallel and parsed off the
+  async threads, the item list loaded at start-up when signed in, tabs fetch the item list / profile / vendors at the
+  same time (`tokio::join!`), `entities` keeps 16 requests going at once and loops warm their definitions in parallel
+  first, the in-memory definition cache is capped at 6,000 (disk copies stay), and images load lazily (`el()` in
+  shell.js). None of it could be timed against Bungie from the workspace (bungie.net is blocked there).
+
 * **Confirmed by the owner on their PC (v0.1.0, 30 Sep 2026):** "everything seems to be functioning", install size
   "extremely small", resource use very low. Not specifically reported on yet: Google sign-in (Google often blocks
   embedded browsers) and the in-app update itself (first real test: v0.1.0 -> v0.2.0).
@@ -795,6 +806,8 @@ contents (`data-fit`).
   / vault manager, Seasonal hub, Quests, RAD assistant for raids and dungeons, Featured/timers like seals.report's
   Featured); modules and tabs placeable side by side on a grid. Built so far (v0.3): side by side (two panes; Claude's
   call to start with two), the tabs with Featured and RAD working, sign-in tabs waiting.
+* v0.9.14 (6 Oct 2026, owner): Auto interface size (follows the window; default for everyone) and speed: shared
+  gzip HTTP client, parallel downloads and Bungie calls, item list loaded at start-up, capped memory cache, lazy images.
 * v0.9.13 (5 Oct 2026, owner): Bright Dust offers fix: v0.9.12 merged Tess's Silver sections (positions one off);
   now only Bright Dust-priced items are merged, the positions are matched with a shift, and her data check lists costs.
 * v0.9.12 (5 Oct 2026, owner): Tess's Bright Dust sections merged into one (home + her page); Inventory sorted by power

@@ -89,6 +89,7 @@ pub struct Prefs {
     pub controls_autohide: bool,
     pub reduce_motion: String,    // system | on | off
     pub ui_scale: u32,            // percent
+    pub ui_scale_auto: bool,      // interface size follows the window's size (default; ui_scale is used when off)
     pub high_contrast: bool,
     pub site_zoom: u32,           // percent
     pub foundry_mode: String,     // light | dark (the Foundry theme's own light/dark)
@@ -112,6 +113,7 @@ impl Default for Prefs {
             controls_autohide: false,
             reduce_motion: "system".into(),
             ui_scale: 100,
+            ui_scale_auto: true,
             high_contrast: false,
             site_zoom: 80,
             foundry_mode: "light".into(),
@@ -148,6 +150,7 @@ pub fn clean_prefs(p: Prefs) -> Prefs {
         controls_autohide: p.controls_autohide,
         reduce_motion: pick(p.reduce_motion, &["system", "on", "off"], d.reduce_motion),
         ui_scale: if UI_SCALES.contains(&p.ui_scale) { p.ui_scale } else { d.ui_scale },
+        ui_scale_auto: p.ui_scale_auto,
         high_contrast: p.high_contrast,
         site_zoom: if (50..=150).contains(&p.site_zoom) && p.site_zoom % 10 == 0 { p.site_zoom } else { d.site_zoom },
         foundry_mode: pick(p.foundry_mode, &["light", "dark"], d.foundry_mode),

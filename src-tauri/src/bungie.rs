@@ -43,8 +43,19 @@ const QUESTS_BUCKET: u32 = 1345459588;
 
 // ---------- Talking to Bungie ----------
 
+/// One client for every Bungie call, so connections (and their secure handshakes) are reused instead of opened anew
+/// for each request; replies come gzip-compressed.
 fn client() -> reqwest::Client {
-    reqwest::Client::builder().timeout(Duration::from_secs(30)).build().unwrap_or_default()
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .pool_idle_timeout(Duration::from_secs(90))
+                .build()
+                .unwrap_or_default()
+        })
+        .clone()
 }
 
 /// Bungie's envelope: ErrorCode 1 is success; anything else carries a message meant for people.
@@ -90,8 +101,9 @@ async fn post(path: &str, token: &str, body: Value) -> Result<Value, String> {
     unwrap(&res.bytes().await.map_err(|_| "Bungie's reply was cut off. Try again.".to_string())?)
 }
 
-/// Downloads one of Bungie's big definition files, reporting how far along it is between `from` and `to` (0 to 1).
-pub(crate) async fn download(path: &str, from: f64, to: f64) -> Result<Vec<u8>, String> {
+/// Downloads one of Bungie's big definition files, reporting how far along it is between `from` and `to` (0 to 1) when
+/// `progress` is set. Compressed replies carry no total size, so `expect` (roughly the file's size, in bytes) stands in.
+pub(crate) async fn download(path: &str, progress: Option<(f64, f64)>, expect: f64) -> Result<Vec<u8>, String> {
     let mut res = client()
         .get(format!("{ROOT}{path}"))
         .timeout(Duration::from_secs(180))
@@ -101,16 +113,19 @@ pub(crate) async fn download(path: &str, from: f64, to: f64) -> Result<Vec<u8>, 
     if !res.status().is_success() {
         return Err("Couldn't download Destiny's item list from Bungie.".into());
     }
-    let total = res.content_length().unwrap_or(0) as f64;
+    let known = res.content_length().unwrap_or(0) as f64;
+    let total = if known > 0.0 { known } else { expect };
     let mut bytes = Vec::with_capacity(total as usize);
     let mut last = 0.0;
     while let Some(chunk) = res.chunk().await.map_err(|_| "Destiny's item list download was cut off.".to_string())? {
         bytes.extend_from_slice(&chunk);
-        if total > 0.0 {
-            let done = bytes.len() as f64 / total;
+        if let (Some((from, to)), true) = (progress, total > 0.0) {
+            let done = (bytes.len() as f64 / total).min(0.99);
             if done - last > 0.02 {
                 last = done;
-                report("manifest", from + (to - from) * done, &format!("Downloading Destiny's game data ({:.0} of {:.0} MB)", bytes.len() as f64 / 1e6, total / 1e6));
+                let size = bytes.len() as f64 / 1e6;
+                let text = if known > 0.0 { format!("Downloading Destiny's game data ({size:.0} of {:.0} MB)", total / 1e6) } else { format!("Downloading Destiny's game data ({size:.0} MB)") };
+                report("manifest", from + (to - from) * done, &text);
             }
         }
     }
@@ -246,21 +261,25 @@ pub async fn load_manifest(dir: &Path) -> Result<Manifest, String> {
         *entity_dir().lock().unwrap() = Some(entities);
     }
     if !safe.is_empty() {
-        if let Ok(bytes) = std::fs::read(&file) {
-            if let Ok(m) = serde_json::from_slice::<Manifest>(&bytes) {
-                return Ok(m);
-            }
+        // Read and parsed off the async threads (tens of MB).
+        let saved = file.clone();
+        let from_disk = tauri::async_runtime::spawn_blocking(move || std::fs::read(&saved).ok().and_then(|bytes| serde_json::from_slice::<Manifest>(&bytes).ok())).await.ok().flatten();
+        if let Some(m) = from_disk {
+            return Ok(m);
         }
     }
     report("manifest", 0.0, "Downloading Destiny's game data (first time after a game update)");
     let paths = &info["jsonWorldComponentContentPaths"]["en"];
     let items_path = paths["DestinyInventoryItemLiteDefinition"].as_str().ok_or("Bungie didn't list the item definitions.")?;
     let objectives_path = paths["DestinyObjectiveDefinition"].as_str().ok_or("Bungie didn't list the objective definitions.")?;
-    let manifest = Manifest {
-        version,
-        items: slim_items(&download(items_path, 0.0, 0.85).await?)?,
-        objectives: slim_objectives(&download(objectives_path, 0.85, 1.0).await?)?,
-    };
+    // Both files at once; the big parse runs off the async threads so nothing else waits on it.
+    let (items, objectives) = tokio::join!(download(items_path, Some((0.0, 0.95)), 90e6), download(objectives_path, None, 4e6));
+    let (items, objectives) = (items?, objectives?);
+    report("manifest", 0.97, "Reading Destiny's game data");
+    let parsed = tauri::async_runtime::spawn_blocking(move || -> Result<(HashMap<u32, Item>, HashMap<u32, Objective>), String> { Ok((slim_items(&items)?, slim_objectives(&objectives)?)) })
+        .await
+        .map_err(|_| "Destiny's item list couldn't be read.".to_string())??;
+    let manifest = Manifest { version, items: parsed.0, objectives: parsed.1 };
     // Keep only this version's file and definitions folder.
     if let Ok(list) = std::fs::read_dir(&folder) {
         for entry in list.flatten() {
@@ -464,6 +483,16 @@ fn entity_cache() -> &'static std::sync::Mutex<HashMap<String, Value>> {
     CACHE.get_or_init(Default::default)
 }
 
+/// Keeps a definition in memory. The memory copy is capped (several thousand definitions can be a few hundred MB as
+/// parsed JSON); past the cap it starts over, and the copies on disk bring anything back quickly.
+fn remember_entity(key: String, v: &Value) {
+    let mut cache = entity_cache().lock().unwrap();
+    if cache.len() >= 6000 {
+        cache.clear();
+    }
+    cache.insert(key, v.clone());
+}
+
 /// One definition from Bungie's manifest (small tables aren't worth downloading whole).
 pub async fn entity(table: &str, hash: u64) -> Option<Value> {
     let key = format!("{table}/{hash}");
@@ -474,7 +503,7 @@ pub async fn entity(table: &str, hash: u64) -> Option<Value> {
     let file = entity_dir().lock().unwrap().as_ref().map(|d| d.join(format!("{table}-{hash}.json")));
     if let Some(Ok(bytes)) = file.as_ref().map(std::fs::read) {
         if let Ok(v) = serde_json::from_slice::<Value>(&bytes) {
-            entity_cache().lock().unwrap().insert(key, v.clone());
+            remember_entity(key, &v);
             return Some(v);
         }
     }
@@ -482,7 +511,7 @@ pub async fn entity(table: &str, hash: u64) -> Option<Value> {
     if let (Some(file), Ok(bytes)) = (file, serde_json::to_vec(&v)) {
         let _ = std::fs::write(file, bytes);
     }
-    entity_cache().lock().unwrap().insert(key, v.clone());
+    remember_entity(key, &v);
     Some(v)
 }
 
@@ -561,6 +590,9 @@ pub async fn character_details(profile: &Value, character: &str) -> Value {
     }
     stats.sort_by_key(|s| s["order"].as_i64().unwrap_or(0));
     // Armor sets: count the equipped pieces of each set, then list its bonuses.
+    // Definitions fetched together first (the loop below then reads them from memory).
+    let worn: Vec<u64> = items_of(&profile["characterEquipment"]["data"][character]).filter_map(|i| i["itemHash"].as_u64()).collect();
+    entities("DestinyInventoryItemDefinition", &worn).await;
     let mut sets: Vec<(u64, i64)> = Vec::new();
     for item in items_of(&profile["characterEquipment"]["data"][character]) {
         let bucket = item["bucketHash"].as_u64().unwrap_or(0) as u32;
@@ -698,6 +730,8 @@ pub fn shape_activity(profile: &Value, m: &Manifest) -> Value {
 /// step it's on out of how many, and its rewards. Same quest on several characters: read once.
 pub async fn enrich_quests(data: &mut Value, m: &Manifest) {
     let Some(map) = data["quests"].as_object_mut() else { return };
+    let wanted: Vec<u64> = map.values().flat_map(|l| l.as_array().into_iter().flatten().take(80).filter_map(|q| q["hash"].as_u64())).collect();
+    entities("DestinyInventoryItemDefinition", &wanted).await;
     for list in map.values_mut() {
         for q in list.as_array_mut().into_iter().flatten().take(80) {
             let Some(hash) = q["hash"].as_u64() else { continue };
@@ -1029,6 +1063,8 @@ async fn hub_vendors(vendors: &Value, m: &Manifest) -> Vec<Value> {
         .filter(|(score, _, _)| *score > 0)
         .collect();
     ranked.sort_by(|a, b| b.0.cmp(&a.0));
+    let wanted: Vec<u64> = ranked.iter().take(30).filter_map(|(_, k, _)| k.parse().ok()).collect();
+    entities("DestinyVendorDefinition", &wanted).await;
     for (_, vkey, sale) in ranked.into_iter().take(30) {
         let Ok(vhash) = vkey.parse::<u64>() else { continue };
         let item_objectives = &vendors["itemComponents"][vkey]["objectives"]["data"];
@@ -1075,15 +1111,27 @@ async fn hub_vendors(vendors: &Value, m: &Manifest) -> Vec<Value> {
     out
 }
 
-/// Bungie definitions for many hashes at once, a few requests at a time (each is memory-cached by `entity`).
+/// Bungie definitions for many hashes at once (each is memory- and disk-cached by `entity`). Up to 16 requests run at
+/// a time and a new one starts as soon as any finishes, instead of waiting for a whole batch's slowest reply.
 pub(crate) async fn entities(table: &'static str, hashes: &[u64]) -> HashMap<u64, Value> {
+    let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(16));
+    let mut seen = std::collections::HashSet::new();
+    let tasks: Vec<_> = hashes
+        .iter()
+        .copied()
+        .filter(|h| seen.insert(*h))
+        .map(|h| {
+            let gate = gate.clone();
+            tauri::async_runtime::spawn(async move {
+                let _turn = gate.acquire_owned().await.ok();
+                (h, entity(table, h).await)
+            })
+        })
+        .collect();
     let mut out = HashMap::new();
-    for chunk in hashes.chunks(10) {
-        let tasks: Vec<_> = chunk.iter().map(|&h| tauri::async_runtime::spawn(async move { (h, entity(table, h).await) })).collect();
-        for task in tasks {
-            if let Ok((h, Some(v))) = task.await {
-                out.insert(h, v);
-            }
+    for task in tasks {
+        if let Ok((h, Some(v))) = task.await {
+            out.insert(h, v);
         }
     }
     out
@@ -1368,6 +1416,8 @@ pub async fn weekly_checklist(profile: &Value, character: &str, m: &Manifest) ->
     let mut checklist: Vec<Value> = Vec::new();
     let mut clan_engrams: Vec<Value> = Vec::new();
     if let Some(map) = profile["characterProgressions"]["data"][character]["milestones"].as_object() {
+        let wanted: Vec<u64> = map.keys().take(40).filter_map(|k| k.parse().ok()).collect();
+        entities("DestinyMilestoneDefinition", &wanted).await;
         for (key, ms) in map.iter().take(40) {
             let Ok(h) = key.parse::<u64>() else { continue };
             let Some(def) = entity("DestinyMilestoneDefinition", h).await else { continue };
@@ -1469,6 +1519,8 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     if !seasons.contains(&season_hash) && season_hash != 0 {
         seasons.push(season_hash);
     }
+    let wanted: Vec<u64> = seasons.iter().rev().take(12).copied().collect();
+    entities("DestinySeasonDefinition", &wanted).await;
     for h in seasons.iter().rev().take(12) {
         let Some(def) = entity("DestinySeasonDefinition", *h).await else { continue };
         let season_name = def["displayProperties"]["name"].as_str().unwrap_or("").to_string();
@@ -1607,6 +1659,8 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
     };
     let (mut daily, mut weekly) = (Vec::new(), Vec::new());
     let mut groups: Vec<Value> = Vec::new();
+    let wanted: Vec<u64> = found.iter().take(120).map(|(_, h)| *h).collect();
+    entities("DestinyRecordDefinition", &wanted).await;
     for (path, h) in found.iter().take(120) {
         let lower = path.to_lowercase();
         let group = if lower.contains("daily") { "daily" } else if lower.contains("week") { "weekly" } else { "other" };
@@ -1773,6 +1827,10 @@ pub async fn seasonal(profile: &Value, vendors: &Value, character: &str, m: &Man
 
     // Reward tracks other than the pass (the weekly rewards might be one): progressions that
     // carry reward states, with their definitions.
+    if let Some(map) = progressions.as_object() {
+        let wanted: Vec<u64> = map.iter().filter(|(_, p)| (3..=24).contains(&p["rewardItemStates"].as_array().map(|a| a.len()).unwrap_or(0))).filter_map(|(k, _)| k.parse().ok()).collect();
+        entities("DestinyProgressionDefinition", &wanted).await;
+    }
     let mut tracks = Vec::new();
     if let Some(map) = progressions.as_object() {
         for (key, p) in map {

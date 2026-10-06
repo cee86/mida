@@ -13,6 +13,12 @@ const HOME = "home";
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
+  // Pictures load when they come near the screen (not for hidden tabs or long lists' far ends) and decode off the
+  // main thread; a call can still pass its own `loading`.
+  if (tag === "img") {
+    node.loading = "lazy";
+    node.decoding = "async";
+  }
   for (const [key, value] of Object.entries(attrs)) {
     if (value === null || value === undefined || value === false) continue;
     if (key === "class") node.className = value;
@@ -1853,7 +1859,11 @@ function accessibilityPanel() {
     el("h2", { text: "Accessibility" }),
     el("p", { text: "Make MIDA easier to see and use." }),
     setting("Reduce motion", "Turns off animations such as the loading sweep and pop-up slides.", segmented("motion", [["system", "Follow Windows"], ["on", "On"], ["off", "Off"]], p.reduceMotion, (v) => updatePrefs({ reduceMotion: v }), "Reduce motion")),
-    setting("Interface size", "Makes MIDA's own sidebar, bars and pop-ups bigger or smaller (not the sites).", segmented("scale", [[90, "90%"], [100, "100%"], [110, "110%"], [125, "125%"], [150, "150%"]], p.uiScale, (v) => updatePrefs({ uiScale: v }), "Interface size")),
+    setting(
+      "Interface size",
+      "Makes MIDA's own sidebar, bars, tabs and pop-ups bigger or smaller (not the sites). Auto follows the window: smaller on smaller screens, so tabs don't get crowded.",
+      segmented("scale", [["auto", "Auto"], [90, "90%"], [100, "100%"], [110, "110%"], [125, "125%"], [150, "150%"]], p.uiScaleAuto !== false ? "auto" : p.uiScale, (v) => updatePrefs(v === "auto" ? { uiScaleAuto: true } : { uiScaleAuto: false, uiScale: v }), "Interface size"),
+    ),
     setting("High contrast", "Stronger borders and text, and solid panels instead of see-through ones.", toggle("contrast", p.highContrast, (v) => updatePrefs({ highContrast: v }), "High contrast"), { row: true }),
     setting("Site zoom", `How big sites start. ${modKey()} + and ${modKey()} − still zoom one site on its own.`, zoom, { row: true }),
   ];
